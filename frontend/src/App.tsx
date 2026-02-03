@@ -1,315 +1,205 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Shell } from "./components/Shell";
+import { HomePage } from "./components/HomePage";
+import { EditorPage } from "./components/EditorPage";
+import { PlaceholderPage } from "./components/PlaceholderPage";
 
-type UploadState = "idle" | "uploading";
-
-type Option = {
-    text: string;
-    isCorrect: boolean;
+// Quiz object type
+type Quiz = {
+    id: string;
+    title: string;
+    subject: string;
+    lastPlayed: string;
+    questions: number;
+    folderId?: string;
+    progress: number; // 0-100 %
 };
 
-type Question = {
-    text: string;
-    options: Option[];
+// Folder object type
+type Folder = {
+    id: string;
+    name: string;
+    color: string;
+    quizCount: number;
+    updatedAt: string;
 };
 
-type ParsedQuiz = {
-    title?: string;
-    questions: Question[];
-    warnings?: string[];
-};
+// Hardcoded folder data
+const foldersSeed: Folder[] = [
+    {
+        id: "f1",
+        name: "Biology",
+        color: "#22c55e",
+        quizCount: 4,
+        updatedAt: "Jan 25",
+    },
+    {
+        id: "f2",
+        name: "Physics",
+        color: "#f97316",
+        quizCount: 3,
+        updatedAt: "Jan 28",
+    },
+    {
+        id: "f3",
+        name: "History",
+        color: "#06b6d4",
+        quizCount: 2,
+        updatedAt: "Jan 20",
+    },
+    {
+        id: "f4",
+        name: "Exam Prep",
+        color: "#a855f7",
+        quizCount: 6,
+        updatedAt: "Feb 02",
+    },
+];
 
-function App() {
-    const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+// Hardcoded quiz data
+const quizzesSeed: Quiz[] = [
+    {
+        id: "q1",
+        title: "Cell Structure & Function",
+        subject: "Biology",
+        lastPlayed: "2d ago",
+        questions: 15,
+        folderId: "f1",
+        progress: 72,
+    },
+    {
+        id: "q2",
+        title: "Newton’s Laws Drills",
+        subject: "Physics",
+        lastPlayed: "5d ago",
+        questions: 12,
+        folderId: "f2",
+        progress: 38,
+    },
+    {
+        id: "q3",
+        title: "Renaissance Snapshot",
+        subject: "History",
+        lastPlayed: "1d ago",
+        questions: 10,
+        folderId: "f3",
+        progress: 90,
+    },
+    {
+        id: "q4",
+        title: "Mock Exam #1",
+        subject: "Exam Prep",
+        lastPlayed: "3h ago",
+        questions: 25,
+        folderId: "f4",
+        progress: 15,
+    },
+    {
+        id: "q5",
+        title: "Ecology Basics",
+        subject: "Biology",
+        lastPlayed: "6h ago",
+        questions: 14,
+        folderId: "f1",
+        progress: 55,
+    },
+    {
+        id: "q6",
+        title: "Optics Quickfire",
+        subject: "Physics",
+        lastPlayed: "8h ago",
+        questions: 9,
+        folderId: "f2",
+        progress: 0,
+    },
+];
 
-    const [backendStatus, setBackendStatus] = useState("Checking backend...");
-    const [file, setFile] = useState<File | null>(null);
-    const [parsed, setParsed] = useState<ParsedQuiz | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [uploadState, setUploadState] = useState<UploadState>("idle");
+// list of endpoint routes
+type Route = "/" | "/editor" | "/settings" | "/import";
+
+function useRoute(): Route {
+    const getRoute = () => {
+        const hash = window.location.hash.replace("#", "") || "/";
+        if (hash === "/editor" || hash === "/settings" || hash === "/import") {
+            return hash as Route;
+        }
+        return "/";
+    };
+    const [route, setRoute] = useState<Route>(getRoute());
 
     useEffect(() => {
-        fetch(`${apiBase}/`)
-            .then((response) => response.json())
-            .then((data) => setBackendStatus(data.message ?? "Backend ready"))
-            .catch(() => setBackendStatus("Failed to reach FastAPI"));
-    }, [apiBase]);
+        const onHash = () => setRoute(getRoute());
+        window.addEventListener("hashchange", onHash);
+        return () => window.removeEventListener("hashchange", onHash);
+    }, []);
 
-    const handleFileChange = (evt: React.ChangeEvent<HTMLInputElement>) => {
-        const picked = evt.target.files?.[0] ?? null;
-        setFile(picked);
-        setParsed(null);
-        setError(null);
-    };
-
-    const handleUpload = async () => {
-        if (!file) {
-            setError("Please choose a .docx file first.");
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append("file", file);
-
-        setUploadState("uploading");
-        setError(null);
-        setParsed(null);
-
-        try {
-            const resp = await fetch(`${apiBase}/upload`, {
-                method: "POST",
-                body: formData,
-            });
-
-            if (!resp.ok) {
-                const detail = await resp.json().catch(() => ({}));
-                throw new Error(detail.detail ?? "Upload failed");
-            }
-
-            const data = (await resp.json()) as ParsedQuiz;
-            setParsed(data);
-        } catch (err) {
-            const message =
-                err instanceof Error ? err.message : "Unexpected error";
-            setError(message);
-        } finally {
-            setUploadState("idle");
-        }
-    };
-
-    return (
-        <main
-            style={{
-                minHeight: "100vh",
-                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                display: "flex",
-                flexDirection: "column",
-                padding: "2rem",
-            }}
-        >
-            {/* Header */}
-            <header style={{ textAlign: "center", marginBottom: "3rem" }}>
-                <h1
-                    style={{
-                        color: "white",
-                        fontSize: "4rem",
-                        fontWeight: 800,
-                        letterSpacing: "0.1em",
-                        margin: 0,
-                        textShadow: "0 4px 12px rgba(0,0,0,0.2)",
-                    }}
-                >
-                    QUIZZZ
-                </h1>
-                <p
-                    style={{
-                        color: "rgba(255,255,255,0.9)",
-                        fontSize: "1.2rem",
-                        marginTop: "1rem",
-                        fontWeight: 300,
-                    }}
-                >
-                    Upload a DOCX file to begin
-                </p>
-            </header>
-
-            {/* Upload Section */}
-            <div
-                style={{
-                    flex: 1,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "2rem",
-                }}
-            >
-                <div
-                    style={{
-                        display: "flex",
-                        gap: "1.5rem",
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                        justifyContent: "center",
-                    }}
-                >
-                    <label
-                        style={{
-                            padding: "1.25rem 2.5rem",
-                            background: "rgba(255,255,255,0.95)",
-                            color: "#333",
-                            borderRadius: 50,
-                            cursor: "pointer",
-                            fontSize: "1.1rem",
-                            fontWeight: 600,
-                            transition: "all 0.3s",
-                            boxShadow: "0 8px 20px rgba(0,0,0,0.15)",
-                            border: "3px solid white",
-                            minWidth: "200px",
-                            textAlign: "center",
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.transform =
-                                "translateY(-2px)";
-                            e.currentTarget.style.boxShadow =
-                                "0 12px 28px rgba(0,0,0,0.25)";
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = "translateY(0)";
-                            e.currentTarget.style.boxShadow =
-                                "0 8px 20px rgba(0,0,0,0.15)";
-                        }}
-                    >
-                        {file ? `📄 ${file.name}` : "📁 Choose File"}
-                        <input
-                            type="file"
-                            accept=".docx"
-                            onChange={handleFileChange}
-                            disabled={uploadState === "uploading"}
-                            style={{ display: "none" }}
-                        />
-                    </label>
-                    <button
-                        onClick={handleUpload}
-                        disabled={!file || uploadState === "uploading"}
-                        style={{
-                            padding: "1.25rem 3rem",
-                            background:
-                                !file || uploadState === "uploading"
-                                    ? "rgba(255,255,255,0.3)"
-                                    : "rgba(255,255,255,1)",
-                            color:
-                                !file || uploadState === "uploading"
-                                    ? "rgba(255,255,255,0.6)"
-                                    : "#764ba2",
-                            border: "3px solid white",
-                            borderRadius: 50,
-                            cursor:
-                                !file || uploadState === "uploading"
-                                    ? "not-allowed"
-                                    : "pointer",
-                            fontSize: "1.2rem",
-                            fontWeight: 700,
-                            boxShadow:
-                                !file || uploadState === "uploading"
-                                    ? "none"
-                                    : "0 8px 20px rgba(0,0,0,0.2)",
-                            transition: "all 0.3s ease",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                        }}
-                        onMouseEnter={(e) => {
-                            if (file && uploadState !== "uploading") {
-                                e.currentTarget.style.transform = "scale(1.05)";
-                                e.currentTarget.style.boxShadow =
-                                    "0 12px 28px rgba(0,0,0,0.3)";
-                            }
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = "scale(1)";
-                            e.currentTarget.style.boxShadow =
-                                "0 8px 20px rgba(0,0,0,0.2)";
-                        }}
-                    >
-                        {uploadState === "uploading"
-                            ? "⏳ Uploading..."
-                            : "🚀 Upload"}
-                    </button>
-                </div>
-
-                {error && (
-                    <div
-                        style={{
-                            padding: "1rem 2rem",
-                            background: "rgba(220, 38, 38, 0.95)",
-                            color: "white",
-                            borderRadius: 12,
-                            fontSize: "1rem",
-                            fontWeight: 500,
-                            boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-                        }}
-                    >
-                        ⚠️ {error}
-                    </div>
-                )}
-            </div>
-
-            {/* Results Section */}
-            {parsed && (
-                <div
-                    style={{
-                        marginTop: "3rem",
-                        padding: "2rem",
-                        background: "rgba(255,255,255,0.95)",
-                        borderRadius: 16,
-                        boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
-                        maxWidth: "1200px",
-                        width: "100%",
-                        margin: "3rem auto 0",
-                        overflowX: "auto",
-                    }}
-                >
-                    <h2
-                        style={{
-                            color: "#764ba2",
-                            fontSize: "1.8rem",
-                            marginBottom: "1.5rem",
-                            fontWeight: 700,
-                        }}
-                    >
-                        📊 Parsed Questions
-                    </h2>
-                    {parsed.warnings?.length ? (
-                        <div
-                            style={{
-                                background: "#fff8e1",
-                                color: "#a86b00",
-                                border: "1px solid #ffe0a3",
-                                padding: "0.75rem 1rem",
-                                borderRadius: 8,
-                                marginBottom: "1rem",
-                            }}
-                        >
-                            <strong>Warnings:</strong>
-                            <ul style={{ margin: "0.5rem 0 0 1.25rem" }}>
-                                {parsed.warnings.map((w, i) => (
-                                    <li key={i}>{w}</li>
-                                ))}
-                            </ul>
-                        </div>
-                    ) : null}
-
-                    <ol style={{ paddingLeft: "1.25rem", margin: 0 }}>
-                        {parsed.questions.map((q, qi) => (
-                            <li key={qi} style={{ marginBottom: "1.25rem" }}>
-                                <div
-                                    style={{
-                                        fontWeight: 700,
-                                        fontSize: "1.1rem",
-                                        marginBottom: "0.4rem",
-                                    }}
-                                >
-                                    Question {qi + 1}: {q.text}
-                                </div>
-                                <div style={{ fontWeight: 600 }}>Options:</div>
-                                <ul style={{ margin: "0.35rem 0 0 1.1rem" }}>
-                                    {q.options.map((opt, oi) => (
-                                        <li key={oi} style={{ margin: "0.2rem 0" }}>
-                                            {opt.text}{" "}
-                                            {opt.isCorrect ? (
-                                                <strong style={{ color: "#0f9153" }}>
-                                                    True
-                                                </strong>
-                                            ) : null}
-                                        </li>
-                                    ))}
-                                </ul>
-                            </li>
-                        ))}
-                    </ol>
-                </div>
-            )}
-        </main>
-    );
+    return route;
 }
 
-export default App;
+export default function App() {
+    const route = useRoute();
+    const [search, setSearch] = useState("");
+
+    const filteredQuizzes = useMemo(() => {
+        if (!search.trim()) return quizzesSeed;
+        const term = search.toLowerCase();
+        return quizzesSeed.filter(
+            (q) =>
+                q.title.toLowerCase().includes(term) ||
+                q.subject.toLowerCase().includes(term),
+        );
+    }, [search]);
+
+    const recent = quizzesSeed.slice(0, 5);
+
+    const handleQuizClick = (quiz: Quiz) => {
+        // Placeholder navigation—will wire to play endpoint later.
+        alert(`Open quiz: ${quiz.title}`);
+    };
+
+    if (route === "/editor") {
+        // in editor mode, change to import button
+        return (
+            <Shell primaryLabel="Import" primaryHref="#/import">
+                <EditorPage />
+            </Shell>
+        );
+    }
+
+    if (route === "/settings") {
+        return (
+            <Shell>
+                <PlaceholderPage
+                    eyebrow="Settings"
+                    heading="Coming soon"
+                    body="User profile, notification preferences, and study streaks will live here."
+                />
+            </Shell>
+        );
+    }
+
+    if (route === "/import") {
+        return (
+            <Shell>
+                <PlaceholderPage
+                    eyebrow="Import"
+                    heading="Upload workflows land here next"
+                    body="We’ll connect this to DOCX/PDF/CSV import flows. For now, head back home to explore quizzes."
+                />
+            </Shell>
+        );
+    }
+
+    return (
+        <Shell>
+            <HomePage
+                recent={recent}
+                quizzes={filteredQuizzes}
+                folders={foldersSeed}
+                search={search}
+                setSearch={setSearch}
+                onQuizClick={handleQuizClick}
+            />
+        </Shell>
+    );
+}

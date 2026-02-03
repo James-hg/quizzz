@@ -1,5 +1,4 @@
-import os
-import tempfile
+import io
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,20 +34,9 @@ async def upload_docx(file: UploadFile = File(...)):
     if not content:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-    # python-docx expects a filesystem path, so persist to a temp file
-    tmp_path = None
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
-            tmp.write(content)
-            tmp_path = tmp.name
-
-        return docx_extract(tmp_path)
+        # Use in-memory bytes; python-docx accepts file-like objects.
+        return docx_extract(io.BytesIO(content))
     except Exception as exc:  # broad: parsing can fail for malformed docs
         raise HTTPException(
             status_code=400, detail=f"Failed to parse DOCX: {exc}") from exc
-    finally:
-        if tmp_path:
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass

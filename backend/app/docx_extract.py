@@ -1,4 +1,6 @@
 import re
+from typing import IO, Union
+
 from docx import Document
 
 
@@ -68,8 +70,11 @@ def is_correct_option(paragraph):
     return False
 
 
-def parse_docx_mcq(path):
-    doc = Document(path)
+def parse_docx_mcq(source: Union[str, IO[bytes]]):
+    """
+    Accepts a filesystem path or a binary file-like object.
+    """
+    doc = Document(source)
     draft = {"title": "Imported Quiz", "questions": [], "warnings": []}
 
     current_q = None
@@ -139,11 +144,9 @@ def display_questions(doc):
 
 # display_questions(doc)
 
-def docx_extract(path):
+def docx_extract(source: IO[bytes]):
     """
-    Takes in path to docx
-    Returns a dict of questions
+    Takes in a file-like object for a docx.
+    Returns a dict of questions.
     """
-    return parse_docx_mcq(path)
-
-    # path = "/Users/jameshoang/Desktop/cmpt/quizzz/docs/samples/sample_quiz_2.docx"
+    return parse_docx_mcq(source)
