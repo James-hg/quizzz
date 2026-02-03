@@ -144,6 +144,6 @@ def docx_extract(path):
     Takes in path to docx
     Returns a dict of questions
     """
-    parse_docx_mcq(path)
+    return parse_docx_mcq(path)
 
     # path = "/Users/jameshoang/Desktop/cmpt/quizzz/docs/samples/sample_quiz_2.docx"
