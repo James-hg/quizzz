@@ -162,7 +162,7 @@ export function HomePage({
                 <p className="muted">
                     Chat with an AI assistant to review tricky questions,
                     request targeted drills, or generate fresh quizzes on the
-                    fly. This placeholder will house the chatbot panel once it’s
+                    fly. This placeholder will house the chatbot panel once it's
                     built.
                 </p>
                 <div className="placeholder-card">

@@ -1,7 +1,12 @@
 @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap");
 
 :root {
-    font-family: "Space Grotesk", "Inter", system-ui, -apple-system, sans-serif;
+    font-family:
+        "Space Grotesk",
+        "Inter",
+        system-ui,
+        -apple-system,
+        sans-serif;
     background: linear-gradient(145deg, #0f172a 0%, #0b1220 100%);
     color: #e2e8f0;
     min-height: 100vh;
@@ -23,7 +28,7 @@ button {
     font-family: inherit;
 }
 
-.shell {
+.NavBar {
     display: flex;
     flex-direction: column;
     gap: 18px;
@@ -83,7 +88,9 @@ button {
     text-decoration: none;
     font-weight: 700;
     box-shadow: 0 10px 24px rgba(14, 165, 233, 0.35);
-    transition: transform 0.15s ease, filter 0.2s ease;
+    transition:
+        transform 0.15s ease,
+        filter 0.2s ease;
 }
 
 .user-btn:hover {
@@ -178,10 +185,17 @@ button {
     padding: 12px 12px 10px;
     border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.05);
-    background: linear-gradient(135deg, rgba(56, 189, 248, 0.08), rgba(255, 255, 255, 0.02));
+    background: linear-gradient(
+        135deg,
+        rgba(56, 189, 248, 0.08),
+        rgba(255, 255, 255, 0.02)
+    );
     color: #e2e8f0;
     cursor: pointer;
-    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.2s ease;
+    transition:
+        transform 0.15s ease,
+        border-color 0.15s ease,
+        box-shadow 0.2s ease;
 }
 
 .recent-card:hover {
@@ -242,6 +256,12 @@ button {
     gap: 10px;
 }
 
+.editor-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
 .btn {
     border: none;
     border-radius: 12px;
@@ -249,7 +269,10 @@ button {
     font-weight: 700;
     font-size: 0.95rem;
     cursor: pointer;
-    transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
+    transition:
+        transform 0.15s ease,
+        box-shadow 0.2s ease,
+        filter 0.2s ease;
 }
 
 .btn.primary {
@@ -389,10 +412,17 @@ button {
     padding: 14px;
     border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.06);
-    background: linear-gradient(140deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+    background: linear-gradient(
+        140deg,
+        rgba(255, 255, 255, 0.03),
+        rgba(255, 255, 255, 0.01)
+    );
     color: #e2e8f0;
     cursor: pointer;
-    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.2s ease;
+    transition:
+        transform 0.15s ease,
+        border-color 0.15s ease,
+        box-shadow 0.2s ease;
 }
 
 .quiz-card:hover {
@@ -481,6 +511,39 @@ button {
     background: rgba(255, 255, 255, 0.08);
 }
 
+.import-page {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 48px;
+}
+
+.modal {
+    width: min(720px, 100%);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 20px 18px 18px;
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.25);
+}
+
+.modal-header h2 {
+    margin: 4px 0 8px;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.file-note {
+    margin-top: 10px;
+    color: #cbd5e1;
+    font-size: 0.95rem;
+}
+
 .placeholder-panel.full {
     width: 100%;
     border: 1px dashed rgba(255, 255, 255, 0.2);
@@ -563,6 +626,193 @@ button {
     background: rgba(14, 165, 233, 0.08);
     font-weight: 700;
     cursor: pointer;
+}
+
+.play-shell {
+    min-height: 100vh;
+    background: linear-gradient(145deg, #0f172a 0%, #0b1220 100%);
+    color: #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 32px 48px;
+}
+
+.play-page {
+    width: min(90%, 100%);
+    /* min-height: calc(100vh - 96px); */
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+}
+
+.play-question-box {
+    position: relative;
+    border-radius: 16px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 22px 24px 24px;
+    text-align: center;
+    box-shadow: 0 24px 50px rgba(0, 0, 0, 0.35);
+}
+
+.count-pill {
+    position: absolute;
+    top: -14px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #111827;
+    color: #fbbf24;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+.play-question-box h2 {
+    margin: 0;
+    font-size: clamp(1.6rem, 2.6vw, 2rem);
+    letter-spacing: -0.01em;
+    color: #f8fafc;
+}
+
+.choice-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 18px;
+}
+
+.choice-card {
+    position: relative;
+    text-align: center;
+    padding: 28px 18px 32px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    color: #f8fafc;
+    cursor: pointer;
+    transition:
+        transform 0.12s ease,
+        border-color 0.15s ease,
+        box-shadow 0.2s ease,
+        filter 0.2s ease,
+        background 0.2s ease;
+    min-height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.choice-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 18px 32px rgba(0, 0, 0, 0.3);
+}
+
+.choice-text {
+    font-weight: 700;
+    font-size: 1.05rem;
+    line-height: 1.4;
+}
+
+.choice-index {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.35);
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.choice-card.choice-selected {
+    background: linear-gradient(135deg, #22d3ee, #0ea5e9);
+    border-color: rgba(255, 255, 255, 0.35);
+    color: #0b1220;
+    box-shadow: 0 14px 28px rgba(14, 165, 233, 0.35);
+}
+
+.choice-card.choice-correct {
+    background: rgba(34, 197, 94, 0.16);
+    border-color: rgba(34, 197, 94, 0.8);
+    box-shadow: 0 18px 36px rgba(34, 197, 94, 0.35);
+}
+
+.choice-card.choice-wrong {
+    background: rgba(239, 68, 68, 0.18);
+    border-color: rgba(239, 68, 68, 0.8);
+    box-shadow: 0 18px 36px rgba(239, 68, 68, 0.35);
+}
+
+.play-submit-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 14px;
+}
+
+.btn.wide.align-right {
+    justify-self: end;
+    min-width: 180px;
+}
+
+.play-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.progress.slim {
+    height: 10px;
+    box-shadow: none;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.play-menu {
+    position: relative;
+    align-self: flex-end;
+}
+
+.kebab {
+    background: rgba(255, 255, 255, 0.08);
+    color: #e2e8f0;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 10px 12px;
+    cursor: pointer;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+}
+
+.dropdown {
+    position: absolute;
+    right: 0;
+    top: 110%;
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 8px;
+    min-width: 160px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+    z-index: 20;
+}
+
+.dropdown-item {
+    background: transparent;
+    color: #e2e8f0;
+    border: 0;
+    text-align: left;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.06);
 }
 
 @media (max-width: 1180px) {

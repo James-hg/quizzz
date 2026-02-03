@@ -37,7 +37,7 @@ export function EditorPage() {
 
     const updateQuestionText = (id: string, text: string) => {
         setQuestions((prev) =>
-            prev.map((q) => (q.id === id ? { ...q, text } : q))
+            prev.map((q) => (q.id === id ? { ...q, text } : q)),
         );
     };
 
@@ -49,10 +49,10 @@ export function EditorPage() {
                     : {
                           ...q,
                           options: q.options.map((o) =>
-                              o.id === optId ? { ...o, text } : o
+                              o.id === optId ? { ...o, text } : o,
                           ),
-                      }
-            )
+                      },
+            ),
         );
     };
 
@@ -67,8 +67,8 @@ export function EditorPage() {
                               ...o,
                               correct: o.id === optId,
                           })),
-                      }
-            )
+                      },
+            ),
         );
     };
 
@@ -80,8 +80,15 @@ export function EditorPage() {
                         <div className="eyebrow">Quiz editor</div>
                         <h1>Create & edit quiz</h1>
                         <p className="lede">
-                            Build questions, set correct answers, and keep everything tidy before you publish.
+                            Build questions, set correct answers, and keep
+                            everything tidy before you publish.
                         </p>
+                    </div>
+                    <div className="editor-actions">
+                        <a className="btn secondary" href="#/import">
+                            Import
+                        </a>
+                        <button className="btn primary">Save</button>
                     </div>
                 </header>
 
@@ -89,10 +96,14 @@ export function EditorPage() {
                     {questions.map((q, idx) => (
                         <div key={q.id} className="question-card">
                             <div className="question-row">
-                                <div className="question-label">Question {idx + 1}</div>
+                                <div className="question-label">
+                                    Question {idx + 1}
+                                </div>
                                 <textarea
                                     value={q.text}
-                                    onChange={(e) => updateQuestionText(q.id, e.target.value)}
+                                    onChange={(e) =>
+                                        updateQuestionText(q.id, e.target.value)
+                                    }
                                     placeholder="Enter your question..."
                                 />
                             </div>
@@ -103,13 +114,19 @@ export function EditorPage() {
                                             type="radio"
                                             name={`correct-${q.id}`}
                                             checked={opt.correct}
-                                            onChange={() => markCorrect(q.id, opt.id)}
+                                            onChange={() =>
+                                                markCorrect(q.id, opt.id)
+                                            }
                                         />
                                         <input
                                             className="option-input"
                                             value={opt.text}
                                             onChange={(e) =>
-                                                updateOption(q.id, opt.id, e.target.value)
+                                                updateOption(
+                                                    q.id,
+                                                    opt.id,
+                                                    e.target.value,
+                                                )
                                             }
                                             placeholder={`Choice ${oi + 1}`}
                                         />
@@ -129,8 +146,9 @@ export function EditorPage() {
                 <div className="eyebrow">AI Chatbot</div>
                 <h3>Placeholder</h3>
                 <p className="muted">
-                    This panel will host the quiz-editing assistant. As you add questions and options, the chatbot
-                    will stay in view to suggest fixes or generate variations.
+                    This panel will host the quiz-editing assistant. As you add
+                    questions and options, the chatbot will stay in view to
+                    suggest fixes or generate variations.
                 </p>
                 <div className="placeholder-card">
                     <div className="placeholder-bubble" />

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Shell } from "./components/Shell";
+import { NavBar } from "./components/NavBar";
 import { HomePage } from "./components/HomePage";
 import { EditorPage } from "./components/EditorPage";
 import { PlaceholderPage } from "./components/PlaceholderPage";
+import { ImportPage } from "./components/ImportPage";
+import { PlayPage } from "./components/PlayPage";
 
 // Quiz object type
 type Quiz = {
@@ -69,7 +71,7 @@ const quizzesSeed: Quiz[] = [
     },
     {
         id: "q2",
-        title: "Newton’s Laws Drills",
+        title: "Newton's Laws Drills",
         subject: "Physics",
         lastPlayed: "5d ago",
         questions: 12,
@@ -115,12 +117,17 @@ const quizzesSeed: Quiz[] = [
 ];
 
 // list of endpoint routes
-type Route = "/" | "/editor" | "/settings" | "/import";
+type Route = "/" | "/editor" | "/settings" | "/import" | "/play";
 
 function useRoute(): Route {
     const getRoute = () => {
         const hash = window.location.hash.replace("#", "") || "/";
-        if (hash === "/editor" || hash === "/settings" || hash === "/import") {
+        if (
+            hash === "/editor" ||
+            hash === "/settings" ||
+            hash === "/import" ||
+            hash === "/play"
+        ) {
             return hash as Route;
         }
         return "/";
@@ -138,6 +145,7 @@ function useRoute(): Route {
 
 export default function App() {
     const route = useRoute();
+    // searching tools
     const [search, setSearch] = useState("");
 
     const filteredQuizzes = useMemo(() => {
@@ -150,48 +158,52 @@ export default function App() {
         );
     }, [search]);
 
+    // 5 most recent quizzes
     const recent = quizzesSeed.slice(0, 5);
 
-    const handleQuizClick = (quiz: Quiz) => {
-        // Placeholder navigation—will wire to play endpoint later.
-        alert(`Open quiz: ${quiz.title}`);
+    const handleQuizClick = (_quiz: Quiz) => {
+        window.location.hash = "/play";
     };
+
+    if (route === "/play") {
+        return (
+            <NavBar primaryLabel="Home" primaryHref="#/">
+                <PlayPage />
+            </NavBar>
+        );
+    }
 
     if (route === "/editor") {
         // in editor mode, change to import button
         return (
-            <Shell primaryLabel="Import" primaryHref="#/import">
+            <NavBar primaryLabel="Play" primaryHref="#/play">
                 <EditorPage />
-            </Shell>
+            </NavBar>
         );
     }
 
     if (route === "/settings") {
         return (
-            <Shell>
+            <NavBar>
                 <PlaceholderPage
                     eyebrow="Settings"
                     heading="Coming soon"
                     body="User profile, notification preferences, and study streaks will live here."
                 />
-            </Shell>
+            </NavBar>
         );
     }
 
     if (route === "/import") {
         return (
-            <Shell>
-                <PlaceholderPage
-                    eyebrow="Import"
-                    heading="Upload workflows land here next"
-                    body="We’ll connect this to DOCX/PDF/CSV import flows. For now, head back home to explore quizzes."
-                />
-            </Shell>
+            <NavBar>
+                <ImportPage />
+            </NavBar>
         );
     }
 
     return (
-        <Shell>
+        <NavBar>
             <HomePage
                 recent={recent}
                 quizzes={filteredQuizzes}
@@ -200,6 +212,6 @@ export default function App() {
                 setSearch={setSearch}
                 onQuizClick={handleQuizClick}
             />
-        </Shell>
+        </NavBar>
     );
 }

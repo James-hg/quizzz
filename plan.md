@@ -19,20 +19,26 @@
 
 Importing:
 
-- [ ] button on navbar next to user icon
-- [ ] clicking it will pop up a window containing:
-  - [ ] upload button
-  - [ ] extract button
+- [x] button in main comp for importing
+- [x] clicking it will pop up a window containing:
+  - [x] upload button
+  - [x] extract button
   - [ ] rules for docx file
 
-- [ ] create button always appear at the bottom
-- [ ] clicking that button will create a new question, with boxes for the user to enter
-- [ ] a box for question
-- [ ] 4 boxes for choices, next to those will be a tick box for right answer
+- [x] create button always appear at the bottom
+- [x] clicking that button will create a new question, with boxes for the user to enter
+- [x] a box for question
+- [x] 4 boxes for choices, next to those will be a tick box for right answer
 - [ ] a button to upload image
-- [ ] (optional) explaination per question
+- [ ] a button to shuffle questions
+- [ ] a button to shuffle choices
+
+Optional features:
 
 - [ ] AI chatbot on right sidebar for assisting with questions and answers
+- [ ] AI changes numbers/some choices for more challenging
+- [ ] When importing, question numbers might appear while playing, option to remove it
+- [ ] (optional) explaination per question
 
 ## mcq quiz logic
 
@@ -48,7 +54,19 @@ Once started (maybe another endpoint?):
 
 Display:
 
-- [ ] question
-- [ ] choices
-- [ ] answer
-- [ ] time remaining
+- [x] huge question box
+- [ ] image if exist
+- [x] boxes for choices
+- [x] submit button at the bottom
+- [x] progress quiz bar
+
+Once submitted:
+
+- [x] make the correct box fades to green
+- [x] if user answer's wrong, fade into red
+- [x] continue to next question
+
+Optional features:
+
+- [ ] no answer reveal for all
+- [ ] no answer reveal for wrong questions, append wrong question to the back

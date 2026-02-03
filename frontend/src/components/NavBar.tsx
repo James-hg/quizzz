@@ -4,14 +4,14 @@ type Props = {
     primaryHref?: string;
 };
 
-export function Shell({
+export function NavBar({
     children,
     primaryLabel = "Create quiz",
     // if in editor, change button to import
     primaryHref = "#/editor",
 }: Props) {
     return (
-        <div className="shell">
+        <div className="NavBar">
             <nav className="topbar">
                 <a className="brand" href="#/">
                     Quizzz

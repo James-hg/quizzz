@@ -1,25 +1,46 @@
 version: "3.9"
 
 services:
-  backend:
-    build: ./backend
-    container_name: quizzz-backend
-    ports:
-      - "8000:8000"
-    environment:
-      - UVICORN_HOST=0.0.0.0
-      - UVICORN_PORT=8000
-    volumes:
-      - ./backend/app:/app/app:ro
-    restart: unless-stopped
+    db:
+        image: postgres:16
+        container_name: quizzz-db
+        restart: unless-stopped
+        environment:
+            POSTGRES_DB: quizzz
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres
+        ports:
+            - "5432:5432"
+        volumes:
+            - db_data:/var/lib/postgresql/data
 
-  frontend:
-    build: ./frontend
-    container_name: quizzz-frontend
-    ports:
-      - "5173:5173"
-    environment:
-      - VITE_API_URL=http://localhost:8000
-    depends_on:
-      - backend
-    restart: unless-stopped
+    backend:
+        build: ./backend
+        container_name: quizzz-backend
+        ports:
+            - "8000:8000"
+        environment:
+            - UVICORN_HOST=0.0.0.0
+            - UVICORN_PORT=8000
+            - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@db:5432/quizzz}
+        env_file:
+            - .quizzz.env
+        volumes:
+            - ./backend/app:/app/app:ro
+        depends_on:
+            - db
+        restart: unless-stopped
+
+    frontend:
+        build: ./frontend
+        container_name: quizzz-frontend
+        ports:
+            - "5173:5173"
+        environment:
+            - VITE_API_URL=http://localhost:8000
+        depends_on:
+            - backend
+        restart: unless-stopped
+
+volumes:
+    db_data:
