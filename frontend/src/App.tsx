@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 
 function App() {
     const [message, setMessage] = useState("Loading...");
+    const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
     useEffect(() => {
-        fetch("http://localhost:8000/")
+        fetch(`${apiBase}/`)
             .then((response) => response.json())
             .then((data) => setMessage(data.message))
             .catch(() => setMessage("Failed to reach FastAPI"));
-    }, []);
+    }, [apiBase]);
 
     return (
         <main>

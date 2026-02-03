@@ -1,0 +1,11 @@
+node_modules
+dist
+*.log
+*.cache
+*.local
+Dockerfile*
+.git
+.gitignore
+.npmrc
+.DS_Store
+

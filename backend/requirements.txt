@@ -1,2 +1,6 @@
 fastapi
 uvicorn[standard]
+python-docx
+docx2txt
+textract
+mammoth
