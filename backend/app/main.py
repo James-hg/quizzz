@@ -49,10 +49,12 @@ async def upload_docx(file: UploadFile = File(...)):
     """
     Accepts a .docx file upload, extracts quiz structure, and returns JSON.
     """
+    # currently accepts only docx
     if not file.filename.lower().endswith(".docx"):
         raise HTTPException(
             status_code=400, detail="Only .docx files are supported.")
 
+    # try loading file
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
@@ -73,12 +75,12 @@ async def create_quiz(
     shuffle_options: bool = Query(False),
     session: AsyncSession = Depends(get_db_session),
 ):
-    questions_in = list(payload.questions)
+    questions_in = list(payload.questions)  # store questions
     if shuffle_questions:
-        random.shuffle(questions_in)
+        random.shuffle(questions_in)  # randomize questions before play
 
     quiz = Quiz(title=payload.title, owner_id=payload.owner_id)
-    session.add(quiz)
+    session.add(quiz)  # store quiz to session
     await session.flush()
 
     for q in questions_in:
@@ -87,12 +89,14 @@ async def create_quiz(
             text=q.text,
             position=q.position,
         )
+        # load question by question
         session.add(question)
         await session.flush()
         opts = list(q.options)
         if shuffle_options:
-            random.shuffle(opts)
+            random.shuffle(opts)  # randomize choices on load
         for opt in opts:
+            # load choices to session
             session.add(
                 Option(
                     question_id=question.id,
@@ -103,7 +107,7 @@ async def create_quiz(
             )
 
     await session.commit()
-    await session.refresh(quiz)
+    await session.refresh(quiz)  # continue next question
     return quiz
 
 
@@ -115,7 +119,7 @@ async def update_quiz(
     shuffle_options: bool = Query(False),
     session: AsyncSession = Depends(get_db_session),
 ):
-    quiz = await session.get(Quiz, quiz_id)
+    quiz = await session.get(Quiz, quiz_id)  # load quiz
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
 
@@ -167,7 +171,7 @@ async def update_quiz(
 
 @app.get("/quizzes", response_model=list[QuizSummary])
 async def list_quizzes(session: AsyncSession = Depends(get_db_session)):
-    result = await session.execute(select(Quiz))
+    result = await session.execute(select(Quiz))  # get result for question
     return result.scalars().all()
 
 
@@ -216,7 +220,7 @@ async def start_play(payload: PlayStart, session: AsyncSession = Depends(get_db_
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
 
-    # reuse active session if exists
+    # resume sesison if one exist
     existing = await session.execute(
         select(QuizSession)
         .where(QuizSession.quiz_id == payload.quiz_id)
@@ -235,7 +239,7 @@ async def start_play(payload: PlayStart, session: AsyncSession = Depends(get_db_
 
     qs = QuizSession(quiz_id=payload.quiz_id,
                      user_id=payload.user_id, current_index=0, is_paused=False)
-    session.add(qs)
+    session.add(qs)  # load quiz to session
     await session.commit()
     await session.refresh(qs)
     return PlaySession(
@@ -268,7 +272,7 @@ async def submit_answer(
         selected_option_id=payload.selected_option_id,
         is_correct=is_correct,
     )
-    session.add(resp)
+    session.add(resp)  # display correct answer
     qs.current_index = qs.current_index + 1
     qs.is_paused = False
     await session.commit()
@@ -315,6 +319,7 @@ async def update_progress(
 
 @app.patch("/plays/{session_id}/complete")
 async def complete_session(session_id: str, session: AsyncSession = Depends(get_db_session)):
+    # once completed a quiz store metadata & exit session
     qs = await session.get(QuizSession, session_id)
     if not qs:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -388,6 +393,7 @@ async def get_active_session(quiz_id: UUID, session: AsyncSession = Depends(get_
 
 @app.get("/quizzes/{quiz_id}/history")
 async def get_history(quiz_id: UUID, session: AsyncSession = Depends(get_db_session)):
+    # save quiz history to be resumed
     result = await session.execute(
         select(QuizSession)
         .where(QuizSession.quiz_id == quiz_id)
@@ -401,7 +407,7 @@ async def get_history(quiz_id: UUID, session: AsyncSession = Depends(get_db_sess
             select(Response).where(Response.session_id == s.id)
         )
         responses = resp_result.scalars().all()
-        correct = sum(1 for r in responses if r.is_correct)
+        correct = sum(1 for r in responses if r.is_correct) # load correct answer
         total = len(responses)
         history.append(
             {

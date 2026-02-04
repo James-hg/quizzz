@@ -35,7 +35,6 @@ export function HomePage({
     search,
     setSearch,
     onQuizClick,
-    onPlayClick,
     onDelete,
 }: Props) {
     return (

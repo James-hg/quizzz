@@ -19,8 +19,10 @@ type Quiz = {
     items: Question[];
 };
 
+// routes list
 type Route = "/" | "/editor" | "/settings" | "/import" | "/play" | "/launch";
 
+// extract route, id, session from URL hash
 const parseHash = (): {
     route: Route;
     id: string | null;
@@ -43,6 +45,7 @@ const parseHash = (): {
     return { route, id, session };
 };
 
+// map backend quiz format to frontend quiz type
 const mapQuiz = (data: any): Quiz => ({
     id: data.id,
     title: data.title ?? "Untitled quiz",
@@ -61,6 +64,7 @@ const mapQuiz = (data: any): Quiz => ({
     })),
 });
 
+// validate UUID format
 const isUuid = (v: unknown): v is string => {
     if (typeof v !== "string") return false;
     return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(
@@ -134,6 +138,7 @@ export default function App() {
                             `${apiBase}/quizzes/${quiz.id}/session`,
                         );
                         if (sResp.ok) {
+                            // load session if one exists
                             const sess = await sResp.json();
                             const total = quiz.items.length || 1;
                             quiz.progress = Math.round(
@@ -147,7 +152,7 @@ export default function App() {
                             // skip invalid id cases
                         }
                     } catch {
-                        // ignore
+                        // ignore session errors
                     }
                     return quiz;
                 }),
@@ -174,7 +179,7 @@ export default function App() {
         );
     }, [search, quizzes]);
 
-    const recent = useMemo(() => quizzes.slice(0, 5), [quizzes]);
+    const recent = useMemo(() => quizzes.slice(0, 5), [quizzes]); // store recent quizzes for sidebar
 
     const handleQuizClick = (quiz: Quiz) => {
         setEditingQuizId(quiz.id);
@@ -324,12 +329,14 @@ export default function App() {
 
     // --- routes ---
     if (route === "/play") {
+        // check if a quiz is being played
         const playQuiz =
             playingQuiz ||
             (editingQuizId
                 ? quizzes.find((q) => q.id === editingQuizId)
                 : null) ||
             null;
+        // get session id for this quiz
         const sessionId = playQuiz
             ? playSessions[playQuiz.id] || session
             : session;
@@ -362,6 +369,7 @@ export default function App() {
     }
 
     if (route === "/launch") {
+        // get current editing quiz to load to play page
         const current =
             (editingQuizId && quizzes.find((q) => q.id === editingQuizId)) ||
             editingQuiz ||
@@ -442,6 +450,7 @@ export default function App() {
     }
 
     if (route === "/settings") {
+        // to be implemented (user page)
         return (
             <NavBar primaryLabel="Home" primaryHref="#/">
                 <PlaceholderPage
