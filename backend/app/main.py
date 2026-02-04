@@ -107,6 +107,64 @@ async def create_quiz(
     return quiz
 
 
+@app.put("/quizzes/{quiz_id}", response_model=QuizSummary)
+async def update_quiz(
+    quiz_id: UUID,
+    payload: QuizCreate,
+    shuffle_questions: bool = Query(False),
+    shuffle_options: bool = Query(False),
+    session: AsyncSession = Depends(get_db_session),
+):
+    quiz = await session.get(Quiz, quiz_id)
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+
+    # wipe existing responses/sessions/questions/options to rebuild cleanly
+    sub_sessions = select(QuizSession.id).where(QuizSession.quiz_id == quiz_id)
+    await session.execute(delete(Response).where(Response.session_id.in_(sub_sessions)))
+
+    sub_questions = select(Question.id).where(Question.quiz_id == quiz_id)
+    await session.execute(delete(Response).where(Response.question_id.in_(sub_questions)))
+    await session.execute(delete(Response).where(Response.selected_option_id.in_(select(Option.id).where(Option.question_id.in_(sub_questions)))))
+
+    await session.execute(delete(QuizSession).where(QuizSession.quiz_id == quiz_id))
+    await session.execute(delete(Option).where(Option.question_id.in_(sub_questions)))
+    await session.execute(delete(Question).where(Question.quiz_id == quiz_id))
+
+    # update quiz title
+    quiz.title = payload.title
+    await session.flush()
+
+    questions_in = list(payload.questions)
+    if shuffle_questions:
+        random.shuffle(questions_in)
+
+    for q in questions_in:
+        question = Question(
+            quiz_id=quiz.id,
+            text=q.text,
+            position=q.position,
+        )
+        session.add(question)
+        await session.flush()
+        opts = list(q.options)
+        if shuffle_options:
+            random.shuffle(opts)
+        for opt in opts:
+            session.add(
+                Option(
+                    question_id=question.id,
+                    text=opt.text,
+                    is_correct=opt.is_correct,
+                    position=opt.position,
+                )
+            )
+
+    await session.commit()
+    await session.refresh(quiz)
+    return quiz
+
+
 @app.get("/quizzes", response_model=list[QuizSummary])
 async def list_quizzes(session: AsyncSession = Depends(get_db_session)):
     result = await session.execute(select(Quiz))

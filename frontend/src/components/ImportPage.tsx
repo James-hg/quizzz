@@ -71,15 +71,17 @@ export function ImportPage({ onExtract }: Props) {
                     <button className="btn primary" onClick={handleUploadClick}>
                         Upload file
                     </button>
-                    <button className="btn secondary" onClick={handleExtract} disabled={loading}>
+                    <button
+                        className="btn secondary"
+                        onClick={handleExtract}
+                        disabled={loading}
+                    >
                         {loading ? "Extracting..." : "Extract"}
                     </button>
                 </div>
 
                 <div className="muted">
-                    <ul>
-                        The importer reads the document from top to bottom.
-                    </ul>
+                    <ul>The importer reads the document from top to bottom.</ul>
                     <ul>
                         A paragraph is treated as a question if it:
                         <ul>Starts with a number such as 1. or 1), or</ul>
@@ -88,13 +90,18 @@ export function ImportPage({ onExtract }: Props) {
                     <ul>
                         A paragraph is treated as a choice if it:
                         <ul>Is a nested Word list item under a question, or</ul>
-                        <ul>Starts with a letter such as A. or B) (case-insensitive).</ul>
+                        <ul>
+                            Starts with a letter such as A. or B)
+                            (case-insensitive).
+                        </ul>
                     </ul>
                     <ul>
-                        Lines that do not start a new question or choice are appended to the previous entry.
+                        Lines that do not start a new question or choice are
+                        appended to the previous entry.
                     </ul>
                     <ul>
-                        The correct answer must be bold, with exactly one bold choice.
+                        The correct answer must be bold, with exactly one bold
+                        choice.
                     </ul>
                 </div>
 

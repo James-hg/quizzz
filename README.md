@@ -16,8 +16,8 @@ A quiz app to revise for exams
 docker compose up --build
 ```
 
-- Backend: http://localhost:8000
-- Frontend: http://localhost:5173 (talks to backend via `VITE_API_URL`)
+- Backend: <http://localhost:8000>
+- Frontend: <http://localhost:5173> (talks to backend via `VITE_API_URL`)
 
 ### Manual builds
 
@@ -29,4 +29,13 @@ docker run -p 8000:8000 quizzz-backend
 # Frontend (serves built assets with `serve`)
 docker build -t quizzz-frontend ./frontend
 docker run -p 5173:5173 quizzz-frontend
+```
+
+### Truncate command
+
+- Run docker-compose normally
+
+```sh
+docker compose exec db psql -U postgres -d quizzz -c "
+TRUNCATE responses, quiz_sessions, options, questions, quizzes CASCADE;"
 ```

@@ -241,27 +241,65 @@ export default function App() {
                     })),
                 })),
             };
-            const resp = await fetch(`${apiBase}/quizzes`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-            });
-            if (!resp.ok) throw new Error("Failed to save quiz");
-            const data = await resp.json();
-            const fullResp = await fetch(`${apiBase}/quizzes/${data.id}`);
+
+            let savedId: string | null = null;
+
+            if (quiz.id && isUuid(quiz.id)) {
+                // update existing
+                const resp = await fetch(`${apiBase}/quizzes/${quiz.id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+                if (!resp.ok) throw new Error("Failed to update quiz");
+                const data = await resp.json();
+                savedId = data.id;
+            } else {
+                // create new
+                const resp = await fetch(`${apiBase}/quizzes`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+                if (!resp.ok) throw new Error("Failed to save quiz");
+                const data = await resp.json();
+                savedId = data.id;
+            }
+
+            if (!savedId) throw new Error("Save failed");
+
+            const fullResp = await fetch(`${apiBase}/quizzes/${savedId}`);
             const fullQuiz = mapQuiz(await fullResp.json());
 
             setQuizzes((prev) => {
                 const withoutOld = prev.filter((q) => q.id !== quiz.id);
                 return [...withoutOld, fullQuiz];
             });
-            setEditingQuizId(data.id);
-            window.location.hash = `#/launch/${data.id}`;
+            setEditingQuizId(savedId);
             return true;
         } catch (err) {
             console.error(err);
             return false;
         }
+    };
+
+    const handleDuplicateQuiz = async (quiz: {
+        id: string;
+        serverId?: string;
+        title: string;
+        subject: string;
+        questions: number;
+        progress: number;
+        lastPlayed: string;
+        items: {
+            id: any;
+            text: string;
+            options: { id: any; text: string; correct: boolean }[];
+        }[];
+    }) => {
+        // force create new
+        const clone = { ...quiz, id: "new", serverId: undefined };
+        await handleSaveQuiz(clone);
     };
 
     const handleDeleteQuiz = async (quizId: string, serverId?: string) => {
@@ -388,6 +426,7 @@ export default function App() {
             >
                 <EditorPage
                     onSave={handleSaveQuiz}
+                    onDuplicate={handleDuplicateQuiz}
                     onDelete={handleDeleteQuiz}
                     quiz={
                         editingQuiz

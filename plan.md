@@ -33,12 +33,19 @@ Importing:
 - [x] a button to shuffle questions
 - [x] a button to shuffle choices
 
-Optional features:
+### Optional
 
-- [ ] AI chatbot on right sidebar for assisting with questions and answers
-- [ ] AI changes numbers/some choices for more challenging
 - [ ] When importing, question numbers might appear while playing, option to remove it
-- [ ] (optional) explaination per question
+
+---
+
+## AI Chatbot
+
+- [ ] AI changes numbers/some choices for more challenging
+- [ ] AI rephrases questions and answers if it's text
+- [ ] add explaination for questions
+- [ ] takes in a lecture/materials, generate questions based on it (LLM)
+- [ ] 
 
 ## mcq quiz logic
 
@@ -50,7 +57,7 @@ Optional features:
 - [x] a begin button
 - [x] a resume button
 - [x] a new game button
-- [ ] a back to homepage button
+- [x] a back to homepage button
 
 Once started
 

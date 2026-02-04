@@ -24,6 +24,16 @@ type Props = {
         lastPlayed: string;
         items: EditableQuestion[];
     }) => Promise<boolean>;
+    onDuplicate?: (quiz: {
+        id: string;
+        serverId?: string;
+        title: string;
+        subject: string;
+        questions: number;
+        progress: number;
+        lastPlayed: string;
+        items: EditableQuestion[];
+    }) => Promise<void>;
     onDelete: (id: string, serverId?: string) => void;
 };
 
@@ -39,7 +49,7 @@ const blankQuestion = (id: string): EditableQuestion => ({
     })),
 });
 
-export function EditorPage({ quiz, onSave, onDelete }: Props) {
+export function EditorPage({ quiz, onSave, onDuplicate, onDelete }: Props) {
     const [title, setTitle] = useState(quiz?.title ?? "");
     const [subject, setSubject] = useState(quiz?.subject ?? "");
     const [questions, setQuestions] = useState<EditableQuestion[]>(
@@ -209,6 +219,23 @@ export function EditorPage({ quiz, onSave, onDelete }: Props) {
                             disabled={!dirty || saving}
                         >
                             {saving ? "Saving..." : dirty ? "Save" : "Saved"}
+                        </button>
+                        <button
+                            className="btn secondary"
+                            onClick={() =>
+                                onDuplicate?.({
+                                    id: quiz?.id ?? "new",
+                                    serverId: quiz?.serverId,
+                                    title: title.trim() || "Untitled quiz",
+                                    subject: subject.trim() || "No subject",
+                                    questions: questions.length,
+                                    progress: 0,
+                                    lastPlayed: "just now",
+                                    items: questions,
+                                })
+                            }
+                        >
+                            Duplicate
                         </button>
                         {quiz?.id && (
                             <button
