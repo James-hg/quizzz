@@ -49,23 +49,40 @@ export function HomePage({
                     {recent.length === 0 ? (
                         <div className="muted">No recent quizzes yet.</div>
                     ) : (
-                        recent.map((quiz) => (
-                            <button
-                                key={quiz.id}
-                                className="recent-card"
-                                onClick={() => onPlayClick(quiz)}
-                            >
-                                <div className="recent-title">
-                                    {quiz.title || "Untitled quiz"}
-                                </div>
-                                <div className="recent-meta">
-                                    <span>{quiz.subject || "No subject"}</span>
-                                    <span className="bullet">•</span>
-                                    <span>{quiz.lastPlayed}</span>
-                                </div>
-                                <ProgressBar value={quiz.progress} />
-                            </button>
-                        ))
+                        recent.map((quiz) => {
+                            const isInProgress =
+                                quiz.progress > 0 && quiz.progress < 100;
+                            return (
+                                <button
+                                    key={quiz.id}
+                                    className="recent-card"
+                                    onClick={() => onPlayClick(quiz)}
+                                >
+                                    <div className="recent-title">
+                                        {quiz.title || "Untitled quiz"}
+                                        {isInProgress && (
+                                            <span
+                                                style={{
+                                                    color: "#10b981",
+                                                    marginLeft: "8px",
+                                                    fontSize: "0.9em",
+                                                }}
+                                            >
+                                                ⏸
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="recent-meta">
+                                        <span>
+                                            {quiz.subject || "No subject"}
+                                        </span>
+                                        <span className="bullet">•</span>
+                                        <span>{quiz.lastPlayed}</span>
+                                    </div>
+                                    <ProgressBar value={quiz.progress} />
+                                </button>
+                            );
+                        })
                     )}
                 </div>
             </aside>
@@ -149,31 +166,49 @@ export function HomePage({
                         </div>
                     ) : (
                         <div className="quiz-grid">
-                            {quizzes.map((quiz) => (
-                                <button
-                                    key={quiz.id}
-                                    className="quiz-card"
-                                    onClick={() => onQuizClick(quiz)}
-                                >
-                                    <div className="quiz-top">
-                                        <div className="pill">
-                                            {quiz.subject || "No subject"}
+                            {quizzes.map((quiz) => {
+                                const isInProgress =
+                                    quiz.progress > 0 && quiz.progress < 100;
+                                return (
+                                    <button
+                                        key={quiz.id}
+                                        className="quiz-card"
+                                        onClick={() => onQuizClick(quiz)}
+                                    >
+                                        <div className="quiz-top">
+                                            <div className="pill">
+                                                {quiz.subject || "No subject"}
+                                            </div>
+                                            <span className="muted">
+                                                {isInProgress && (
+                                                    <span
+                                                        style={{
+                                                            color: "#10b981",
+                                                            marginRight: "8px",
+                                                        }}
+                                                    >
+                                                        ⏸ In progress
+                                                    </span>
+                                                )}
+                                                {quiz.lastPlayed}
+                                            </span>
                                         </div>
-                                        <span className="muted">
-                                            {quiz.lastPlayed}
-                                        </span>
-                                    </div>
-                                    <div className="quiz-title">
-                                        {quiz.title || "Untitled quiz"}
-                                    </div>
-                                    <div className="quiz-meta">
-                                        <span>{quiz.questions} questions</span>
-                                        <span className="bullet">•</span>
-                                        <span>{quiz.progress}% complete</span>
-                                    </div>
-                                    <ProgressBar value={quiz.progress} />
-                                </button>
-                            ))}
+                                        <div className="quiz-title">
+                                            {quiz.title || "Untitled quiz"}
+                                        </div>
+                                        <div className="quiz-meta">
+                                            <span>
+                                                {quiz.questions} questions
+                                            </span>
+                                            <span className="bullet">•</span>
+                                            <span>
+                                                {quiz.progress}% complete
+                                            </span>
+                                        </div>
+                                        <ProgressBar value={quiz.progress} />
+                                    </button>
+                                );
+                            })}
                         </div>
                     )}
                 </section>

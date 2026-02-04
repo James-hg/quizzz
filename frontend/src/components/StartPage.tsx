@@ -23,7 +23,10 @@ export function StartPage({ quiz, apiBase, onBegin }: Props) {
     const [shuffleQ, setShuffleQ] = useState(false);
     const [shuffleC, setShuffleC] = useState(false);
     const [attempts, setAttempts] = useState<number>(0);
-    const [lastAttempt, setLastAttempt] = useState<{ correct: number; total: number } | null>(null);
+    const [lastAttempt, setLastAttempt] = useState<{
+        correct: number;
+        total: number;
+    } | null>(null);
     const [resumeSessionId, setResumeSessionId] = useState<string | null>(null);
 
     useEffect(() => {
@@ -31,7 +34,9 @@ export function StartPage({ quiz, apiBase, onBegin }: Props) {
             if (!quiz) return;
             // history
             try {
-                const hResp = await fetch(`${apiBase}/quizzes/${quiz.id}/history`);
+                const hResp = await fetch(
+                    `${apiBase}/quizzes/${quiz.id}/history`,
+                );
                 if (hResp.ok) {
                     const hist = await hResp.json();
                     setAttempts(hist.length);
@@ -50,7 +55,9 @@ export function StartPage({ quiz, apiBase, onBegin }: Props) {
             }
             // active session for resume
             try {
-                const sResp = await fetch(`${apiBase}/quizzes/${quiz.id}/session`);
+                const sResp = await fetch(
+                    `${apiBase}/quizzes/${quiz.id}/session`,
+                );
                 if (sResp.ok) {
                     const data = await sResp.json();
                     setResumeSessionId(data.id);
@@ -89,6 +96,14 @@ export function StartPage({ quiz, apiBase, onBegin }: Props) {
                     <div className="eyebrow">Quiz</div>
                     <h2>{quiz.title || "Untitled quiz"}</h2>
                     <p className="muted">{total} questions</p>
+                    {resumeSessionId && (
+                        <p
+                            className="muted"
+                            style={{ color: "#10b981", fontWeight: 500 }}
+                        >
+                            ⏸ In progress - You can resume where you left off
+                        </p>
+                    )}
                     <p className="muted">
                         {attempts
                             ? `Previous attempts: ${attempts}${

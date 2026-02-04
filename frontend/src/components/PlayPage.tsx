@@ -79,12 +79,22 @@ export function PlayPage({
         }
 
         const next = index + 1;
-        if (next < total) {
-            // auto-save progress for resume
-            fetch(
+
+        // Always save progress after each answer
+        try {
+            const progressResp = await fetch(
                 `${apiBase}/plays/${sessionId}/progress?current_index=${next}`,
                 { method: "PATCH" },
-            ).catch(() => {});
+            );
+            if (progressResp.ok) {
+                console.log(`✓ Progress saved: question ${next}/${total}`);
+            } else {
+                console.log(
+                    `⚠ Progress save failed with status ${progressResp.status}`,
+                );
+            }
+        } catch (err) {
+            console.error("Failed to save progress:", err);
         }
 
         setTimeout(async () => {

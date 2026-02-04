@@ -1,6 +1,7 @@
 import io
 import random
 from datetime import datetime
+from uuid import UUID
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -113,7 +114,7 @@ async def list_quizzes(session: AsyncSession = Depends(get_session)):
 
 
 @app.get("/quizzes/{quiz_id}", response_model=QuizFull)
-async def get_quiz(quiz_id: str, session: AsyncSession = Depends(get_session)):
+async def get_quiz(quiz_id: UUID, session: AsyncSession = Depends(get_session)):
     result = await session.execute(
         select(Quiz)
         .options(selectinload(Quiz.questions).selectinload(Question.options))
@@ -123,6 +124,16 @@ async def get_quiz(quiz_id: str, session: AsyncSession = Depends(get_session)):
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
     return quiz
+
+
+@app.delete("/quizzes/{quiz_id}")
+async def delete_quiz(quiz_id: UUID, session: AsyncSession = Depends(get_session)):
+    quiz = await session.get(Quiz, quiz_id)
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    await session.delete(quiz)
+    await session.commit()
+    return {"status": "deleted", "quiz_id": str(quiz_id)}
 
 
 # --- Play sessions ---
@@ -149,7 +160,8 @@ async def start_play(payload: PlayStart, session: AsyncSession = Depends(get_ses
             responses=[],
         )
 
-    qs = QuizSession(quiz_id=payload.quiz_id, user_id=payload.user_id, current_index=0, is_paused=False)
+    qs = QuizSession(quiz_id=payload.quiz_id,
+                     user_id=payload.user_id, current_index=0, is_paused=False)
     session.add(qs)
     await session.commit()
     await session.refresh(qs)
@@ -267,7 +279,7 @@ async def get_session(session_id: str, session: AsyncSession = Depends(get_sessi
 
 
 @app.get("/quizzes/{quiz_id}/session", response_model=PlaySession)
-async def get_active_session(quiz_id: str, session: AsyncSession = Depends(get_session)):
+async def get_active_session(quiz_id: UUID, session: AsyncSession = Depends(get_session)):
     result = await session.execute(
         select(QuizSession)
         .where(QuizSession.quiz_id == quiz_id)
@@ -300,7 +312,7 @@ async def get_active_session(quiz_id: str, session: AsyncSession = Depends(get_s
 
 
 @app.get("/quizzes/{quiz_id}/history")
-async def get_history(quiz_id: str, session: AsyncSession = Depends(get_session)):
+async def get_history(quiz_id: UUID, session: AsyncSession = Depends(get_session)):
     result = await session.execute(
         select(QuizSession)
         .where(QuizSession.quiz_id == quiz_id)

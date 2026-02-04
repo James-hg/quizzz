@@ -61,6 +61,13 @@ const mapQuiz = (data: any): Quiz => ({
     })),
 });
 
+const isUuid = (v: unknown): v is string => {
+    if (typeof v !== "string") return false;
+    return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(
+        v,
+    );
+};
+
 export default function App() {
     const [{ route, id, session }, setRoute] = useState(parseHash());
     const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
@@ -94,6 +101,7 @@ export default function App() {
             const summaries = await resp.json();
             const full = await Promise.all(
                 summaries.map(async (s: any) => {
+                    if (!isUuid(s.id)) return null;
                     const qResp = await fetch(`${apiBase}/quizzes/${s.id}`);
                     if (!qResp.ok) return null;
                     const data = await qResp.json();
@@ -115,6 +123,8 @@ export default function App() {
                                     : "recently";
                                 quiz.progress = 100;
                             }
+                        } else if (hResp.status === 422) {
+                            // skip invalid id cases
                         }
                     } catch {
                         // ignore history errors
@@ -133,6 +143,8 @@ export default function App() {
                                 ...prev,
                                 [quiz.id]: sess.id,
                             }));
+                        } else if (sResp.status === 422) {
+                            // skip invalid id cases
                         }
                     } catch {
                         // ignore
