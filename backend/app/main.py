@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .docx_extract import docx_extract
-from .db import engine, get_session
+from .db import engine, get_session as get_db_session
 from .models import Base, Option, Question, Quiz, QuizSession, Response
 from .schemas import (
     PlayAnswer,
@@ -71,7 +71,7 @@ async def create_quiz(
     payload: QuizCreate,
     shuffle_questions: bool = Query(False),
     shuffle_options: bool = Query(False),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ):
     questions_in = list(payload.questions)
     if shuffle_questions:
@@ -108,13 +108,13 @@ async def create_quiz(
 
 
 @app.get("/quizzes", response_model=list[QuizSummary])
-async def list_quizzes(session: AsyncSession = Depends(get_session)):
+async def list_quizzes(session: AsyncSession = Depends(get_db_session)):
     result = await session.execute(select(Quiz))
     return result.scalars().all()
 
 
 @app.get("/quizzes/{quiz_id}", response_model=QuizFull)
-async def get_quiz(quiz_id: UUID, session: AsyncSession = Depends(get_session)):
+async def get_quiz(quiz_id: UUID, session: AsyncSession = Depends(get_db_session)):
     result = await session.execute(
         select(Quiz)
         .options(selectinload(Quiz.questions).selectinload(Question.options))
@@ -127,7 +127,7 @@ async def get_quiz(quiz_id: UUID, session: AsyncSession = Depends(get_session)):
 
 
 @app.delete("/quizzes/{quiz_id}")
-async def delete_quiz(quiz_id: UUID, session: AsyncSession = Depends(get_session)):
+async def delete_quiz(quiz_id: UUID, session: AsyncSession = Depends(get_db_session)):
     quiz = await session.get(Quiz, quiz_id)
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
@@ -138,7 +138,7 @@ async def delete_quiz(quiz_id: UUID, session: AsyncSession = Depends(get_session
 
 # --- Play sessions ---
 @app.post("/plays", response_model=PlaySession)
-async def start_play(payload: PlayStart, session: AsyncSession = Depends(get_session)):
+async def start_play(payload: PlayStart, session: AsyncSession = Depends(get_db_session)):
     quiz = await session.get(Quiz, payload.quiz_id)
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
@@ -177,7 +177,7 @@ async def start_play(payload: PlayStart, session: AsyncSession = Depends(get_ses
 async def submit_answer(
     session_id: str,
     payload: PlayAnswer,
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ):
     qs = await session.get(QuizSession, session_id)
     if not qs:
@@ -229,7 +229,7 @@ async def submit_answer(
 async def update_progress(
     session_id: str,
     current_index: int = Query(..., ge=0),
-    session: AsyncSession = Depends(get_session),
+    session: AsyncSession = Depends(get_db_session),
 ):
     qs = await session.get(QuizSession, session_id)
     if not qs:
@@ -241,7 +241,7 @@ async def update_progress(
 
 
 @app.patch("/plays/{session_id}/complete")
-async def complete_session(session_id: str, session: AsyncSession = Depends(get_session)):
+async def complete_session(session_id: str, session: AsyncSession = Depends(get_db_session)):
     qs = await session.get(QuizSession, session_id)
     if not qs:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -252,7 +252,7 @@ async def complete_session(session_id: str, session: AsyncSession = Depends(get_
 
 
 @app.get("/plays/{session_id}", response_model=PlaySession)
-async def get_session(session_id: str, session: AsyncSession = Depends(get_session)):
+async def get_play_session(session_id: str, session: AsyncSession = Depends(get_db_session)):
     qs = await session.get(QuizSession, session_id)
     if not qs:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -279,7 +279,7 @@ async def get_session(session_id: str, session: AsyncSession = Depends(get_sessi
 
 
 @app.get("/quizzes/{quiz_id}/session", response_model=PlaySession)
-async def get_active_session(quiz_id: UUID, session: AsyncSession = Depends(get_session)):
+async def get_active_session(quiz_id: UUID, session: AsyncSession = Depends(get_db_session)):
     result = await session.execute(
         select(QuizSession)
         .where(QuizSession.quiz_id == quiz_id)
@@ -307,12 +307,14 @@ async def get_active_session(quiz_id: UUID, session: AsyncSession = Depends(get_
         id=qs.id,
         quiz_id=qs.quiz_id,
         is_completed=qs.completed_at is not None,
+        current_index=qs.current_index,
+        is_paused=qs.is_paused,
         responses=responses,
     )
 
 
 @app.get("/quizzes/{quiz_id}/history")
-async def get_history(quiz_id: UUID, session: AsyncSession = Depends(get_session)):
+async def get_history(quiz_id: UUID, session: AsyncSession = Depends(get_db_session)):
     result = await session.execute(
         select(QuizSession)
         .where(QuizSession.quiz_id == quiz_id)
@@ -334,6 +336,7 @@ async def get_history(quiz_id: UUID, session: AsyncSession = Depends(get_session
                 "completed_at": s.completed_at,
                 "correct": correct,
                 "total": total,
+                "current_index": s.current_index,
             }
         )
     return history
