@@ -1,51 +1,34 @@
 import { useEffect, useMemo, useState } from "react";
 
-type PlayOption = { id: string; text: string; correct: boolean };
-type PlayQuestion = { id: string; text: string; options: PlayOption[] };
+type PlayOption = { id: number; text: string; correct: boolean };
+type PlayQuestion = { id: number; text: string; options: PlayOption[] };
+type PlayQuiz = {
+    id: number;
+    title: string;
+    items: PlayQuestion[];
+};
 
-// Hardcoded quiz data
-const sampleQuiz: PlayQuestion[] = [
-    {
-        id: "p1",
-        text: "What is the powerhouse of the cell?",
-        options: [
-            { id: "p1a", text: "Mitochondria", correct: true },
-            { id: "p1b", text: "Nucleus", correct: false },
-            { id: "p1c", text: "Ribosome", correct: false },
-            { id: "p1d", text: "Golgi apparatus", correct: false },
-        ],
-    },
-    {
-        id: "p2",
-        text: "Which law explains inertia?",
-        options: [
-            { id: "p2a", text: "Newton's First Law", correct: true },
-            { id: "p2b", text: "Newton's Second Law", correct: false },
-            { id: "p2c", text: "Newton's Third Law", correct: false },
-        ],
-    },
-    {
-        id: "p3",
-        text: "What is the capital of France?",
-        options: [
-            { id: "p3a", text: "Berlin", correct: false },
-            { id: "p3b", text: "Paris", correct: true },
-            { id: "p3c", text: "Madrid", correct: false },
-        ],
-    },
-];
+type Props = {
+    quiz: PlayQuiz | null;
+    sessionId?: string | null;
+    onSaveExit?: (progress: { sessionId: string | null; index: number }) => void;
+};
 
-export function PlayPage() {
+export function PlayPage({ quiz, sessionId, onSaveExit }: Props) {
     const [index, setIndex] = useState(0);
-    const [selected, setSelected] = useState<string | null>(null); // selected option id
+    const [selected, setSelected] = useState<number | null>(null); // selected option id
     const [feedback, setFeedback] = useState<"idle" | "correct" | "wrong">(
         "idle",
     ); // feedback state
     const [completed, setCompleted] = useState(false);
-    const [menuOpen, setMenuOpen] = useState(false);
+    const [responses, setResponses] = useState<
+        { questionId: number; selectedOptionId: number; isCorrect: boolean }[]
+    >([]);
 
-    const total = sampleQuiz.length;
-    const question = sampleQuiz[index];
+    const total = quiz?.items.length ?? 0;
+    const question = quiz?.items[index];
+    const playKey = quiz ? `playState:${quiz.id}` : null;
+    const historyKey = quiz ? `playHistory:${quiz.id}` : null;
 
     // for progress bar
     const progressPercent = useMemo(
@@ -63,8 +46,41 @@ export function PlayPage() {
         const delay = 900;
         setTimeout(() => {
             const next = index + 1;
+            const nextResponses = [
+                ...responses,
+                {
+                    questionId: question.id,
+                    selectedOptionId: selected,
+                    isCorrect: Boolean(isRight),
+                },
+            ];
+            setResponses(nextResponses);
+            if (playKey) {
+                localStorage.setItem(
+                    playKey,
+                    JSON.stringify({ index: next, responses: nextResponses }),
+                );
+            }
             if (next >= total) {
                 setCompleted(true);
+                if (historyKey) {
+                    const history = JSON.parse(
+                        localStorage.getItem(historyKey) || "[]",
+                    ) as { completedAt: string; correct: number; total: number }[];
+                    const correct = nextResponses.filter((r) => r.isCorrect).length;
+                    history.unshift({
+                        completedAt: new Date().toISOString(),
+                        correct,
+                        total,
+                    });
+                    localStorage.setItem(historyKey, JSON.stringify(history));
+                }
+                if (playKey) {
+                    localStorage.removeItem(playKey);
+                }
+                if (quiz) {
+                    localStorage.removeItem(`playState:${quiz.id}`);
+                }
             } else {
                 setIndex(next);
                 setSelected(null);
@@ -72,6 +88,22 @@ export function PlayPage() {
             }
         }, delay);
     };
+
+    useEffect(() => {
+        if (!quiz || !playKey) return;
+        const stored = localStorage.getItem(playKey);
+        if (!stored) return;
+        try {
+            const data = JSON.parse(stored) as {
+                index: number;
+                responses: { questionId: number; selectedOptionId: number; isCorrect: boolean }[];
+            };
+            if (Number.isFinite(data.index)) setIndex(data.index);
+            if (Array.isArray(data.responses)) setResponses(data.responses);
+        } catch {
+            // ignore
+        }
+    }, [quiz, playKey]);
 
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
@@ -100,43 +132,28 @@ export function PlayPage() {
     }, [feedback, question, completed, selected]);
 
     // extract to result page later
-    if (completed) {
+    if (total === 0 || completed) {
         return (
             <div className="play-shell">
                 <div className="play-page">
-                    <div className="play-menu">
-                        <button
-                            className="kebab"
-                            onClick={() => setMenuOpen((v) => !v)}
-                            aria-label="Open menu"
-                        >
-                            ⋮⋮⋮
-                        </button>
-                        {menuOpen && (
-                            <div className="dropdown">
-                                <button className="dropdown-item" onClick={() => (window.location.hash = "/")}>
-                                    Home
-                                </button>
-                                <button className="dropdown-item" onClick={() => alert("Save & exit coming soon")}>
-                                    Save & exit
-                                </button>
-                                <button className="dropdown-item" onClick={() => setMenuOpen(false)}>
-                                    Resume
-                                </button>
-                            </div>
-                        )}
-                    </div>
                     <div className="play-question-box">
                         <div className="eyebrow">Quiz complete</div>
                         <h2>Nice work!</h2>
                         <p className="muted">
-                            You finished all questions. Review answers or return home.
+                            You finished all questions. Review answers or return
+                            home.
                         </p>
                     </div>
                 </div>
             </div>
         );
     }
+
+    const handleSaveExit = () => {
+        if (onSaveExit) {
+            onSaveExit({ sessionId: sessionId ?? null, index });
+        }
+    };
 
     return (
         <div className="play-shell">
@@ -190,6 +207,9 @@ export function PlayPage() {
                         disabled={selected === null || feedback !== "idle"}
                     >
                         Submit ↵
+                    </button>
+                    <button className="btn secondary" onClick={handleSaveExit}>
+                        Save & Exit
                     </button>
                 </div>
             </div>

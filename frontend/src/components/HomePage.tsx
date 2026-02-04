@@ -1,7 +1,7 @@
 import { ProgressBar } from "./ProgressBar";
 
 type Quiz = {
-    id: string;
+    id: number;
     title: string;
     subject: string;
     lastPlayed: string;
@@ -10,7 +10,7 @@ type Quiz = {
 };
 
 type Folder = {
-    id: string;
+    id: number;
     name: string;
     color: string;
     quizCount: number;
@@ -24,6 +24,7 @@ type Props = {
     search: string;
     setSearch: (v: string) => void;
     onQuizClick: (quiz: Quiz) => void;
+    onPlayClick: (quiz: Quiz) => void;
 };
 
 export function HomePage({
@@ -45,21 +46,27 @@ export function HomePage({
                     </div>
                 </div>
                 <div className="recent-list">
-                    {recent.map((quiz) => (
-                        <button
-                            key={quiz.id}
-                            className="recent-card"
-                            onClick={() => onQuizClick(quiz)}
-                        >
-                            <div className="recent-title">{quiz.title}</div>
-                            <div className="recent-meta">
-                                <span>{quiz.subject}</span>
-                                <span className="bullet">•</span>
-                                <span>{quiz.lastPlayed}</span>
-                            </div>
-                            <ProgressBar value={quiz.progress} />
-                        </button>
-                    ))}
+                    {recent.length === 0 ? (
+                        <div className="muted">No recent quizzes yet.</div>
+                    ) : (
+                        recent.map((quiz) => (
+                            <button
+                                key={quiz.id}
+                                className="recent-card"
+                                onClick={() => onPlayClick(quiz)}
+                            >
+                                <div className="recent-title">
+                                    {quiz.title || "Untitled quiz"}
+                                </div>
+                                <div className="recent-meta">
+                                    <span>{quiz.subject || "No subject"}</span>
+                                    <span className="bullet">•</span>
+                                    <span>{quiz.lastPlayed}</span>
+                                </div>
+                                <ProgressBar value={quiz.progress} />
+                            </button>
+                        ))
+                    )}
                 </div>
             </aside>
 
@@ -99,26 +106,32 @@ export function HomePage({
                         </div>
                         <button className="ghost">New folder</button>
                     </div>
-                    <div className="folder-grid">
-                        {folders.map((folder) => (
-                            <div
-                                key={folder.id}
-                                className="folder-card"
-                                style={{ borderColor: `${folder.color}33` }}
-                            >
+                    {folders.length === 0 ? (
+                        <div className="muted">No folders yet.</div>
+                    ) : (
+                        <div className="folder-grid">
+                            {folders.map((folder) => (
                                 <div
-                                    className="folder-dot"
-                                    style={{ background: folder.color }}
-                                />
-                                <div className="folder-name">{folder.name}</div>
-                                <div className="folder-meta">
-                                    <span>{folder.quizCount} quizzes</span>
-                                    <span className="bullet">•</span>
-                                    <span>Updated {folder.updatedAt}</span>
+                                    key={folder.id}
+                                    className="folder-card"
+                                    style={{ borderColor: `${folder.color}33` }}
+                                >
+                                    <div
+                                        className="folder-dot"
+                                        style={{ background: folder.color }}
+                                    />
+                                    <div className="folder-name">
+                                        {folder.name}
+                                    </div>
+                                    <div className="folder-meta">
+                                        <span>{folder.quizCount} quizzes</span>
+                                        <span className="bullet">•</span>
+                                        <span>Updated {folder.updatedAt}</span>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </section>
 
                 <section className="grid-section">
@@ -130,29 +143,39 @@ export function HomePage({
                         <span className="muted">{quizzes.length} total</span>
                     </div>
 
-                    <div className="quiz-grid">
-                        {quizzes.map((quiz) => (
-                            <button
-                                key={quiz.id}
-                                className="quiz-card"
-                                onClick={() => onQuizClick(quiz)}
-                            >
-                                <div className="quiz-top">
-                                    <div className="pill">{quiz.subject}</div>
-                                    <span className="muted">
-                                        {quiz.lastPlayed}
-                                    </span>
-                                </div>
-                                <div className="quiz-title">{quiz.title}</div>
-                                <div className="quiz-meta">
-                                    <span>{quiz.questions} questions</span>
-                                    <span className="bullet">•</span>
-                                    <span>{quiz.progress}% complete</span>
-                                </div>
-                                <ProgressBar value={quiz.progress} />
-                            </button>
-                        ))}
-                    </div>
+                    {quizzes.length === 0 ? (
+                        <div className="muted">
+                            No quizzes yet. Create one to get started.
+                        </div>
+                    ) : (
+                        <div className="quiz-grid">
+                            {quizzes.map((quiz) => (
+                                <button
+                                    key={quiz.id}
+                                    className="quiz-card"
+                                    onClick={() => onQuizClick(quiz)}
+                                >
+                                    <div className="quiz-top">
+                                        <div className="pill">
+                                            {quiz.subject || "No subject"}
+                                        </div>
+                                        <span className="muted">
+                                            {quiz.lastPlayed}
+                                        </span>
+                                    </div>
+                                    <div className="quiz-title">
+                                        {quiz.title || "Untitled quiz"}
+                                    </div>
+                                    <div className="quiz-meta">
+                                        <span>{quiz.questions} questions</span>
+                                        <span className="bullet">•</span>
+                                        <span>{quiz.progress}% complete</span>
+                                    </div>
+                                    <ProgressBar value={quiz.progress} />
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </section>
             </main>
 

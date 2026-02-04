@@ -25,9 +25,10 @@ class QuizCreate(BaseModel):
 class QuizSummary(BaseModel):
     id: UUID
     title: str
+    subject: Optional[str] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class PlayStart(BaseModel):
@@ -38,6 +39,7 @@ class PlayStart(BaseModel):
 class PlayAnswer(BaseModel):
     selected_option_id: UUID
     question_id: UUID
+    session_id: UUID
 
 
 class PlayResponse(BaseModel):
@@ -47,7 +49,7 @@ class PlayResponse(BaseModel):
     is_correct: bool
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class PlaySession(BaseModel):
@@ -57,6 +59,35 @@ class PlaySession(BaseModel):
     responses: List[PlayResponse]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
         allow_population_by_field_name = True
 
+
+class OptionOut(BaseModel):
+    id: UUID
+    text: str
+    is_correct: bool
+    position: int
+
+    class Config:
+        from_attributes = True
+
+
+class QuestionOut(BaseModel):
+    id: UUID
+    text: str
+    position: int
+    options: List[OptionOut]
+
+    class Config:
+        from_attributes = True
+
+
+class QuizFull(BaseModel):
+    id: UUID
+    title: str
+    subject: Optional[str] = None
+    questions: List[QuestionOut]
+
+    class Config:
+        from_attributes = True

@@ -23,15 +23,15 @@ Importing:
 - [x] clicking it will pop up a window containing:
   - [x] upload button
   - [x] extract button
-  - [ ] rules for docx file
+  - [x] rules for docx file
 
 - [x] create button always appear at the bottom
 - [x] clicking that button will create a new question, with boxes for the user to enter
 - [x] a box for question
 - [x] 4 boxes for choices, next to those will be a tick box for right answer
 - [ ] a button to upload image
-- [ ] a button to shuffle questions
-- [ ] a button to shuffle choices
+- [x] a button to shuffle questions
+- [x] a button to shuffle choices
 
 Optional features:
 
@@ -42,15 +42,17 @@ Optional features:
 
 ## mcq quiz logic
 
-- [ ] directs user to the quiz page
+- [x] directs user to the quiz page
 - [ ] display:
-  - [ ] quiz name
+  - [x] quiz name
   - [ ] best record
   - [ ] performance chart (implement later)
-- [ ] a start button
+- [x] a begin button
+- [x] a resume button
+- [x] a new game button
 - [ ] a back to homepage button
 
-Once started (maybe another endpoint?):
+Once started
 
 Display:
 
@@ -70,3 +72,13 @@ Optional features:
 
 - [ ] no answer reveal for all
 - [ ] no answer reveal for wrong questions, append wrong question to the back
+
+## Todo list
+
+- [ ] play page save & exit button
+- [ ] shuffle buttons for questions and choices
+- [ ] game timer
+- [ ] handle after submitting last question
+- [ ] extract button
+- [ ] folder organization
+- [ ] tags organization

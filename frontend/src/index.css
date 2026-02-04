@@ -286,6 +286,11 @@ button {
     color: #e2e8f0;
     border: 1px solid rgba(255, 255, 255, 0.08);
 }
+.btn.third {
+    background: linear-gradient(135deg, #ef4444, #f87171);
+    color: #0b1220;
+    box-shadow: 0 10px 24px rgba(14, 165, 233, 0.35);
+}
 
 .btn:hover {
     transform: translateY(-2px);
@@ -557,6 +562,13 @@ button {
     gap: 16px;
 }
 
+.editor-metadata {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
 .editor-box {
     display: flex;
     flex-direction: column;
@@ -617,6 +629,24 @@ button {
     outline: none;
 }
 
+.options-controls {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 6px;
+}
+
+.question-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.ghost.small {
+    padding: 6px 8px;
+    font-size: 0.9rem;
+}
+
 .add-question {
     width: 100%;
     padding: 14px;
@@ -640,10 +670,87 @@ button {
 
 .play-page {
     width: min(90%, 100%);
-    /* min-height: calc(100vh - 96px); */
+    min-height: calc(100vh - 96px);
     display: flex;
     flex-direction: column;
     gap: 28px;
+}
+
+.start-layout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+.start-card {
+    padding: 18px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.45);
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.25);
+}
+
+.start-actions {
+    margin-top: 12px;
+    display: flex;
+    gap: 10px;
+}
+
+.toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.toggle-row:last-child {
+    border-bottom: none;
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 46px;
+    height: 26px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.2);
+    transition: 0.2s;
+    border-radius: 26px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: 0.2s;
+    border-radius: 50%;
+}
+
+.switch input:checked + .slider {
+    background: linear-gradient(135deg, #22d3ee, #0ea5e9);
+}
+
+.switch input:checked + .slider:before {
+    transform: translateX(20px);
 }
 
 .play-question-box {

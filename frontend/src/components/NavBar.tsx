@@ -1,5 +1,7 @@
+import { ReactNode, useEffect, useState } from "react";
+
 type Props = {
-    children: React.ReactNode;
+    children: ReactNode;
     primaryLabel?: string;
     primaryHref?: string;
 };
@@ -10,6 +12,21 @@ export function NavBar({
     // if in editor, change button to import
     primaryHref = "#/editor",
 }: Props) {
+    const isPlayPage = window.location.hash.startsWith("#/play");
+    const [menuOpen, setMenuOpen] = useState(false);
+
+    // close dropdown when route changes (hash change) to avoid stale open state
+    useEffect(() => {
+        const handleHash = () => setMenuOpen(false);
+        window.addEventListener("hashchange", handleHash);
+        return () => window.removeEventListener("hashchange", handleHash);
+    }, []);
+
+    const handleSaveExit = () => {
+        alert("Save & exit coming soon");
+        setMenuOpen(false);
+    };
+
     return (
         <div className="NavBar">
             <nav className="topbar">
@@ -17,9 +34,46 @@ export function NavBar({
                     Quizzz
                 </a>
                 <div className="topbar-actions">
-                    <a className="nav-link" href={primaryHref}>
-                        {primaryLabel}
-                    </a>
+                    {isPlayPage && (
+                        <div className="play-menu">
+                            <button
+                                className="kebab"
+                                onClick={() => setMenuOpen((v) => !v)}
+                                aria-label="Open menu"
+                            >
+                                ⋮⋮⋮
+                            </button>
+                            {menuOpen && (
+                                <div className="dropdown">
+                                    <button
+                                        className="dropdown-item"
+                                        onClick={() =>
+                                            (window.location.hash = "/")
+                                        }
+                                    >
+                                        Home
+                                    </button>
+                                    <button
+                                        className="dropdown-item"
+                                        onClick={handleSaveExit}
+                                    >
+                                        Save & exit
+                                    </button>
+                                    <button
+                                        className="dropdown-item"
+                                        onClick={() => setMenuOpen(false)}
+                                    >
+                                        Resume
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    {!isPlayPage && (
+                        <a className="nav-link" href={primaryHref}>
+                            {primaryLabel}
+                        </a>
+                    )}
                     <a
                         className="user-btn"
                         href="#/settings"
