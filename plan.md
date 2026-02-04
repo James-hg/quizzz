@@ -79,6 +79,6 @@ Optional features:
 - [ ] tags organization
 - [ ] game timer
 - [ ] AI chatbot
-- [ ] docx extract bug fix
+- [x] docx extract bug fix
 - [ ] csv extract
 - [ ] pdf extract

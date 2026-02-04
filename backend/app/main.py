@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -131,7 +131,22 @@ async def delete_quiz(quiz_id: UUID, session: AsyncSession = Depends(get_db_sess
     quiz = await session.get(Quiz, quiz_id)
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
+
+    # 1) delete responses tied to this quiz (by session and by question)
+    sub_sessions = select(QuizSession.id).where(QuizSession.quiz_id == quiz_id)
+    await session.execute(delete(Response).where(Response.session_id.in_(sub_sessions)))
+
+    sub_questions = select(Question.id).where(Question.quiz_id == quiz_id)
+    await session.execute(delete(Response).where(Response.question_id.in_(sub_questions)))
+
+    # 2) delete sessions
+    await session.execute(delete(QuizSession).where(QuizSession.quiz_id == quiz_id))
+
+    # 3) delete options, questions, then quiz (options/questions rely on cascade but delete explicitly to avoid FK issues)
+    await session.execute(delete(Option).where(Option.question_id.in_(sub_questions)))
+    await session.execute(delete(Question).where(Question.quiz_id == quiz_id))
     await session.delete(quiz)
+
     await session.commit()
     return {"status": "deleted", "quiz_id": str(quiz_id)}
 
