@@ -33,19 +33,33 @@ type Folder = {
     updatedAt: string;
 };
 
+const normalizeQuizzes = (raw: Quiz[]): Quiz[] =>
+    raw.map((quiz, qIndex) => ({
+        ...quiz,
+        id: qIndex,
+        items: (quiz.items ?? []).map((q, qi) => ({
+            ...q,
+            id: qi,
+            options: (q.options ?? []).map((o, oi) => ({
+                ...o,
+                id: oi,
+            })),
+        })),
+    }));
+
 // list of endpoint routes
 type Route = "/" | "/editor" | "/settings" | "/import" | "/play" | "/launch";
 
 const parseHash = (): {
     route: Route;
-    quizId: string | null;
-    sessionId: string | null;
+    id: number | null;
+    session: string | null;
 } => {
     const raw = window.location.hash.replace("#", "") || "/";
-    const parts = raw.split("/").filter(Boolean); // ["play","quizId","sessionId"]
+    const parts = raw.split("/").filter(Boolean); // ["play","id","session"]
     const path = (parts[0] ? `/${parts[0]}` : "/") as Route;
-    const quizId = parts[1] ?? null;
-    const sessionId = parts[2] ?? null;
+    const id = parts[1] ? Number(parts[1]) : null;
+    const session = parts[2] ?? null;
     const allowed: Route[] = [
         "/",
         "/editor",
@@ -55,38 +69,31 @@ const parseHash = (): {
         "/launch",
     ];
     const route = allowed.includes(path) ? path : "/";
-    return { route, quizId, sessionId };
+    return { route, id: Number.isFinite(id) ? id : null, session };
 };
 
 export default function App() {
-    const [{ route, quizId, sessionId }, setRoute] = useState(parseHash());
+    const [{ route, id, session }, setRoute] = useState(parseHash());
     const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
     const [search, setSearch] = useState("");
-    const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+    const [quizzes, setQuizzes] = useState<Quiz[]>(() => {
+        const cached = localStorage.getItem("quizzes");
+        if (!cached) return [];
+        try {
+            const raw = JSON.parse(cached) as Quiz[];
+            return normalizeQuizzes(raw);
+        } catch {
+            return [];
+        }
+    });
     const [folders] = useState<Folder[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [currentQuiz, setCurrentQuiz] = useState<Quiz | null>(null);
-
-    // Load quizzes from backend on mount
-    useEffect(() => {
-        fetch(`${apiBase}/quizzes`)
-            .then((res) => res.json())
-            .then((data) => {
-                const normalized = data.map((q: any, idx: number) => ({
-                    id: idx,
-                    serverId: q.id,
-                    title: q.title || "Untitled",
-                    subject: "",
-                    lastPlayed: "",
-                    questions: 0,
-                    progress: 0,
-                    items: [],
-                }));
-                setQuizzes(normalized);
-            })
-            .catch(() => setQuizzes([]))
-            .finally(() => setLoading(false));
-    }, [apiBase]);
+    const [editingQuizId, setEditingQuizId] = useState<number | null>(null);
+    const [playSessions, setPlaySessions] = useState<Record<number, string>>(
+        () => {
+            const cached = localStorage.getItem("playSessions");
+            return cached ? (JSON.parse(cached) as Record<number, string>) : {};
+        },
+    );
 
     useEffect(() => {
         const onHash = () => setRoute(parseHash());
@@ -94,39 +101,9 @@ export default function App() {
         return () => window.removeEventListener("hashchange", onHash);
     }, []);
 
-    // Load full quiz when quizId changes
     useEffect(() => {
-        if (!quizId) {
-            setCurrentQuiz(null);
-            return;
-        }
-        fetch(`${apiBase}/quizzes/${quizId}`)
-            .then((res) => res.json())
-            .then((data) => {
-                const quiz: Quiz = {
-                    id: 0,
-                    serverId: data.id,
-                    title: data.title,
-                    subject: "",
-                    lastPlayed: "",
-                    questions: data.questions?.length || 0,
-                    progress: 0,
-                    items: (data.questions || []).map((q: any, qi: number) => ({
-                        id: qi,
-                        text: q.text,
-                        options: (q.options || []).map(
-                            (o: any, oi: number) => ({
-                                id: oi,
-                                text: o.text,
-                                correct: o.is_correct,
-                            }),
-                        ),
-                    })),
-                };
-                setCurrentQuiz(quiz);
-            })
-            .catch(() => setCurrentQuiz(null));
-    }, [quizId, apiBase]);
+        setEditingQuizId(id);
+    }, [id]);
 
     const filteredQuizzes = useMemo(() => {
         if (!search.trim()) return quizzes;
@@ -142,14 +119,17 @@ export default function App() {
     const recent = useMemo(() => quizzes.slice(0, 5), [quizzes]);
 
     const handleQuizClick = (quiz: Quiz) => {
-        window.location.hash = `#/editor/${quiz.serverId}`;
+        setEditingQuizId(quiz.id);
+        window.location.hash = `#/editor/${quiz.id}`;
     };
 
     const handlePlayClick = (quiz: Quiz) => {
-        window.location.hash = `#/launch/${quiz.serverId}`;
+        setEditingQuizId(quiz.id);
+        window.location.hash = `#/launch/${quiz.id}`;
     };
 
     const handleSaveQuiz = async (quiz: Quiz) => {
+        // persist to backend first
         try {
             const payload = {
                 title: quiz.title,
@@ -173,77 +153,150 @@ export default function App() {
                 throw new Error("Failed to save quiz");
             }
             const data = (await resp.json()) as { id: string; title: string };
-
-            // Refresh quiz list
-            const listResp = await fetch(`${apiBase}/quizzes`);
-            const allQuizzes = await listResp.json();
-            const normalized = allQuizzes.map((q: any, idx: number) => ({
-                id: idx,
-                serverId: q.id,
-                title: q.title || "Untitled",
-                subject: "",
-                lastPlayed: "",
-                questions: 0,
-                progress: 0,
-                items: [],
-            }));
-            setQuizzes(normalized);
-
-            window.location.hash = `#/launch/${data.id}`;
-            return true;
+            quiz = { ...quiz, serverId: data.id };
         } catch {
             return false;
         }
+
+        setQuizzes((prev) => {
+            const existingIndex = prev.findIndex((q) => q.id === quiz.id);
+            let next: Quiz[];
+            if (existingIndex >= 0) {
+                next = [...prev];
+                next[existingIndex] = quiz;
+            } else {
+                const newQuiz = { ...quiz, id: prev.length };
+                next = [...prev, newQuiz];
+            }
+            const normalized = normalizeQuizzes(next);
+            localStorage.setItem("quizzes", JSON.stringify(normalized));
+            return normalized;
+        });
+        const targetId = quiz.id >= 0 ? quiz.id : quizzes.length;
+        setEditingQuizId(targetId);
+        window.location.hash = `#/launch/${targetId}`;
+        return true;
     };
 
-    const handleDeleteQuiz = async (serverId: string) => {
-        // TODO: Implement DELETE /quizzes/{id} endpoint
-        // For now, just refresh the list
-        try {
-            const resp = await fetch(`${apiBase}/quizzes`);
-            const data = await resp.json();
-            const normalized = data.map((q: any, idx: number) => ({
-                id: idx,
-                serverId: q.id,
-                title: q.title || "Untitled",
-                subject: "",
-                lastPlayed: "",
-                questions: 0,
-                progress: 0,
-                items: [],
-            }));
-            setQuizzes(normalized);
-        } catch {}
+    const handleDeleteQuiz = (id: number) => {
+        setQuizzes((prev) => {
+            const next = prev.filter((q) => q.id !== id);
+            const normalized = normalizeQuizzes(next);
+            localStorage.setItem("quizzes", JSON.stringify(normalized));
+            return normalized;
+        });
+        setEditingQuizId(null);
         window.location.hash = "/";
     };
 
+    const editingQuiz = useMemo(
+        () => quizzes.find((q) => q.id === editingQuizId) || null,
+        [quizzes, editingQuizId],
+    );
+
     if (route === "/play") {
+        const current =
+            (editingQuizId !== null &&
+                quizzes.find((q) => q.id === editingQuizId)) ||
+            editingQuiz ||
+            null;
         return (
             <NavBar primaryLabel="Home" primaryHref="#/">
                 <PlayPage
-                    quiz={currentQuiz}
-                    sessionId={sessionId}
-                    apiBase={apiBase}
-                    onComplete={() => {
-                        window.location.hash = currentQuiz?.serverId
-                            ? `#/launch/${currentQuiz.serverId}`
-                            : "/";
+                    quiz={current}
+                    sessionId={
+                        current ? playSessions[current.id] || null : null
+                    }
+                    onSaveExit={async ({ index }) => {
+                        if (current) {
+                            localStorage.setItem(
+                                `playState:${current.id}`,
+                                JSON.stringify({ index, responses: [] }),
+                            );
+                            const sid = playSessions[current.id];
+                            if (sid) {
+                                await fetch(
+                                    `${apiBase}/plays/${sid}/progress?current_index=${index}`,
+                                    { method: "PATCH" },
+                                ).catch(() => {});
+                            }
+                        }
+                        window.location.hash = `#/launch/${current?.id ?? ""}`;
+                    }}
+                    onComplete={async () => {
+                        if (current) {
+                            localStorage.removeItem(`playState:${current.id}`);
+                            const sid = playSessions[current.id];
+                            if (sid) {
+                                await fetch(
+                                    `${apiBase}/plays/${sid}/complete`,
+                                    {
+                                        method: "PATCH",
+                                    },
+                                ).catch(() => {});
+                                setPlaySessions((prev) => {
+                                    const next = { ...prev };
+                                    delete next[current.id];
+                                    localStorage.setItem(
+                                        "playSessions",
+                                        JSON.stringify(next),
+                                    );
+                                    return next;
+                                });
+                            }
+                        }
                     }}
                 />
             </NavBar>
         );
     }
-
     if (route === "/launch") {
+        const current =
+            (editingQuizId !== null &&
+                quizzes.find((q) => q.id === editingQuizId)) ||
+            editingQuiz ||
+            null;
         return (
             <NavBar primaryLabel="Home" primaryHref="#/">
                 <StartPage
-                    quiz={currentQuiz}
-                    quizId={quizId}
-                    apiBase={apiBase}
-                    onBegin={(mode, newSessionId) => {
-                        if (!quizId) return;
-                        window.location.hash = `#/play/${quizId}/${newSessionId}`;
+                    quiz={current}
+                    hasResume={
+                        current ? Boolean(playSessions[current.id]) : false
+                    }
+                    onBegin={async (mode) => {
+                        if (!current) return;
+                        const targetId = current.id;
+
+                        // start new session
+                        if (mode === "new" && current.serverId) {
+                            const resp = await fetch(`${apiBase}/plays`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    quiz_id: current.serverId,
+                                    user_id: null,
+                                }),
+                            }).catch(() => null);
+                            if (resp && resp.ok) {
+                                const data = await resp.json();
+                                setPlaySessions((prev) => {
+                                    const next = {
+                                        ...prev,
+                                        [current.id]: data.id,
+                                    };
+                                    localStorage.setItem(
+                                        "playSessions",
+                                        JSON.stringify(next),
+                                    );
+                                    return next;
+                                });
+                                localStorage.removeItem(
+                                    `playState:${current.id}`,
+                                );
+                            }
+                        }
+
+                        window.location.hash = `#/play/${targetId}`;
                     }}
                 />
             </NavBar>
@@ -251,15 +304,20 @@ export default function App() {
     }
 
     if (route === "/editor") {
+        // in editor mode, change to import button
         return (
             <NavBar
                 primaryLabel="Play"
-                primaryHref={quizId ? `#/launch/${quizId}` : "#/launch"}
+                primaryHref={
+                    editingQuizId !== null
+                        ? `#/launch/${editingQuizId}`
+                        : "#/launch"
+                }
             >
                 <EditorPage
                     onSave={handleSaveQuiz}
                     onDelete={handleDeleteQuiz}
-                    quiz={currentQuiz}
+                    quiz={editingQuiz}
                 />
             </NavBar>
         );
@@ -281,50 +339,36 @@ export default function App() {
         return (
             <NavBar primaryLabel="Editor" primaryHref="#/editor">
                 <ImportPage
-                    onExtract={async (draft) => {
-                        const payload = {
+                    onExtract={(draft) => {
+                        const nextId = quizzes.length;
+                        const mapped = {
+                            id: nextId,
                             title: draft.title || "Imported Quiz",
-                            owner_id: null,
-                            questions: draft.questions.map((q, qi) => ({
+                            subject: "Imported",
+                            lastPlayed: "never",
+                            questions: draft.questions.length,
+                            progress: 0,
+                            items: draft.questions.map((q, qi) => ({
+                                id: qi,
                                 text: q.text,
-                                position: qi,
                                 options: q.options.map((o, oi) => ({
+                                    id: oi,
                                     text: o.text,
-                                    is_correct: o.isCorrect,
-                                    position: oi,
+                                    correct: o.isCorrect,
                                 })),
                             })),
-                        };
-
-                        try {
-                            const resp = await fetch(`${apiBase}/quizzes`, {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify(payload),
-                            });
-                            if (resp.ok) {
-                                const data = await resp.json();
-                                // Refresh list
-                                const listResp = await fetch(
-                                    `${apiBase}/quizzes`,
-                                );
-                                const allQuizzes = await listResp.json();
-                                const normalized = allQuizzes.map(
-                                    (q: any, idx: number) => ({
-                                        id: idx,
-                                        serverId: q.id,
-                                        title: q.title || "Untitled",
-                                        subject: "",
-                                        lastPlayed: "",
-                                        questions: 0,
-                                        progress: 0,
-                                        items: [],
-                                    }),
-                                );
-                                setQuizzes(normalized);
-                                window.location.hash = `#/editor/${data.id}`;
-                            }
-                        } catch {}
+                        } as Quiz;
+                        const normalized = normalizeQuizzes([
+                            ...quizzes,
+                            mapped,
+                        ]);
+                        setQuizzes(normalized);
+                        localStorage.setItem(
+                            "quizzes",
+                            JSON.stringify(normalized),
+                        );
+                        setEditingQuizId(mapped.id);
+                        window.location.hash = `#/editor/${mapped.id}`;
                     }}
                 />
             </NavBar>
