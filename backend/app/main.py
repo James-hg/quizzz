@@ -229,16 +229,29 @@ async def start_play(payload: PlayStart, session: AsyncSession = Depends(get_db_
     )
     qs = existing.scalars().first()
     if qs:
+        qs.is_paused = False
+        qs.active_started_at = datetime.utcnow()
+        await session.commit()
         await session.refresh(qs)
         return PlaySession(
             id=qs.id,
             quiz_id=qs.quiz_id,
             is_completed=qs.completed_at is not None,
+            current_index=qs.current_index,
+            is_paused=qs.is_paused,
+            elapsed_seconds=qs.elapsed_seconds,
             responses=[],
         )
 
-    qs = QuizSession(quiz_id=payload.quiz_id,
-                     user_id=payload.user_id, current_index=0, is_paused=False)
+    now = datetime.utcnow()
+    qs = QuizSession(
+        quiz_id=payload.quiz_id,
+        user_id=payload.user_id,
+        current_index=0,
+        is_paused=False,
+        active_started_at=now,
+        elapsed_seconds=0,
+    )
     session.add(qs)  # load quiz to session
     await session.commit()
     await session.refresh(qs)
@@ -246,6 +259,9 @@ async def start_play(payload: PlayStart, session: AsyncSession = Depends(get_db_
         id=qs.id,
         quiz_id=qs.quiz_id,
         is_completed=qs.completed_at is not None,
+        current_index=qs.current_index,
+        is_paused=qs.is_paused,
+        elapsed_seconds=qs.elapsed_seconds,
         responses=[],
     )
 
@@ -275,6 +291,7 @@ async def submit_answer(
     session.add(resp)  # display correct answer
     qs.current_index = qs.current_index + 1
     qs.is_paused = False
+    qs.active_started_at = qs.active_started_at or datetime.utcnow()
     await session.commit()
     await session.refresh(qs)
 
@@ -306,15 +323,27 @@ async def submit_answer(
 async def update_progress(
     session_id: str,
     current_index: int = Query(..., ge=0),
+    pause: bool = Query(True),
     session: AsyncSession = Depends(get_db_session),
 ):
     qs = await session.get(QuizSession, session_id)
     if not qs:
         raise HTTPException(status_code=404, detail="Session not found")
     qs.current_index = current_index
-    qs.is_paused = True
+    now = datetime.utcnow()
+    if pause:
+        if qs.active_started_at:
+            qs.elapsed_seconds += int(
+                (now - qs.active_started_at).total_seconds())
+            qs.active_started_at = None
+        qs.is_paused = True
     await session.commit()
-    return {"status": "paused", "session_id": session_id, "current_index": current_index}
+    return {
+        "status": "paused" if pause else "saved",
+        "session_id": session_id,
+        "current_index": current_index,
+        "elapsed_seconds": qs.elapsed_seconds,
+    }
 
 
 @app.patch("/plays/{session_id}/complete")
@@ -323,7 +352,11 @@ async def complete_session(session_id: str, session: AsyncSession = Depends(get_
     qs = await session.get(QuizSession, session_id)
     if not qs:
         raise HTTPException(status_code=404, detail="Session not found")
-    qs.completed_at = datetime.utcnow()
+    now = datetime.utcnow()
+    if qs.active_started_at:
+        qs.elapsed_seconds += int((now - qs.active_started_at).total_seconds())
+        qs.active_started_at = None
+    qs.completed_at = now
     qs.is_paused = False
     await session.commit()
     return {"status": "completed", "session_id": session_id}
@@ -352,6 +385,7 @@ async def get_play_session(session_id: str, session: AsyncSession = Depends(get_
         is_completed=qs.completed_at is not None,
         current_index=qs.current_index,
         is_paused=qs.is_paused,
+        elapsed_seconds=qs.elapsed_seconds,
         responses=responses,
     )
 
@@ -387,6 +421,7 @@ async def get_active_session(quiz_id: UUID, session: AsyncSession = Depends(get_
         is_completed=qs.completed_at is not None,
         current_index=qs.current_index,
         is_paused=qs.is_paused,
+        elapsed_seconds=qs.elapsed_seconds,
         responses=responses,
     )
 

@@ -89,6 +89,8 @@ class QuizSession(Base):
     completed_at = Column(DateTime, nullable=True)
     current_index = Column(Integer, default=0, nullable=False)
     is_paused = Column(Boolean, default=False, nullable=False)
+    active_started_at = Column(DateTime, nullable=True)
+    elapsed_seconds = Column(Integer, default=0, nullable=False)
 
     quiz = relationship("Quiz", back_populates="sessions")
     user = relationship("User", back_populates="sessions")

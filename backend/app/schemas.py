@@ -57,6 +57,7 @@ class PlaySession(BaseModel):
     completed: bool = Field(..., alias="is_completed")
     current_index: int | None = None
     is_paused: bool | None = None
+    elapsed_seconds: int | None = 0
     responses: List[PlayResponse]
 
     class Config:

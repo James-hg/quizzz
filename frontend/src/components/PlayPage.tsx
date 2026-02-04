@@ -14,6 +14,7 @@ type Props = {
     sessionId?: string | null;
     apiBase: string;
     onProgressChange?: (index: number) => void;
+    onElapsedChange?: (seconds: number) => void;
     onComplete?: () => void;
 };
 
@@ -22,6 +23,7 @@ export function PlayPage({
     sessionId,
     apiBase,
     onProgressChange,
+    onElapsedChange,
     onComplete,
 }: Props) {
     const [index, setIndex] = useState(0);
@@ -54,9 +56,12 @@ export function PlayPage({
                 if (typeof data.current_index === "number") {
                     setIndex(data.current_index);
                 }
+                if (typeof data.elapsed_seconds === "number") {
+                    onElapsedChange?.(data.elapsed_seconds);
+                }
             })
             .catch(() => {});
-    }, [sessionId, quiz?.serverId, apiBase]);
+    }, [sessionId, quiz?.serverId, apiBase, onElapsedChange]);
 
     const handleSubmit = async () => {
         if (!question || selected === null || !sessionId) return;

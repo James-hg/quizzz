@@ -45,7 +45,6 @@ Importing:
 - [ ] AI rephrases questions and answers if it's text
 - [ ] add explaination for questions
 - [ ] takes in a lecture/materials, generate questions based on it (LLM)
-- [ ] 
 
 ## mcq quiz logic
 
@@ -83,9 +82,18 @@ Optional features:
 ## Todo list
 
 - [ ] folder organization
+  - [ ] new page for folder
 - [ ] tags organization
+- [ ] new page for quiz history (duplicate from editor page)
+  - [ ] no editing features, only display
+  - [ ] display name, subject, all prev plays
+  - [ ] display chart for performance
+  - [ ] AI to analyze performance
 - [ ] game timer
-- [ ] AI chatbot
-- [x] docx extract bug fix
+  - [ ] display on play history page
+  - [ ] display on startpage (prev plays)
+  - [ ] display time elapsed during play
+  - [x] handled backend
+- [ ] AI chatbot & integrate gemma 3
 - [ ] csv extract
 - [ ] pdf extract
