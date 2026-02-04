@@ -1,27 +1,68 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-type PlayOption = { id: number; text: string; correct: boolean };
-type PlayQuestion = { id: number; text: string; options: PlayOption[] };
+type PlayOption = { id: string; text: string; correct: boolean };
+type PlayQuestion = { id: string; text: string; options: PlayOption[] };
 type PlayQuiz = {
-    id: number;
+    id: string;
     title: string;
     items: PlayQuestion[];
 };
 
 type Props = {
     quiz: PlayQuiz | null;
+    apiBase: string;
     onBegin: (
         mode: "new" | "resume",
         opts: { shuffleQuestions: boolean; shuffleChoices: boolean },
+        resumeSessionId?: string | null,
     ) => void;
-    hasResume: boolean;
 };
 
-export function StartPage({ quiz, onBegin, hasResume }: Props) {
+export function StartPage({ quiz, apiBase, onBegin }: Props) {
     const [timerEnabled, setTimerEnabled] = useState(true);
-    const [readAloud, setReadAloud] = useState(false);
     const [shuffleQ, setShuffleQ] = useState(false);
     const [shuffleC, setShuffleC] = useState(false);
+    const [attempts, setAttempts] = useState<number>(0);
+    const [lastAttempt, setLastAttempt] = useState<{ correct: number; total: number } | null>(null);
+    const [resumeSessionId, setResumeSessionId] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchMeta = async () => {
+            if (!quiz) return;
+            // history
+            try {
+                const hResp = await fetch(`${apiBase}/quizzes/${quiz.id}/history`);
+                if (hResp.ok) {
+                    const hist = await hResp.json();
+                    setAttempts(hist.length);
+                    if (hist.length) {
+                        setLastAttempt({
+                            correct: hist[0].correct ?? 0,
+                            total: hist[0].total ?? 0,
+                        });
+                    } else {
+                        setLastAttempt(null);
+                    }
+                }
+            } catch {
+                setAttempts(0);
+                setLastAttempt(null);
+            }
+            // active session for resume
+            try {
+                const sResp = await fetch(`${apiBase}/quizzes/${quiz.id}/session`);
+                if (sResp.ok) {
+                    const data = await sResp.json();
+                    setResumeSessionId(data.id);
+                } else {
+                    setResumeSessionId(null);
+                }
+            } catch {
+                setResumeSessionId(null);
+            }
+        };
+        fetchMeta();
+    }, [quiz, apiBase]);
 
     if (!quiz) {
         return (
@@ -40,14 +81,6 @@ export function StartPage({ quiz, onBegin, hasResume }: Props) {
     }
 
     const total = quiz.items.length;
-    const historyKey = `playHistory:${quiz.id}`;
-    const history = JSON.parse(localStorage.getItem(historyKey) || "[]") as {
-        completedAt: string;
-        correct: number;
-        total: number;
-    }[];
-    const attempts = history.length;
-    const lastAttempt = history[0];
 
     return (
         <div className="play-shell">
@@ -58,7 +91,11 @@ export function StartPage({ quiz, onBegin, hasResume }: Props) {
                     <p className="muted">{total} questions</p>
                     <p className="muted">
                         {attempts
-                            ? `Previous attempts: ${attempts} (last ${lastAttempt.correct}/${lastAttempt.total})`
+                            ? `Previous attempts: ${attempts}${
+                                  lastAttempt
+                                      ? ` (last ${lastAttempt.correct}/${lastAttempt.total})`
+                                      : ""
+                              }`
                             : "No previous attempts yet."}
                     </p>
                     <div className="start-actions">
@@ -88,14 +125,18 @@ export function StartPage({ quiz, onBegin, hasResume }: Props) {
                                 >
                                     Start new game
                                 </button>
-                                {hasResume && (
+                                {resumeSessionId && (
                                     <button
                                         className="btn secondary wide"
                                         onClick={() =>
-                                            onBegin("resume", {
-                                                shuffleQuestions: shuffleQ,
-                                                shuffleChoices: shuffleC,
-                                            })
+                                            onBegin(
+                                                "resume",
+                                                {
+                                                    shuffleQuestions: shuffleQ,
+                                                    shuffleChoices: shuffleC,
+                                                },
+                                                resumeSessionId,
+                                            )
                                         }
                                     >
                                         Resume

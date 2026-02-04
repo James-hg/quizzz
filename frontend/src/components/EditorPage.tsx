@@ -1,21 +1,21 @@
 import { useEffect, useState } from "react";
 
 type EditableQuestion = {
-    id: number;
+    id: string;
     text: string;
-    options: { id: number; text: string; correct: boolean }[];
+    options: { id: string; text: string; correct: boolean }[];
 };
 
 type Props = {
     quiz: {
-        id: number;
+        id: string;
         serverId?: string;
         title: string;
         subject: string;
         items: EditableQuestion[];
     } | null;
     onSave: (quiz: {
-        id: number;
+        id: string;
         serverId?: string;
         title: string;
         subject: string;
@@ -24,14 +24,16 @@ type Props = {
         lastPlayed: string;
         items: EditableQuestion[];
     }) => Promise<boolean>;
-    onDelete: (id: number, serverId?: string) => void;
+    onDelete: (id: string, serverId?: string) => void;
 };
 
-const blankQuestion = (id: number): EditableQuestion => ({
+const newId = () => Math.random().toString(36).slice(2);
+
+const blankQuestion = (id: string): EditableQuestion => ({
     id,
     text: "",
     options: ["A", "B"].map((_, idx) => ({
-        id: idx,
+        id: newId(),
         text: "",
         correct: idx === 0,
     })),
@@ -41,7 +43,7 @@ export function EditorPage({ quiz, onSave, onDelete }: Props) {
     const [title, setTitle] = useState(quiz?.title ?? "");
     const [subject, setSubject] = useState(quiz?.subject ?? "");
     const [questions, setQuestions] = useState<EditableQuestion[]>(
-        quiz?.items?.length ? quiz.items : [blankQuestion(0)],
+        quiz?.items?.length ? quiz.items : [blankQuestion(newId())],
     );
     const [dirty, setDirty] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -49,24 +51,26 @@ export function EditorPage({ quiz, onSave, onDelete }: Props) {
     useEffect(() => {
         setTitle(quiz?.title ?? "");
         setSubject(quiz?.subject ?? "");
-        setQuestions(quiz?.items?.length ? quiz.items : [blankQuestion(0)]);
+        setQuestions(
+            quiz?.items?.length ? quiz.items : [blankQuestion(newId())],
+        );
         setDirty(false);
     }, [quiz]);
 
     const addQuestion = () => {
         const nextIndex = questions.length;
-        setQuestions((prev) => [...prev, blankQuestion(nextIndex)]);
+        setQuestions((prev) => [...prev, blankQuestion(newId())]);
         setDirty(true);
     };
 
-    const updateQuestionText = (id: number, text: string) => {
+    const updateQuestionText = (id: string, text: string) => {
         setQuestions((prev) =>
             prev.map((q) => (q.id === id ? { ...q, text } : q)),
         );
         setDirty(true);
     };
 
-    const updateOption = (qId: number, optId: number, text: string) => {
+    const updateOption = (qId: string, optId: string, text: string) => {
         setQuestions((prev) =>
             prev.map((q) =>
                 q.id !== qId
@@ -82,7 +86,7 @@ export function EditorPage({ quiz, onSave, onDelete }: Props) {
         setDirty(true);
     };
 
-    const markCorrect = (qId: number, optId: number) => {
+    const markCorrect = (qId: string, optId: string) => {
         setQuestions((prev) =>
             prev.map((q) =>
                 q.id !== qId
@@ -99,7 +103,7 @@ export function EditorPage({ quiz, onSave, onDelete }: Props) {
         setDirty(true);
     };
 
-    const addOption = (qId: number) => {
+    const addOption = (qId: string) => {
         setQuestions((prev) =>
             prev.map((q) =>
                 q.id !== qId || q.options.length >= 4
@@ -109,7 +113,7 @@ export function EditorPage({ quiz, onSave, onDelete }: Props) {
                           options: [
                               ...q.options,
                               {
-                                  id: q.options.length,
+                                  id: newId(),
                                   text: "",
                                   correct: false,
                               },
@@ -120,7 +124,7 @@ export function EditorPage({ quiz, onSave, onDelete }: Props) {
         setDirty(true);
     };
 
-    const removeOption = (qId: number, optId: number) => {
+    const removeOption = (qId: string, optId: string) => {
         setQuestions((prev) =>
             prev.map((q) => {
                 if (q.id !== qId || q.options.length <= 2) return q;
@@ -136,7 +140,7 @@ export function EditorPage({ quiz, onSave, onDelete }: Props) {
         setDirty(true);
     };
 
-    const deleteQuestion = (qId: number) => {
+    const deleteQuestion = (qId: string) => {
         setQuestions((prev) => {
             if (prev.length <= 1) return prev; // keep at least one
             return prev.filter((q) => q.id !== qId);
@@ -144,11 +148,11 @@ export function EditorPage({ quiz, onSave, onDelete }: Props) {
         setDirty(true);
     };
 
-    const duplicateQuestion = (qId: number) => {
+    const duplicateQuestion = (qId: string) => {
         setQuestions((prev) => {
             const found = prev.find((q) => q.id === qId);
             if (!found) return prev;
-            const copyId = prev.length;
+            const copyId = newId();
             const copy: EditableQuestion = {
                 id: copyId,
                 text: found.text,
@@ -170,7 +174,7 @@ export function EditorPage({ quiz, onSave, onDelete }: Props) {
         setSaving(true);
         const trimmedTitle = title.trim() || "Untitled quiz";
         const payload = {
-            id: quiz?.id ?? -1,
+            id: quiz?.id ?? "new",
             title: trimmedTitle,
             subject: subject.trim() || "No subject",
             questions: questions.length,

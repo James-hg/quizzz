@@ -207,6 +207,8 @@ async def submit_answer(
         id=qs.id,
         quiz_id=qs.quiz_id,
         is_completed=qs.completed_at is not None,
+        current_index=qs.current_index,
+        is_paused=qs.is_paused,
         responses=responses,
     )
 
@@ -235,6 +237,33 @@ async def complete_session(session_id: str, session: AsyncSession = Depends(get_
     qs.is_paused = False
     await session.commit()
     return {"status": "completed", "session_id": session_id}
+
+
+@app.get("/plays/{session_id}", response_model=PlaySession)
+async def get_session(session_id: str, session: AsyncSession = Depends(get_session)):
+    qs = await session.get(QuizSession, session_id)
+    if not qs:
+        raise HTTPException(status_code=404, detail="Session not found")
+    result_resp = await session.execute(
+        select(Response).where(Response.session_id == qs.id)
+    )
+    responses = [
+        {
+            "id": r.id,
+            "question_id": r.question_id,
+            "selected_option_id": r.selected_option_id,
+            "is_correct": r.is_correct,
+        }
+        for r in result_resp.scalars().all()
+    ]
+    return PlaySession(
+        id=qs.id,
+        quiz_id=qs.quiz_id,
+        is_completed=qs.completed_at is not None,
+        current_index=qs.current_index,
+        is_paused=qs.is_paused,
+        responses=responses,
+    )
 
 
 @app.get("/quizzes/{quiz_id}/session", response_model=PlaySession)

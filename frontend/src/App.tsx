@@ -7,59 +7,29 @@ import { ImportPage } from "./components/ImportPage";
 import { PlayPage } from "./components/PlayPage";
 import { StartPage } from "./components/StartPage";
 
-// Quiz object type
+type Option = { id: string; text: string; correct: boolean };
+type Question = { id: string; text: string; options: Option[] };
 type Quiz = {
-    id: number;
+    id: string; // server id
     title: string;
     subject: string;
     lastPlayed: string;
     questions: number;
-    folderId?: string;
-    progress: number; // 0-100 %
-    serverId?: string;
-    items: {
-        id: number;
-        text: string;
-        options: { id: number; text: string; correct: boolean }[];
-    }[];
+    progress: number;
+    items: Question[];
 };
 
-// Folder object type
-type Folder = {
-    id: string;
-    name: string;
-    color: string;
-    quizCount: number;
-    updatedAt: string;
-};
-
-const normalizeQuizzes = (raw: Quiz[]): Quiz[] =>
-    raw.map((quiz, qIndex) => ({
-        ...quiz,
-        id: qIndex,
-        serverId: quiz.serverId,
-        items: (quiz.items ?? []).map((q, qi) => ({
-            ...q,
-            id: q.id ?? String(qi),
-            options: (q.options ?? []).map((o, oi) => ({
-                ...o,
-                id: o.id ?? String(oi),
-            })),
-        })),
-    }));
-
-// list of endpoint routes
 type Route = "/" | "/editor" | "/settings" | "/import" | "/play" | "/launch";
 
 const parseHash = (): {
     route: Route;
-    id: number | null;
+    id: string | null;
     session: string | null;
 } => {
     const raw = window.location.hash.replace("#", "") || "/";
     const parts = raw.split("/").filter(Boolean); // ["play","id","session"]
     const path = (parts[0] ? `/${parts[0]}` : "/") as Route;
-    const id = parts[1] ? Number(parts[1]) : null;
+    const id = parts[1] ?? null;
     const session = parts[2] ?? null;
     const allowed: Route[] = [
         "/",
@@ -70,34 +40,41 @@ const parseHash = (): {
         "/launch",
     ];
     const route = allowed.includes(path) ? path : "/";
-    return { route, id: Number.isFinite(id) ? id : null, session };
+    return { route, id, session };
 };
+
+const mapQuiz = (data: any): Quiz => ({
+    id: data.id,
+    title: data.title ?? "Untitled quiz",
+    subject: data.subject ?? "No subject",
+    lastPlayed: "never",
+    questions: data.questions?.length ?? 0,
+    progress: 0,
+    items: (data.questions ?? []).map((q: any) => ({
+        id: q.id,
+        text: q.text,
+        options: (q.options ?? []).map((o: any) => ({
+            id: o.id,
+            text: o.text,
+            correct: o.is_correct ?? o.correct ?? false,
+        })),
+    })),
+});
 
 export default function App() {
     const [{ route, id, session }, setRoute] = useState(parseHash());
     const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
     const [search, setSearch] = useState("");
-    const [quizzes, setQuizzes] = useState<Quiz[]>(() => {
-        const cached = localStorage.getItem("quizzes");
-        if (!cached) return [];
-        try {
-            const raw = JSON.parse(cached) as Quiz[];
-            return normalizeQuizzes(raw);
-        } catch {
-            return [];
-        }
-    });
-    const [folders] = useState<Folder[]>([]);
-    const [editingQuizId, setEditingQuizId] = useState<number | null>(null);
+    const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
     const [playingQuiz, setPlayingQuiz] = useState<Quiz | null>(null);
+    const [playSessions, setPlaySessions] = useState<
+        Record<string, string | null>
+    >({});
     const [playIndex, setPlayIndex] = useState(0);
-    const [playSessions, setPlaySessions] = useState<Record<number, string>>(
-        () => {
-            const cached = localStorage.getItem("playSessions");
-            return cached ? (JSON.parse(cached) as Record<number, string>) : {};
-        },
-    );
 
+    // routing
     useEffect(() => {
         const onHash = () => setRoute(parseHash());
         window.addEventListener("hashchange", onHash);
@@ -107,6 +84,73 @@ export default function App() {
     useEffect(() => {
         setEditingQuizId(id);
     }, [id]);
+
+    // fetch quizzes from backend
+    const loadQuizzes = async () => {
+        setLoading(true);
+        try {
+            const resp = await fetch(`${apiBase}/quizzes`);
+            if (!resp.ok) throw new Error("Failed to list quizzes");
+            const summaries = await resp.json();
+            const full = await Promise.all(
+                summaries.map(async (s: any) => {
+                    const qResp = await fetch(`${apiBase}/quizzes/${s.id}`);
+                    if (!qResp.ok) return null;
+                    const data = await qResp.json();
+                    const quiz = mapQuiz(data);
+
+                    // attach history + active session info
+                    try {
+                        const hResp = await fetch(
+                            `${apiBase}/quizzes/${quiz.id}/history`,
+                        );
+                        if (hResp.ok) {
+                            const hist = await hResp.json();
+                            if (hist.length) {
+                                const last = hist[0];
+                                quiz.lastPlayed = last.completed_at
+                                    ? new Date(
+                                          last.completed_at,
+                                      ).toLocaleString()
+                                    : "recently";
+                                quiz.progress = 100;
+                            }
+                        }
+                    } catch {
+                        // ignore history errors
+                    }
+                    try {
+                        const sResp = await fetch(
+                            `${apiBase}/quizzes/${quiz.id}/session`,
+                        );
+                        if (sResp.ok) {
+                            const sess = await sResp.json();
+                            const total = quiz.items.length || 1;
+                            quiz.progress = Math.round(
+                                (Number(sess.current_index ?? 0) / total) * 100,
+                            );
+                            setPlaySessions((prev) => ({
+                                ...prev,
+                                [quiz.id]: sess.id,
+                            }));
+                        }
+                    } catch {
+                        // ignore
+                    }
+                    return quiz;
+                }),
+            );
+            setQuizzes(full.filter(Boolean) as Quiz[]);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadQuizzes();
+    }, []);
 
     const filteredQuizzes = useMemo(() => {
         if (!search.trim()) return quizzes;
@@ -118,7 +162,6 @@ export default function App() {
         );
     }, [search, quizzes]);
 
-    // 5 most recent quizzes
     const recent = useMemo(() => quizzes.slice(0, 5), [quizzes]);
 
     const handleQuizClick = (quiz: Quiz) => {
@@ -131,42 +174,6 @@ export default function App() {
         window.location.hash = `#/launch/${quiz.id}`;
     };
 
-    const fetchFullQuiz = async (serverId: string): Promise<Quiz | null> => {
-        try {
-            const resp = await fetch(`${apiBase}/quizzes/${serverId}`);
-            if (!resp.ok) return null;
-            const data = await resp.json() as {
-                id: string;
-                title: string;
-                questions: {
-                    id: string;
-                    text: string;
-                    options: { id: string; text: string; is_correct: boolean; position: number; }[];
-                }[];
-            };
-            return {
-                id: editingQuizId ?? 0,
-                serverId: data.id,
-                title: data.title,
-                subject: "Imported",
-                lastPlayed: "never",
-                questions: data.questions.length,
-                progress: 0,
-                items: data.questions.map((q, qi) => ({
-                    id: q.id,
-                    text: q.text,
-                    options: q.options.map((o, oi) => ({
-                        id: o.id,
-                        text: o.text,
-                        correct: o.is_correct,
-                    })),
-                })),
-            };
-        } catch {
-            return null;
-        }
-    };
-
     const shuffleClone = (
         quiz: Quiz,
         opts: { shuffleQuestions: boolean; shuffleChoices: boolean },
@@ -175,7 +182,10 @@ export default function App() {
         if (opts.shuffleQuestions) {
             for (let i = clone.items.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
-                [clone.items[i], clone.items[j]] = [clone.items[j], clone.items[i]];
+                [clone.items[i], clone.items[j]] = [
+                    clone.items[j],
+                    clone.items[i],
+                ];
             }
         }
         if (opts.shuffleChoices) {
@@ -191,15 +201,27 @@ export default function App() {
         return clone;
     };
 
-    const handleSaveQuiz = async (quiz: Quiz) => {
-        // persist to backend first
+    const handleSaveQuiz = async (quiz: {
+        id: string;
+        serverId?: string;
+        title: string;
+        subject: string;
+        questions: number;
+        progress: number;
+        lastPlayed: string;
+        items: {
+            id: any;
+            text: string;
+            options: { id: any; text: string; correct: boolean }[];
+        }[];
+    }) => {
         try {
             const payload = {
                 title: quiz.title,
                 owner_id: null,
-                questions: quiz.items.map((q, qi) => ({
+                questions: quiz.items.map((q, idx) => ({
                     text: q.text,
-                    position: qi,
+                    position: idx,
                     options: q.options.map((o, oi) => ({
                         text: o.text,
                         is_correct: o.correct,
@@ -212,49 +234,37 @@ export default function App() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             });
-            if (!resp.ok) {
-                throw new Error("Failed to save quiz");
-            }
-            const data = (await resp.json()) as { id: string; title: string };
-            quiz = { ...quiz, serverId: data.id };
-        } catch {
+            if (!resp.ok) throw new Error("Failed to save quiz");
+            const data = await resp.json();
+            const fullResp = await fetch(`${apiBase}/quizzes/${data.id}`);
+            const fullQuiz = mapQuiz(await fullResp.json());
+
+            setQuizzes((prev) => {
+                const withoutOld = prev.filter((q) => q.id !== quiz.id);
+                return [...withoutOld, fullQuiz];
+            });
+            setEditingQuizId(data.id);
+            window.location.hash = `#/launch/${data.id}`;
+            return true;
+        } catch (err) {
+            console.error(err);
             return false;
         }
-
-        setQuizzes((prev) => {
-            const existingIndex = prev.findIndex((q) => q.id === quiz.id);
-            let next: Quiz[];
-            if (existingIndex >= 0) {
-                next = [...prev];
-                next[existingIndex] = quiz;
-            } else {
-                const newQuiz = { ...quiz, id: prev.length };
-                next = [...prev, newQuiz];
-            }
-            const normalized = normalizeQuizzes(next);
-            localStorage.setItem("quizzes", JSON.stringify(normalized));
-            return normalized;
-        });
-        const targetId = quiz.id >= 0 ? quiz.id : quizzes.length;
-        setEditingQuizId(targetId);
-        window.location.hash = `#/launch/${targetId}`;
-        return true;
     };
 
-    const handleDeleteQuiz = async (id: number, serverId?: string) => {
-        if (serverId) {
+    const handleDeleteQuiz = async (quizId: string, serverId?: string) => {
+        if (quizId) {
+            await fetch(`${apiBase}/quizzes/${quizId}`, {
+                method: "DELETE",
+            }).catch(() => {});
+        } else if (serverId) {
             await fetch(`${apiBase}/quizzes/${serverId}`, {
                 method: "DELETE",
             }).catch(() => {});
         }
-        setQuizzes((prev) => {
-            const next = prev.filter((q) => q.id !== id);
-            const normalized = normalizeQuizzes(next);
-            localStorage.setItem("quizzes", JSON.stringify(normalized));
-            return normalized;
-        });
+        setQuizzes((prev) => prev.filter((q) => q.id !== quizId));
         setEditingQuizId(null);
-        window.location.hash = "/";
+        window.location.hash = "#/";
     };
 
     const editingQuiz = useMemo(
@@ -262,53 +272,37 @@ export default function App() {
         [quizzes, editingQuizId],
     );
 
+    // --- routes ---
     if (route === "/play") {
-        const current =
-            (editingQuizId !== null &&
-                quizzes.find((q) => q.id === editingQuizId)) ||
-            editingQuiz ||
+        const playQuiz =
+            playingQuiz ||
+            (editingQuizId
+                ? quizzes.find((q) => q.id === editingQuizId)
+                : null) ||
             null;
-        const playQuiz = playingQuiz || current;
-        const sessionId = playQuiz ? playSessions[playQuiz.id] || null : null;
+        const sessionId = playQuiz
+            ? playSessions[playQuiz.id] || session
+            : session;
         return (
-            <NavBar
-                primaryLabel="Home"
-                primaryHref="#/"
-                onSaveExit={async () => {
-                    if (playQuiz && sessionId) {
-                        await fetch(
-                            `${apiBase}/plays/${sessionId}/progress?current_index=${playIndex}`,
-                            { method: "PATCH" },
-                        ).catch(() => {});
-                    }
-                    if (playQuiz) {
-                        window.location.hash = `#/launch/${playQuiz.id}`;
-                    }
-                }}
-            >
+            <NavBar primaryLabel="Home" primaryHref="#/">
                 <PlayPage
                     quiz={playQuiz}
-                    sessionId={sessionId}
+                    sessionId={sessionId || undefined}
+                    apiBase={apiBase}
                     onProgressChange={setPlayIndex}
                     onComplete={async () => {
-                        if (playQuiz) {
-                            if (sessionId) {
-                                await fetch(
-                                    `${apiBase}/plays/${sessionId}/complete`,
-                                    {
-                                        method: "PATCH",
-                                    },
-                                ).catch(() => {});
-                                setPlaySessions((prev) => {
-                                    const next = { ...prev };
-                                    if (playQuiz) delete next[playQuiz.id];
-                                    localStorage.setItem(
-                                        "playSessions",
-                                        JSON.stringify(next),
-                                    );
-                                    return next;
-                                });
-                            }
+                        if (playQuiz && sessionId) {
+                            await fetch(
+                                `${apiBase}/plays/${sessionId}/complete`,
+                                {
+                                    method: "PATCH",
+                                },
+                            ).catch(() => {});
+                            setPlaySessions((prev) => {
+                                const next = { ...prev };
+                                delete next[playQuiz.id];
+                                return next;
+                            });
                         }
                         setPlayingQuiz(null);
                     }}
@@ -316,69 +310,54 @@ export default function App() {
             </NavBar>
         );
     }
+
     if (route === "/launch") {
         const current =
-            (editingQuizId !== null &&
-                quizzes.find((q) => q.id === editingQuizId)) ||
+            (editingQuizId && quizzes.find((q) => q.id === editingQuizId)) ||
             editingQuiz ||
             null;
         return (
             <NavBar primaryLabel="Home" primaryHref="#/">
                 <StartPage
                     quiz={current}
-                    hasResume={
-                        current ? Boolean(playSessions[current.id]) : false
-                    }
-                    onBegin={async (mode, opts) => {
+                    apiBase={apiBase}
+                    onBegin={async (mode, opts, resumeSessionId) => {
                         if (!current) return;
-                        const targetId = current.id;
-                        let sessionToUse = playSessions[current.id] || null;
-                        let quizToPlay: Quiz | null = current;
+                        let sessionIdToUse: string | null =
+                            resumeSessionId || null;
 
-                        // fetch full quiz with server IDs
-                        if (current.serverId) {
-                            const full = await fetchFullQuiz(current.serverId);
-                            if (full) {
-                                quizToPlay = normalizeQuizzes([full])[0];
-                                quizToPlay.id = current.id; // keep local index
-                            }
-                        }
-
-                        // start new session
-                        if (mode === "new" && current.serverId) {
+                        if (mode === "new") {
                             const resp = await fetch(`${apiBase}/plays`, {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
-                                    quiz_id: current.serverId,
+                                    quiz_id: current.id,
                                     user_id: null,
                                 }),
                             }).catch(() => null);
                             if (resp && resp.ok) {
                                 const data = await resp.json();
-                                sessionToUse = data.id;
-                                setPlaySessions((prev) => {
-                                    const next = {
-                                        ...prev,
-                                        [current.id]: data.id,
-                                    };
-                                    localStorage.setItem(
-                                        "playSessions",
-                                        JSON.stringify(next),
-                                    );
-                                    return next;
-                                });
+                                sessionIdToUse = data.id;
+                                setPlaySessions((prev) => ({
+                                    ...prev,
+                                    [current.id]: data.id,
+                                }));
                             }
+                        } else if (mode === "resume" && resumeSessionId) {
+                            setPlaySessions((prev) => ({
+                                ...prev,
+                                [current.id]: resumeSessionId,
+                            }));
                         }
 
                         const toPlay =
                             mode === "new"
-                                ? shuffleClone(quizToPlay, opts)
-                                : quizToPlay;
+                                ? shuffleClone(current, opts)
+                                : current;
                         setPlayingQuiz(toPlay);
-                        window.location.hash = sessionToUse
-                            ? `#/play/${targetId}/${sessionToUse}`
-                            : `#/play/${targetId}`;
+                        window.location.hash = sessionIdToUse
+                            ? `#/play/${current.id}/${sessionIdToUse}`
+                            : `#/play/${current.id}`;
                     }}
                 />
             </NavBar>
@@ -386,7 +365,6 @@ export default function App() {
     }
 
     if (route === "/editor") {
-        // in editor mode, change to import button
         return (
             <NavBar
                 primaryLabel="Play"
@@ -399,7 +377,14 @@ export default function App() {
                 <EditorPage
                     onSave={handleSaveQuiz}
                     onDelete={handleDeleteQuiz}
-                    quiz={editingQuiz}
+                    quiz={
+                        editingQuiz
+                            ? {
+                                  ...editingQuiz,
+                                  serverId: editingQuiz.id,
+                              }
+                            : null
+                    }
                 />
             </NavBar>
         );
@@ -422,7 +407,6 @@ export default function App() {
             <NavBar primaryLabel="Editor" primaryHref="#/editor">
                 <ImportPage
                     onExtract={async (draft) => {
-                        // create on backend to obtain serverId
                         let serverId: string | undefined;
                         try {
                             const payload = {
@@ -448,38 +432,16 @@ export default function App() {
                                 serverId = data.id;
                             }
                         } catch {
-                            // fall back to local only if backend fails
+                            // ignore
                         }
 
-                        const nextId = quizzes.length;
-                        const mapped: Quiz = {
-                            id: nextId,
-                            title: draft.title || "Imported Quiz",
-                            subject: "Imported",
-                            lastPlayed: "never",
-                            questions: draft.questions.length,
-                            progress: 0,
-                            serverId,
-                            items: draft.questions.map((q, qi) => ({
-                                id: q.id ? String(q.id) : String(qi),
-                                text: q.text,
-                                options: q.options.map((o, oi) => ({
-                                    id: o.id ? String(o.id) : String(oi),
-                                    text: o.text,
-                                    correct: o.isCorrect,
-                                })),
-                            })),
-                        };
-
-                        const normalized = normalizeQuizzes([
-                            ...quizzes,
-                            mapped,
-                        ]);
-                        setQuizzes(normalized);
-                        localStorage.setItem(
-                            "quizzes",
-                            JSON.stringify(normalized),
+                        if (!serverId) return;
+                        const fullResp = await fetch(
+                            `${apiBase}/quizzes/${serverId}`,
                         );
+                        if (!fullResp.ok) return;
+                        const mapped = mapQuiz(await fullResp.json());
+                        setQuizzes((prev) => [...prev, mapped]);
                         setEditingQuizId(mapped.id);
                         window.location.hash = `#/editor/${mapped.id}`;
                     }}
@@ -493,7 +455,7 @@ export default function App() {
             <HomePage
                 recent={recent}
                 quizzes={filteredQuizzes}
-                folders={folders}
+                folders={[]}
                 search={search}
                 setSearch={setSearch}
                 onQuizClick={handleQuizClick}

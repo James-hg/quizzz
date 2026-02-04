@@ -55,6 +55,8 @@ class PlaySession(BaseModel):
     id: UUID
     quiz_id: UUID
     completed: bool = Field(..., alias="is_completed")
+    current_index: int | None = None
+    is_paused: bool | None = None
     responses: List[PlayResponse]
 
     class Config:

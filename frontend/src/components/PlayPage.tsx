@@ -72,15 +72,22 @@ export function PlayPage({
                 body: JSON.stringify({
                     question_id: question.id,
                     selected_option_id: selected,
-                    session_id: sessionId,
                 }),
             });
         } catch (err) {
             console.error("Failed to submit answer:", err);
         }
 
+        const next = index + 1;
+        if (next < total) {
+            // auto-save progress for resume
+            fetch(
+                `${apiBase}/plays/${sessionId}/progress?current_index=${next}`,
+                { method: "PATCH" },
+            ).catch(() => {});
+        }
+
         setTimeout(async () => {
-            const next = index + 1;
             if (next >= total) {
                 setCompleted(true);
                 try {

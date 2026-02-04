@@ -1,7 +1,7 @@
 import { ProgressBar } from "./ProgressBar";
 
 type Quiz = {
-    id: number;
+    id: string;
     title: string;
     subject: string;
     lastPlayed: string;
