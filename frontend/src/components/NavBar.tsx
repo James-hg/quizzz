@@ -4,6 +4,7 @@ type Props = {
     children: ReactNode;
     primaryLabel?: string;
     primaryHref?: string;
+    onSaveExit?: () => void;
 };
 
 export function NavBar({
@@ -11,6 +12,7 @@ export function NavBar({
     primaryLabel = "Create quiz",
     // if in editor, change button to import
     primaryHref = "#/editor",
+    onSaveExit,
 }: Props) {
     const isPlayPage = window.location.hash.startsWith("#/play");
     const [menuOpen, setMenuOpen] = useState(false);
@@ -21,11 +23,6 @@ export function NavBar({
         window.addEventListener("hashchange", handleHash);
         return () => window.removeEventListener("hashchange", handleHash);
     }, []);
-
-    const handleSaveExit = () => {
-        alert("Save & exit coming soon");
-        setMenuOpen(false);
-    };
 
     return (
         <div className="NavBar">
@@ -55,7 +52,10 @@ export function NavBar({
                                     </button>
                                     <button
                                         className="dropdown-item"
-                                        onClick={handleSaveExit}
+                                        onClick={() => {
+                                            onSaveExit?.();
+                                            setMenuOpen(false);
+                                        }}
                                     >
                                         Save & exit
                                     </button>

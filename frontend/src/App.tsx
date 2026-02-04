@@ -37,6 +37,7 @@ const normalizeQuizzes = (raw: Quiz[]): Quiz[] =>
     raw.map((quiz, qIndex) => ({
         ...quiz,
         id: qIndex,
+        serverId: quiz.serverId,
         items: (quiz.items ?? []).map((q, qi) => ({
             ...q,
             id: qi,
@@ -88,6 +89,7 @@ export default function App() {
     });
     const [folders] = useState<Folder[]>([]);
     const [editingQuizId, setEditingQuizId] = useState<number | null>(null);
+    const [playingQuiz, setPlayingQuiz] = useState<Quiz | null>(null);
     const [playSessions, setPlaySessions] = useState<Record<number, string>>(
         () => {
             const cached = localStorage.getItem("playSessions");
@@ -126,6 +128,30 @@ export default function App() {
     const handlePlayClick = (quiz: Quiz) => {
         setEditingQuizId(quiz.id);
         window.location.hash = `#/launch/${quiz.id}`;
+    };
+
+    const shuffleClone = (
+        quiz: Quiz,
+        opts: { shuffleQuestions: boolean; shuffleChoices: boolean },
+    ): Quiz => {
+        const clone: Quiz = JSON.parse(JSON.stringify(quiz));
+        if (opts.shuffleQuestions) {
+            for (let i = clone.items.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [clone.items[i], clone.items[j]] = [clone.items[j], clone.items[i]];
+            }
+        }
+        if (opts.shuffleChoices) {
+            clone.items = clone.items.map((q) => {
+                const optsArr = [...q.options];
+                for (let i = optsArr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [optsArr[i], optsArr[j]] = [optsArr[j], optsArr[i]];
+                }
+                return { ...q, options: optsArr };
+            });
+        }
+        return clone;
     };
 
     const handleSaveQuiz = async (quiz: Quiz) => {
@@ -178,7 +204,12 @@ export default function App() {
         return true;
     };
 
-    const handleDeleteQuiz = (id: number) => {
+    const handleDeleteQuiz = async (id: number, serverId?: string) => {
+        if (serverId) {
+            await fetch(`${apiBase}/quizzes/${serverId}`, {
+                method: "DELETE",
+            }).catch(() => {});
+        }
         setQuizzes((prev) => {
             const next = prev.filter((q) => q.id !== id);
             const normalized = normalizeQuizzes(next);
@@ -200,20 +231,32 @@ export default function App() {
                 quizzes.find((q) => q.id === editingQuizId)) ||
             editingQuiz ||
             null;
+        const playQuiz = playingQuiz || current;
         return (
-            <NavBar primaryLabel="Home" primaryHref="#/">
+            <NavBar
+                primaryLabel="Home"
+                primaryHref="#/"
+                onSaveExit={async () => {
+                    if (playQuiz) {
+                        const sid = playSessions[playQuiz.id];
+                        if (sid) {
+                            await fetch(
+                                `${apiBase}/plays/${sid}/progress?current_index=${index}`,
+                                { method: "PATCH" },
+                            ).catch(() => {});
+                        }
+                        window.location.hash = `#/launch/${playQuiz.id}`;
+                    }
+                }}
+            >
                 <PlayPage
-                    quiz={current}
+                    quiz={playQuiz}
                     sessionId={
-                        current ? playSessions[current.id] || null : null
+                        playQuiz ? playSessions[playQuiz.id] || null : null
                     }
                     onSaveExit={async ({ index }) => {
-                        if (current) {
-                            localStorage.setItem(
-                                `playState:${current.id}`,
-                                JSON.stringify({ index, responses: [] }),
-                            );
-                            const sid = playSessions[current.id];
+                        if (playQuiz) {
+                            const sid = playSessions[playQuiz.id];
                             if (sid) {
                                 await fetch(
                                     `${apiBase}/plays/${sid}/progress?current_index=${index}`,
@@ -221,12 +264,11 @@ export default function App() {
                                 ).catch(() => {});
                             }
                         }
-                        window.location.hash = `#/launch/${current?.id ?? ""}`;
+                        window.location.hash = `#/launch/${playQuiz?.id ?? ""}`;
                     }}
                     onComplete={async () => {
-                        if (current) {
-                            localStorage.removeItem(`playState:${current.id}`);
-                            const sid = playSessions[current.id];
+                        if (playQuiz) {
+                            const sid = playSessions[playQuiz.id];
                             if (sid) {
                                 await fetch(
                                     `${apiBase}/plays/${sid}/complete`,
@@ -236,7 +278,7 @@ export default function App() {
                                 ).catch(() => {});
                                 setPlaySessions((prev) => {
                                     const next = { ...prev };
-                                    delete next[current.id];
+                                    delete next[playQuiz.id];
                                     localStorage.setItem(
                                         "playSessions",
                                         JSON.stringify(next),
@@ -245,6 +287,7 @@ export default function App() {
                                 });
                             }
                         }
+                        setPlayingQuiz(null);
                     }}
                 />
             </NavBar>
@@ -263,9 +306,10 @@ export default function App() {
                     hasResume={
                         current ? Boolean(playSessions[current.id]) : false
                     }
-                    onBegin={async (mode) => {
+                    onBegin={async (mode, opts) => {
                         if (!current) return;
                         const targetId = current.id;
+                        let sessionToUse = playSessions[current.id] || null;
 
                         // start new session
                         if (mode === "new" && current.serverId) {
@@ -279,6 +323,7 @@ export default function App() {
                             }).catch(() => null);
                             if (resp && resp.ok) {
                                 const data = await resp.json();
+                                sessionToUse = data.id;
                                 setPlaySessions((prev) => {
                                     const next = {
                                         ...prev,
@@ -296,7 +341,14 @@ export default function App() {
                             }
                         }
 
-                        window.location.hash = `#/play/${targetId}`;
+                        const toPlay =
+                            mode === "new"
+                                ? shuffleClone(current, opts)
+                                : current;
+                        setPlayingQuiz(toPlay);
+                        window.location.hash = sessionToUse
+                            ? `#/play/${targetId}/${sessionToUse}`
+                            : `#/play/${targetId}`;
                     }}
                 />
             </NavBar>

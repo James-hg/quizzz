@@ -10,13 +10,18 @@ type PlayQuiz = {
 
 type Props = {
     quiz: PlayQuiz | null;
-    onBegin: (mode: "new" | "resume") => void;
+    onBegin: (
+        mode: "new" | "resume",
+        opts: { shuffleQuestions: boolean; shuffleChoices: boolean },
+    ) => void;
     hasResume: boolean;
 };
 
 export function StartPage({ quiz, onBegin, hasResume }: Props) {
     const [timerEnabled, setTimerEnabled] = useState(true);
     const [readAloud, setReadAloud] = useState(false);
+    const [shuffleQ, setShuffleQ] = useState(false);
+    const [shuffleC, setShuffleC] = useState(false);
 
     if (!quiz) {
         return (
@@ -58,27 +63,71 @@ export function StartPage({ quiz, onBegin, hasResume }: Props) {
                     </p>
                     <div className="start-actions">
                         {attempts === 0 && (
-                            <button className="btn primary wide" onClick={() => onBegin("new")}>
+                            <button
+                                className="btn primary wide"
+                                onClick={() =>
+                                    onBegin("new", {
+                                        shuffleQuestions: shuffleQ,
+                                        shuffleChoices: shuffleC,
+                                    })
+                                }
+                            >
                                 Begin
                             </button>
                         )}
                         {attempts > 0 && (
                             <>
-                                <button className="btn primary wide" onClick={() => onBegin("new")}>
+                                <button
+                                    className="btn primary wide"
+                                    onClick={() =>
+                                        onBegin("new", {
+                                            shuffleQuestions: shuffleQ,
+                                            shuffleChoices: shuffleC,
+                                        })
+                                    }
+                                >
                                     Start new game
                                 </button>
                                 {hasResume && (
-                                    <button className="btn secondary wide" onClick={() => onBegin("resume")}>
+                                    <button
+                                        className="btn secondary wide"
+                                        onClick={() =>
+                                            onBegin("resume", {
+                                                shuffleQuestions: shuffleQ,
+                                                shuffleChoices: shuffleC,
+                                            })
+                                        }
+                                    >
                                         Resume
                                     </button>
                                 )}
                             </>
                         )}
                     </div>
-                </div>
 
-                <div className="start-card">
-                    <div className="eyebrow">Settings</div>
+                    <div className="muted">Settings</div>
+                    <div className="toggle-row">
+                        <span>Shuffle questions</span>
+                        <label className="switch">
+                            <input
+                                type="checkbox"
+                                checked={shuffleQ}
+                                onChange={(e) => setShuffleQ(e.target.checked)}
+                            />
+                            <span className="slider" />
+                        </label>
+                    </div>
+                    <div className="toggle-row">
+                        <span>Shuffle choices</span>
+                        <label className="switch">
+                            <input
+                                type="checkbox"
+                                checked={shuffleC}
+                                onChange={(e) => setShuffleC(e.target.checked)}
+                            />
+                            <span className="slider" />
+                        </label>
+                    </div>
                     <div className="toggle-row">
                         <span>Timer</span>
                         <label className="switch">
@@ -88,17 +137,6 @@ export function StartPage({ quiz, onBegin, hasResume }: Props) {
                                 onChange={(e) =>
                                     setTimerEnabled(e.target.checked)
                                 }
-                            />
-                            <span className="slider" />
-                        </label>
-                    </div>
-                    <div className="toggle-row">
-                        <span>Read text aloud</span>
-                        <label className="switch">
-                            <input
-                                type="checkbox"
-                                checked={readAloud}
-                                onChange={(e) => setReadAloud(e.target.checked)}
                             />
                             <span className="slider" />
                         </label>

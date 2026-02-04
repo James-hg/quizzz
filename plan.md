@@ -75,10 +75,11 @@ Optional features:
 
 ## Todo list
 
-- [ ] play page save & exit button
-- [ ] shuffle buttons for questions and choices
+- [x] play page save & exit button
+- [x] shuffle buttons for questions and choices
 - [ ] game timer
 - [ ] handle after submitting last question
-- [ ] extract button
+- [x] extract button
 - [ ] folder organization
 - [ ] tags organization
+- [ ] refractor to full database - no local storage

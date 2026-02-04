@@ -659,18 +659,18 @@ button {
 }
 
 .play-shell {
-    min-height: 100vh;
+    /* min-height: 100vh; */
     background: linear-gradient(145deg, #0f172a 0%, #0b1220 100%);
     color: #f1f5f9;
     display: flex;
-    align-items: center;
+    /* align-items: center; */
     justify-content: center;
     padding: 48px 32px 48px;
 }
 
 .play-page {
     width: min(90%, 100%);
-    min-height: calc(100vh - 96px);
+    min-height: 400px;
     display: flex;
     flex-direction: column;
     gap: 28px;
@@ -683,6 +683,8 @@ button {
 }
 
 .start-card {
+    /* justify-self: center; */
+    justify-content: center;
     padding: 18px;
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -692,6 +694,7 @@ button {
 
 .start-actions {
     margin-top: 12px;
+    padding: 15px 0;
     display: flex;
     gap: 10px;
 }

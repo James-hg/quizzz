@@ -12,9 +12,10 @@ type Props = {
     quiz: PlayQuiz | null;
     sessionId?: string | null;
     onSaveExit?: (progress: { sessionId: string | null; index: number }) => void;
+    onComplete?: () => void;
 };
 
-export function PlayPage({ quiz, sessionId, onSaveExit }: Props) {
+export function PlayPage({ quiz, sessionId, onSaveExit, onComplete }: Props) {
     const [index, setIndex] = useState(0);
     const [selected, setSelected] = useState<number | null>(null); // selected option id
     const [feedback, setFeedback] = useState<"idle" | "correct" | "wrong">(
@@ -63,6 +64,7 @@ export function PlayPage({ quiz, sessionId, onSaveExit }: Props) {
             }
             if (next >= total) {
                 setCompleted(true);
+                onComplete?.();
                 if (historyKey) {
                     const history = JSON.parse(
                         localStorage.getItem(historyKey) || "[]",

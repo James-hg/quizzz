@@ -9,12 +9,14 @@ type EditableQuestion = {
 type Props = {
     quiz: {
         id: number;
+        serverId?: string;
         title: string;
         subject: string;
         items: EditableQuestion[];
     } | null;
     onSave: (quiz: {
         id: number;
+        serverId?: string;
         title: string;
         subject: string;
         questions: number;
@@ -22,7 +24,7 @@ type Props = {
         lastPlayed: string;
         items: EditableQuestion[];
     }) => Promise<boolean>;
-    onDelete: (id: number) => void;
+    onDelete: (id: number, serverId?: string) => void;
 };
 
 const blankQuestion = (id: number): EditableQuestion => ({
@@ -163,32 +165,6 @@ export function EditorPage({ quiz, onSave, onDelete }: Props) {
         setDirty(true);
     };
 
-    const shuffleQuestions = () => {
-        setQuestions((prev) => {
-            const next = [...prev];
-            for (let i = next.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [next[i], next[j]] = [next[j], next[i]];
-            }
-            return next;
-        });
-        setDirty(true);
-    };
-
-    const shuffleOptions = () => {
-        setQuestions((prev) =>
-            prev.map((q) => {
-                const opts = [...q.options];
-                for (let i = opts.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [opts[i], opts[j]] = [opts[j], opts[i]];
-                }
-                return { ...q, options: opts };
-            }),
-        );
-        setDirty(true);
-    };
-
     const handleSave = async () => {
         if (saving) return;
         setSaving(true);
@@ -233,7 +209,7 @@ export function EditorPage({ quiz, onSave, onDelete }: Props) {
                         {quiz?.id && (
                             <button
                                 className="btn third"
-                                onClick={() => onDelete(quiz.id)}
+                                onClick={() => onDelete(quiz.id, quiz.serverId)}
                             >
                                 Delete
                             </button>
@@ -263,20 +239,6 @@ export function EditorPage({ quiz, onSave, onDelete }: Props) {
                 </div>
 
                 <div className="editor-box">
-                    <div className="toolbar toggles">
-                        <button
-                            className="chip"
-                            onClick={() => shuffleQuestions()}
-                        >
-                            Shuffle questions
-                        </button>
-                        <button
-                            className="chip"
-                            onClick={() => shuffleOptions()}
-                        >
-                            Shuffle choices
-                        </button>
-                    </div>
                     {questions.map((q, idx) => (
                         <div key={q.id} className="question-card">
                             <div className="question-row">
