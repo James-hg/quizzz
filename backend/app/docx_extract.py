@@ -85,6 +85,15 @@ def parse_docx_mcq(source: Union[str, IO[bytes]]):
         if kind == "EMPTY":
             continue
 
+        # Heuristics for bullet-only lists where list level info is missing:
+        # - If we have a current question and we see another "QUESTION" that
+        #   doesn't look like a question (no '?', not numbered), treat it as an
+        #   option instead.
+        if kind == "QUESTION" and current_q is not None:
+            looks_like_question = "?" in text or Q_RE.match(p.text.strip())
+            if not looks_like_question:
+                kind = "OPTION"
+
         if kind == "QUESTION":
             current_q = {"text": text, "options": []}
             draft["questions"].append(current_q)

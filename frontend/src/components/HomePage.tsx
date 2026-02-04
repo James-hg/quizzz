@@ -25,6 +25,7 @@ type Props = {
     setSearch: (v: string) => void;
     onQuizClick: (quiz: Quiz) => void;
     onPlayClick: (quiz: Quiz) => void;
+    onDelete: (quizId: string) => void;
 };
 
 export function HomePage({
@@ -34,6 +35,8 @@ export function HomePage({
     search,
     setSearch,
     onQuizClick,
+    onPlayClick,
+    onDelete,
 }: Props) {
     return (
         <div className="page">
@@ -55,8 +58,8 @@ export function HomePage({
                             return (
                                 <button
                                     key={quiz.id}
-                                    className="recent-card"
-                                    onClick={() => onPlayClick(quiz)}
+                                    className="quiz-card"
+                                    onClick={() => onQuizClick(quiz)}
                                 >
                                     <div className="recent-title">
                                         {quiz.title || "Untitled quiz"}
@@ -176,9 +179,6 @@ export function HomePage({
                                         onClick={() => onQuizClick(quiz)}
                                     >
                                         <div className="quiz-top">
-                                            <div className="pill">
-                                                {quiz.subject || "No subject"}
-                                            </div>
                                             <span className="muted">
                                                 {isInProgress && (
                                                     <span
@@ -192,6 +192,16 @@ export function HomePage({
                                                 )}
                                                 {quiz.lastPlayed}
                                             </span>
+                                            <button
+                                                className="ghost small"
+                                                style={{ marginLeft: "auto" }}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onDelete(quiz.id);
+                                                }}
+                                            >
+                                                Delete
+                                            </button>
                                         </div>
                                         <div className="quiz-title">
                                             {quiz.title || "Untitled quiz"}

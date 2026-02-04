@@ -472,6 +472,7 @@ export default function App() {
                 setSearch={setSearch}
                 onQuizClick={handleQuizClick}
                 onPlayClick={handlePlayClick}
+                onDelete={(quizId) => handleDeleteQuiz(quizId, quizId)}
             />
         </NavBar>
     );
