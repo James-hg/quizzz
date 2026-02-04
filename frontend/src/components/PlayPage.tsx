@@ -1,124 +1,112 @@
 import { useEffect, useMemo, useState } from "react";
 
-type PlayOption = { id: number; text: string; correct: boolean };
-type PlayQuestion = { id: number; text: string; options: PlayOption[] };
+type PlayOption = { id: string; text: string; correct: boolean };
+type PlayQuestion = { id: string; text: string; options: PlayOption[] };
 type PlayQuiz = {
     id: number;
     title: string;
     items: PlayQuestion[];
+    serverId?: string;
 };
 
 type Props = {
     quiz: PlayQuiz | null;
     sessionId?: string | null;
-    onSaveExit?: (progress: { sessionId: string | null; index: number }) => void;
+    apiBase: string;
+    onProgressChange?: (index: number) => void;
     onComplete?: () => void;
 };
 
-export function PlayPage({ quiz, sessionId, onSaveExit, onComplete }: Props) {
+export function PlayPage({
+    quiz,
+    sessionId,
+    apiBase,
+    onProgressChange,
+    onComplete,
+}: Props) {
     const [index, setIndex] = useState(0);
-    const [selected, setSelected] = useState<number | null>(null); // selected option id
+    const [selected, setSelected] = useState<string | null>(null);
     const [feedback, setFeedback] = useState<"idle" | "correct" | "wrong">(
         "idle",
-    ); // feedback state
+    );
     const [completed, setCompleted] = useState(false);
-    const [responses, setResponses] = useState<
-        { questionId: number; selectedOptionId: number; isCorrect: boolean }[]
-    >([]);
 
     const total = quiz?.items.length ?? 0;
     const question = quiz?.items[index];
-    const playKey = quiz ? `playState:${quiz.id}` : null;
-    const historyKey = quiz ? `playHistory:${quiz.id}` : null;
 
-    // for progress bar
     const progressPercent = useMemo(
-        () => Math.round((index / total) * 100),
+        () => (total === 0 ? 0 : Math.round((index / total) * 100)),
         [index, total],
     );
 
-    const handleSubmit = () => {
-        if (!question || selected === null) return;
+    useEffect(() => {
+        onProgressChange?.(index);
+    }, [index, onProgressChange]);
+
+    // Load session (current_index, responses) if backend exposes it
+    useEffect(() => {
+        if (!sessionId || !quiz?.serverId) return;
+        // Optional: fetch session to resume index; minimal resume for now
+        fetch(`${apiBase}/plays/${sessionId}`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (!data) return;
+                if (typeof data.current_index === "number") {
+                    setIndex(data.current_index);
+                }
+            })
+            .catch(() => {});
+    }, [sessionId, quiz?.serverId, apiBase]);
+
+    const handleSubmit = async () => {
+        if (!question || selected === null || !sessionId) return;
         const isRight = question.options.find(
             (o) => o.id === selected,
         )?.correct;
         setFeedback(isRight ? "correct" : "wrong");
 
-        const delay = 900;
-        setTimeout(() => {
+        try {
+            await fetch(`${apiBase}/plays/${sessionId}/answers`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    question_id: question.id,
+                    selected_option_id: selected,
+                    session_id: sessionId,
+                }),
+            });
+        } catch (err) {
+            console.error("Failed to submit answer:", err);
+        }
+
+        setTimeout(async () => {
             const next = index + 1;
-            const nextResponses = [
-                ...responses,
-                {
-                    questionId: question.id,
-                    selectedOptionId: selected,
-                    isCorrect: Boolean(isRight),
-                },
-            ];
-            setResponses(nextResponses);
-            if (playKey) {
-                localStorage.setItem(
-                    playKey,
-                    JSON.stringify({ index: next, responses: nextResponses }),
-                );
-            }
             if (next >= total) {
                 setCompleted(true);
-                onComplete?.();
-                if (historyKey) {
-                    const history = JSON.parse(
-                        localStorage.getItem(historyKey) || "[]",
-                    ) as { completedAt: string; correct: number; total: number }[];
-                    const correct = nextResponses.filter((r) => r.isCorrect).length;
-                    history.unshift({
-                        completedAt: new Date().toISOString(),
-                        correct,
-                        total,
+                try {
+                    await fetch(`${apiBase}/plays/${sessionId}/complete`, {
+                        method: "PATCH",
                     });
-                    localStorage.setItem(historyKey, JSON.stringify(history));
+                } catch (err) {
+                    console.error("Failed to complete session:", err);
                 }
-                if (playKey) {
-                    localStorage.removeItem(playKey);
-                }
-                if (quiz) {
-                    localStorage.removeItem(`playState:${quiz.id}`);
-                }
+                onComplete?.();
             } else {
                 setIndex(next);
                 setSelected(null);
                 setFeedback("idle");
             }
-        }, delay);
+        }, 900);
     };
-
-    useEffect(() => {
-        if (!quiz || !playKey) return;
-        const stored = localStorage.getItem(playKey);
-        if (!stored) return;
-        try {
-            const data = JSON.parse(stored) as {
-                index: number;
-                responses: { questionId: number; selectedOptionId: number; isCorrect: boolean }[];
-            };
-            if (Number.isFinite(data.index)) setIndex(data.index);
-            if (Array.isArray(data.responses)) setResponses(data.responses);
-        } catch {
-            // ignore
-        }
-    }, [quiz, playKey]);
 
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             if (completed) return;
-
-            // submit with Enter
             if (e.key === "Enter") {
                 e.preventDefault();
                 handleSubmit();
                 return;
             }
-
-            // quick-select options with 1-4 when not showing feedback
             if (feedback !== "idle") return;
             if (["1", "2", "3", "4"].includes(e.key)) {
                 const idx = Number(e.key) - 1;
@@ -131,10 +119,22 @@ export function PlayPage({ quiz, sessionId, onSaveExit, onComplete }: Props) {
         };
         window.addEventListener("keydown", handler);
         return () => window.removeEventListener("keydown", handler);
-    }, [feedback, question, completed, selected]);
+    }, [feedback, question, completed, selected, handleSubmit]);
 
-    // extract to result page later
-    if (total === 0 || completed) {
+    if (total === 0) {
+        return (
+            <div className="play-shell">
+                <div className="play-page">
+                    <div className="play-question-box">
+                        <div className="eyebrow">No quiz</div>
+                        <h2>Select a quiz to begin</h2>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (completed) {
         return (
             <div className="play-shell">
                 <div className="play-page">
@@ -151,17 +151,10 @@ export function PlayPage({ quiz, sessionId, onSaveExit, onComplete }: Props) {
         );
     }
 
-    const handleSaveExit = () => {
-        if (onSaveExit) {
-            onSaveExit({ sessionId: sessionId ?? null, index });
-        }
-    };
-
     return (
         <div className="play-shell">
             <div className="play-page">
                 <div className="play-question-box">
-                    {/* <div className="count-pill">{`${index + 1}/${total}`}</div> */}
                     <h2>{question.text}</h2>
                 </div>
 
@@ -209,9 +202,6 @@ export function PlayPage({ quiz, sessionId, onSaveExit, onComplete }: Props) {
                         disabled={selected === null || feedback !== "idle"}
                     >
                         Submit ↵
-                    </button>
-                    <button className="btn secondary" onClick={handleSaveExit}>
-                        Save & Exit
                     </button>
                 </div>
             </div>

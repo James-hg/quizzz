@@ -40,10 +40,10 @@ const normalizeQuizzes = (raw: Quiz[]): Quiz[] =>
         serverId: quiz.serverId,
         items: (quiz.items ?? []).map((q, qi) => ({
             ...q,
-            id: qi,
+            id: q.id ?? String(qi),
             options: (q.options ?? []).map((o, oi) => ({
                 ...o,
-                id: oi,
+                id: o.id ?? String(oi),
             })),
         })),
     }));
@@ -90,6 +90,7 @@ export default function App() {
     const [folders] = useState<Folder[]>([]);
     const [editingQuizId, setEditingQuizId] = useState<number | null>(null);
     const [playingQuiz, setPlayingQuiz] = useState<Quiz | null>(null);
+    const [playIndex, setPlayIndex] = useState(0);
     const [playSessions, setPlaySessions] = useState<Record<number, string>>(
         () => {
             const cached = localStorage.getItem("playSessions");
@@ -128,6 +129,42 @@ export default function App() {
     const handlePlayClick = (quiz: Quiz) => {
         setEditingQuizId(quiz.id);
         window.location.hash = `#/launch/${quiz.id}`;
+    };
+
+    const fetchFullQuiz = async (serverId: string): Promise<Quiz | null> => {
+        try {
+            const resp = await fetch(`${apiBase}/quizzes/${serverId}`);
+            if (!resp.ok) return null;
+            const data = await resp.json() as {
+                id: string;
+                title: string;
+                questions: {
+                    id: string;
+                    text: string;
+                    options: { id: string; text: string; is_correct: boolean; position: number; }[];
+                }[];
+            };
+            return {
+                id: editingQuizId ?? 0,
+                serverId: data.id,
+                title: data.title,
+                subject: "Imported",
+                lastPlayed: "never",
+                questions: data.questions.length,
+                progress: 0,
+                items: data.questions.map((q, qi) => ({
+                    id: q.id,
+                    text: q.text,
+                    options: q.options.map((o, oi) => ({
+                        id: o.id,
+                        text: o.text,
+                        correct: o.is_correct,
+                    })),
+                })),
+            };
+        } catch {
+            return null;
+        }
     };
 
     const shuffleClone = (
@@ -232,53 +269,39 @@ export default function App() {
             editingQuiz ||
             null;
         const playQuiz = playingQuiz || current;
+        const sessionId = playQuiz ? playSessions[playQuiz.id] || null : null;
         return (
             <NavBar
                 primaryLabel="Home"
                 primaryHref="#/"
                 onSaveExit={async () => {
+                    if (playQuiz && sessionId) {
+                        await fetch(
+                            `${apiBase}/plays/${sessionId}/progress?current_index=${playIndex}`,
+                            { method: "PATCH" },
+                        ).catch(() => {});
+                    }
                     if (playQuiz) {
-                        const sid = playSessions[playQuiz.id];
-                        if (sid) {
-                            await fetch(
-                                `${apiBase}/plays/${sid}/progress?current_index=${index}`,
-                                { method: "PATCH" },
-                            ).catch(() => {});
-                        }
                         window.location.hash = `#/launch/${playQuiz.id}`;
                     }
                 }}
             >
                 <PlayPage
                     quiz={playQuiz}
-                    sessionId={
-                        playQuiz ? playSessions[playQuiz.id] || null : null
-                    }
-                    onSaveExit={async ({ index }) => {
-                        if (playQuiz) {
-                            const sid = playSessions[playQuiz.id];
-                            if (sid) {
-                                await fetch(
-                                    `${apiBase}/plays/${sid}/progress?current_index=${index}`,
-                                    { method: "PATCH" },
-                                ).catch(() => {});
-                            }
-                        }
-                        window.location.hash = `#/launch/${playQuiz?.id ?? ""}`;
-                    }}
+                    sessionId={sessionId}
+                    onProgressChange={setPlayIndex}
                     onComplete={async () => {
                         if (playQuiz) {
-                            const sid = playSessions[playQuiz.id];
-                            if (sid) {
+                            if (sessionId) {
                                 await fetch(
-                                    `${apiBase}/plays/${sid}/complete`,
+                                    `${apiBase}/plays/${sessionId}/complete`,
                                     {
                                         method: "PATCH",
                                     },
                                 ).catch(() => {});
                                 setPlaySessions((prev) => {
                                     const next = { ...prev };
-                                    delete next[playQuiz.id];
+                                    if (playQuiz) delete next[playQuiz.id];
                                     localStorage.setItem(
                                         "playSessions",
                                         JSON.stringify(next),
@@ -310,6 +333,16 @@ export default function App() {
                         if (!current) return;
                         const targetId = current.id;
                         let sessionToUse = playSessions[current.id] || null;
+                        let quizToPlay: Quiz | null = current;
+
+                        // fetch full quiz with server IDs
+                        if (current.serverId) {
+                            const full = await fetchFullQuiz(current.serverId);
+                            if (full) {
+                                quizToPlay = normalizeQuizzes([full])[0];
+                                quizToPlay.id = current.id; // keep local index
+                            }
+                        }
 
                         // start new session
                         if (mode === "new" && current.serverId) {
@@ -335,16 +368,13 @@ export default function App() {
                                     );
                                     return next;
                                 });
-                                localStorage.removeItem(
-                                    `playState:${current.id}`,
-                                );
                             }
                         }
 
                         const toPlay =
                             mode === "new"
-                                ? shuffleClone(current, opts)
-                                : current;
+                                ? shuffleClone(quizToPlay, opts)
+                                : quizToPlay;
                         setPlayingQuiz(toPlay);
                         window.location.hash = sessionToUse
                             ? `#/play/${targetId}/${sessionToUse}`
@@ -391,25 +421,56 @@ export default function App() {
         return (
             <NavBar primaryLabel="Editor" primaryHref="#/editor">
                 <ImportPage
-                    onExtract={(draft) => {
+                    onExtract={async (draft) => {
+                        // create on backend to obtain serverId
+                        let serverId: string | undefined;
+                        try {
+                            const payload = {
+                                title: draft.title || "Imported Quiz",
+                                owner_id: null,
+                                questions: draft.questions.map((q, qi) => ({
+                                    text: q.text,
+                                    position: qi,
+                                    options: q.options.map((o, oi) => ({
+                                        text: o.text,
+                                        is_correct: o.isCorrect,
+                                        position: oi,
+                                    })),
+                                })),
+                            };
+                            const resp = await fetch(`${apiBase}/quizzes`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(payload),
+                            });
+                            if (resp.ok) {
+                                const data = await resp.json();
+                                serverId = data.id;
+                            }
+                        } catch {
+                            // fall back to local only if backend fails
+                        }
+
                         const nextId = quizzes.length;
-                        const mapped = {
+                        const mapped: Quiz = {
                             id: nextId,
                             title: draft.title || "Imported Quiz",
                             subject: "Imported",
                             lastPlayed: "never",
                             questions: draft.questions.length,
                             progress: 0,
+                            serverId,
                             items: draft.questions.map((q, qi) => ({
-                                id: qi,
+                                id: q.id ? String(q.id) : String(qi),
                                 text: q.text,
                                 options: q.options.map((o, oi) => ({
-                                    id: oi,
+                                    id: o.id ? String(o.id) : String(oi),
                                     text: o.text,
                                     correct: o.isCorrect,
                                 })),
                             })),
-                        } as Quiz;
+                        };
+
                         const normalized = normalizeQuizzes([
                             ...quizzes,
                             mapped,

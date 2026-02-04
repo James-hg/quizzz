@@ -5,6 +5,7 @@ from datetime import datetime
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .docx_extract import docx_extract
@@ -113,10 +114,14 @@ async def list_quizzes(session: AsyncSession = Depends(get_session)):
 
 @app.get("/quizzes/{quiz_id}", response_model=QuizFull)
 async def get_quiz(quiz_id: str, session: AsyncSession = Depends(get_session)):
-    quiz = await session.get(Quiz, quiz_id)
+    result = await session.execute(
+        select(Quiz)
+        .options(selectinload(Quiz.questions).selectinload(Question.options))
+        .where(Quiz.id == quiz_id)
+    )
+    quiz = result.scalars().first()
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
-    await session.refresh(quiz)
     return quiz
 
 
@@ -162,7 +167,7 @@ async def submit_answer(
     payload: PlayAnswer,
     session: AsyncSession = Depends(get_session),
 ):
-    qs = await session.get(QuizSession, payload.session_id)
+    qs = await session.get(QuizSession, session_id)
     if not qs:
         raise HTTPException(status_code=404, detail="Session not found")
 

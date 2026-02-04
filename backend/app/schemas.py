@@ -39,7 +39,6 @@ class PlayStart(BaseModel):
 class PlayAnswer(BaseModel):
     selected_option_id: UUID
     question_id: UUID
-    session_id: UUID
 
 
 class PlayResponse(BaseModel):

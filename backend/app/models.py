@@ -87,7 +87,6 @@ class QuizSession(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     completed_at = Column(DateTime, nullable=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     current_index = Column(Integer, default=0, nullable=False)
     is_paused = Column(Boolean, default=False, nullable=False)
 
