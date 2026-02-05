@@ -1,6 +1,5 @@
-from fastapi import FastAPI
-from app.main import app as fastapi_app
+from app.main import app
 
-# Mount the main FastAPI app under /api so requests to /api/* route correctly.
-app = FastAPI()
-app.mount("/api", fastapi_app)
+# Vercel will handle this file as the entry point
+# Export the FastAPI app directly without mounting
+handler = app
