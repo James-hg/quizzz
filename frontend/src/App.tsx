@@ -22,14 +22,13 @@ type Quiz = {
 // routes list
 type Route = "/" | "/editor" | "/settings" | "/import" | "/play" | "/launch";
 
-// extract route, id, session from URL hash
-const parseHash = (): {
+// extract route, id, session from URL pathname
+const parsePath = (): {
     route: Route;
     id: string | null;
     session: string | null;
 } => {
-    const raw = window.location.hash.replace("#", "") || "/";
-    const parts = raw.split("/").filter(Boolean); // ["play","id","session"]
+    const parts = window.location.pathname.split("/").filter(Boolean); // ["play","id","session"]
     const path = (parts[0] ? `/${parts[0]}` : "/") as Route;
     const id = parts[1] ?? null;
     const session = parts[2] ?? null;
@@ -73,7 +72,7 @@ const isUuid = (v: unknown): v is string => {
 };
 
 export default function App() {
-    const [{ route, id, session }, setRoute] = useState(parseHash());
+    const [{ route, id, session }, setRoute] = useState(parsePath());
     const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
     const [search, setSearch] = useState("");
     const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -85,11 +84,12 @@ export default function App() {
     >({});
     const [playIndex, setPlayIndex] = useState(0);
 
+    console.log("VITE_API_URL =", import.meta.env.VITE_API_URL);
     // routing
     useEffect(() => {
-        const onHash = () => setRoute(parseHash());
-        window.addEventListener("hashchange", onHash);
-        return () => window.removeEventListener("hashchange", onHash);
+        const onPop = () => setRoute(parsePath());
+        window.addEventListener("popstate", onPop);
+        return () => window.removeEventListener("popstate", onPop);
     }, []);
 
     useEffect(() => {
@@ -183,12 +183,14 @@ export default function App() {
 
     const handleQuizClick = (quiz: Quiz) => {
         setEditingQuizId(quiz.id);
-        window.location.hash = `#/editor/${quiz.id}`;
+        window.history.pushState({}, "", `/editor/${quiz.id}`);
+        setRoute(parsePath());
     };
 
     const handlePlayClick = (quiz: Quiz) => {
         setEditingQuizId(quiz.id);
-        window.location.hash = `#/launch/${quiz.id}`;
+        window.history.pushState({}, "", `/launch/${quiz.id}`);
+        setRoute(parsePath());
     };
 
     const shuffleClone = (
@@ -319,7 +321,8 @@ export default function App() {
         }
         setQuizzes((prev) => prev.filter((q) => q.id !== quizId));
         setEditingQuizId(null);
-        window.location.hash = "#/";
+        window.history.pushState({}, "", `/`);
+        setRoute(parsePath());
     };
 
     const editingQuiz = useMemo(
@@ -341,7 +344,7 @@ export default function App() {
             ? playSessions[playQuiz.id] || session
             : session;
         return (
-            <NavBar primaryLabel="Home" primaryHref="#/">
+            <NavBar primaryLabel="Home" primaryHref="/">
                 <PlayPage
                     quiz={playQuiz}
                     sessionId={sessionId || undefined}
@@ -375,7 +378,7 @@ export default function App() {
             editingQuiz ||
             null;
         return (
-            <NavBar primaryLabel="Home" primaryHref="#/">
+            <NavBar primaryLabel="Home" primaryHref="/">
                 <StartPage
                     quiz={current}
                     apiBase={apiBase}
@@ -413,9 +416,11 @@ export default function App() {
                                 ? shuffleClone(current, opts)
                                 : current;
                         setPlayingQuiz(toPlay);
-                        window.location.hash = sessionIdToUse
-                            ? `#/play/${current.id}/${sessionIdToUse}`
-                            : `#/play/${current.id}`;
+                        const dest = sessionIdToUse
+                            ? `/play/${current.id}/${sessionIdToUse}`
+                            : `/play/${current.id}`;
+                        window.history.pushState({}, "", dest);
+                        setRoute(parsePath());
                     }}
                 />
             </NavBar>
@@ -428,8 +433,8 @@ export default function App() {
                 primaryLabel="Play"
                 primaryHref={
                     editingQuizId !== null
-                        ? `#/launch/${editingQuizId}`
-                        : "#/launch"
+                        ? `/launch/${editingQuizId}`
+                        : "/launch"
                 }
             >
                 <EditorPage
@@ -452,7 +457,7 @@ export default function App() {
     if (route === "/settings") {
         // to be implemented (user page)
         return (
-            <NavBar primaryLabel="Home" primaryHref="#/">
+            <NavBar primaryLabel="Home" primaryHref="/">
                 <PlaceholderPage
                     eyebrow="Settings"
                     heading="Coming soon"
@@ -464,7 +469,7 @@ export default function App() {
 
     if (route === "/import") {
         return (
-            <NavBar primaryLabel="Editor" primaryHref="#/editor">
+            <NavBar primaryLabel="Editor" primaryHref="/editor">
                 <ImportPage
                     onExtract={async (draft) => {
                         let serverId: string | undefined;
@@ -503,7 +508,12 @@ export default function App() {
                         const mapped = mapQuiz(await fullResp.json());
                         setQuizzes((prev) => [...prev, mapped]);
                         setEditingQuizId(mapped.id);
-                        window.location.hash = `#/editor/${mapped.id}`;
+                        window.history.pushState(
+                            {},
+                            "",
+                            `/editor/${mapped.id}`,
+                        );
+                        setRoute(parsePath());
                     }}
                 />
             </NavBar>
