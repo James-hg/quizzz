@@ -24,21 +24,17 @@ from .schemas import (
 
 app = FastAPI()
 
-origins = [
-    "https://quizzz-five-eta.vercel.app"
-]
-
 default_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
 extra_origins = os.getenv("ALLOWED_ORIGINS") or os.getenv(
     "FRONTEND_ORIGIN") or ""
 parsed_extra = [o.strip() for o in extra_origins.split(",") if o.strip()]
-# Allow both explicit origins and all Vercel domains via regex
+
 allowed_origins = default_origins + parsed_extra
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    # allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,9 +53,7 @@ def health():
 
 @app.on_event("startup")
 async def on_startup():
-    db_url = os.getenv("DATABASE_URL")
-    if not db_url:
-        # No DB configured on Vercel yet — don't crash the app
+    if engine is None:
         print("DATABASE_URL not set; skipping DB init")
         return
 
@@ -67,7 +61,6 @@ async def on_startup():
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     except Exception as e:
-        # Don't crash the whole API on Vercel if DB is unreachable
         print(f"DB init failed; continuing without DB. Error: {e}")
         return
 
