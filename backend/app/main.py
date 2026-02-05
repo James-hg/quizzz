@@ -41,7 +41,7 @@ app.add_middleware(
 
 @app.get("/")
 async def root() -> dict[str, str]:
-    return {"message": "FastAPI backend is up"}
+    return {"message": " Quizzz FastAPI backend is up"}
 
 
 @app.get("/health")

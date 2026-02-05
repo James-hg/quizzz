@@ -7,7 +7,8 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-# Load environment variables from .env if present
+# Load environment variables. Prefer .quizzz.env (repo root) then fallback to .env.
+load_dotenv(".quizzz.env")
 load_dotenv()
 
 # Default to local Postgres; override with DATABASE_URL env var.
