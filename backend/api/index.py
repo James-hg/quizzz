@@ -1,5 +1,5 @@
+from mangum import Mangum
 from app.main import app
 
-# Vercel will handle this file as the entry point
-# Export the FastAPI app directly without mounting
-handler = app
+# Wrap FastAPI with Mangum for serverless deployment
+handler = Mangum(app, lifespan="off")
