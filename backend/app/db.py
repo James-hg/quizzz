@@ -1,6 +1,7 @@
 import os
 
 from dotenv import load_dotenv
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -17,8 +18,18 @@ DATABASE_URL = os.getenv(
     "postgresql+asyncpg://postgres:postgres@localhost:5432/quizzz",
 )
 
+# Normalize URL for asyncpg: drop sslmode (psycopg-style) and set ssl=True instead.
+url_obj = make_url(DATABASE_URL)
+connect_args: dict[str, object] = {}
+query = dict(url_obj.query)
+if "sslmode" in query:
+    query.pop("sslmode", None)
+    connect_args["ssl"] = True
+url_obj = url_obj.set(query=query)
+
 # Async engine/session factory
-engine = create_async_engine(DATABASE_URL, echo=False, future=True)
+engine = create_async_engine(url_obj, echo=False, future=True,
+                             connect_args=connect_args)
 SessionLocal = async_sessionmaker(
     engine, expire_on_commit=False, autoflush=False)
 
