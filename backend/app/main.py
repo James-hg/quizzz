@@ -22,7 +22,11 @@ from .schemas import (
     QuizFull,
 )
 
-app = FastAPI(title="Quizzz API")
+app = FastAPI()
+
+origins = [
+    "https://quizzz-five-eta.vercel.app"
+]
 
 default_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
 extra_origins = os.getenv("ALLOWED_ORIGINS") or os.getenv(
@@ -33,8 +37,8 @@ allowed_origins = default_origins + parsed_extra
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origins=origins,
+    # allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
