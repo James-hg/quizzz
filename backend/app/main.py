@@ -51,9 +51,19 @@ def health():
 
 @app.on_event("startup")
 async def on_startup():
-    # create tables if they don't exist (simple bootstrap; switch to migrations later)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        # No DB configured on Vercel yet — don't crash the app
+        print("DATABASE_URL not set; skipping DB init")
+        return
+
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as e:
+        # Don't crash the whole API on Vercel if DB is unreachable
+        print(f"DB init failed; continuing without DB. Error: {e}")
+        return
 
 
 @app.post("/upload")
