@@ -11,14 +11,14 @@ export function NavBar({
     children,
     primaryLabel = "Create quiz",
     // if in editor, change button to import
-    primaryHref = "#/editor",
+    primaryHref = "/editor",
 }: Props) {
-    // const isPlayPage = window.location.hash.startsWith("#/play");
+    // const isPlayPage = window.location.hash.startsWith("play");
 
     return (
         <div className="NavBar">
             <nav className="topbar">
-                <a className="brand" href="#/">
+                <a className="brand" href="/">
                     Quizzz
                 </a>
                 <div className="topbar-actions">
@@ -29,7 +29,7 @@ export function NavBar({
                     {/* )} */}
                     <a
                         className="user-btn"
-                        href="#/settings"
+                        href="/settings"
                         aria-label="User settings"
                     >
                         <div className="avatar">U</div>

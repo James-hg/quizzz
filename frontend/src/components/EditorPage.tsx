@@ -210,7 +210,7 @@ export function EditorPage({ quiz, onSave, onDuplicate, onDelete }: Props) {
                         </p>
                     </div>
                     <div className="editor-actions">
-                        <a className="btn secondary" href="#/import">
+                        <a className="btn secondary" href="import">
                             Import
                         </a>
                         <button
