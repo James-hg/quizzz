@@ -1,4 +1,5 @@
 import io
+import os
 import random
 from datetime import datetime
 from uuid import UUID
@@ -23,9 +24,15 @@ from .schemas import (
 
 app = FastAPI(title="Quizzz API")
 
+default_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+extra_origins = os.getenv("ALLOWED_ORIGINS") or os.getenv(
+    "FRONTEND_ORIGIN") or ""
+parsed_extra = [o.strip() for o in extra_origins.split(",") if o.strip()]
+allowed_origins = default_origins + parsed_extra
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -35,6 +42,11 @@ app.add_middleware(
 @app.get("/")
 async def root() -> dict[str, str]:
     return {"message": "FastAPI backend is up"}
+
+
+@app.get("/health")
+def health():
+    return {"ok": True}
 
 
 @app.on_event("startup")
@@ -442,7 +454,8 @@ async def get_history(quiz_id: UUID, session: AsyncSession = Depends(get_db_sess
             select(Response).where(Response.session_id == s.id)
         )
         responses = resp_result.scalars().all()
-        correct = sum(1 for r in responses if r.is_correct) # load correct answer
+        # load correct answer
+        correct = sum(1 for r in responses if r.is_correct)
         total = len(responses)
         history.append(
             {
