@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { ProgressBar } from "./ProgressBar";
-import { AIStudyCoach } from "./AIStudyCoach";
 
 type Quiz = {
     id: string;
@@ -151,6 +150,21 @@ export function HomePage({
         return folders.find((f) => f.id === selectedFolderId)?.name ?? null;
     }, [folders, selectedFolderId]);
 
+    const inProgressCount = useMemo(
+        () => quizzes.filter((quiz) => quiz.progress > 0 && quiz.progress < 100).length,
+        [quizzes],
+    );
+
+    const questionCount = useMemo(
+        () => quizzes.reduce((total, quiz) => total + quiz.questions, 0),
+        [quizzes],
+    );
+
+    const folderDepthCount = useMemo(
+        () => folders.filter((folder) => folder.parent_id !== null).length,
+        [folders],
+    );
+
     const handleCreateFolder = async () => {
         const name = folderName.trim();
         if (!name) {
@@ -177,13 +191,13 @@ export function HomePage({
     };
 
     return (
-        <div className="page">
-            <aside className="sidebar left">
+        <div className="page home-layout">
+            <aside className="sidebar left home-rail">
                 <div className="sidebar-header">
                     <div className="dot" />
                     <div>
-                        <div className="eyebrow">Recent</div>
-                        <div className="title">Your last 5 quizzes</div>
+                        <div className="eyebrow">Recent Activity</div>
+                        <div className="title">Jump back into your latest sets</div>
                     </div>
                 </div>
                 <div className="recent-list">
@@ -195,7 +209,7 @@ export function HomePage({
                             return (
                                 <button
                                     key={quiz.id}
-                                    className="quiz-card"
+                                    className="quiz-card recent-rail-card"
                                     onClick={() => onQuizClick(quiz)}
                                 >
                                     <div className="recent-title">
@@ -223,177 +237,228 @@ export function HomePage({
                         })
                     )}
                 </div>
+                <div className="home-rail-summary">
+                    <div className="eyebrow">Workspace</div>
+                    <div className="home-rail-metric">
+                        <strong>{quizzes.length}</strong>
+                        <span>Total quizzes</span>
+                    </div>
+                    <div className="home-rail-metric">
+                        <strong>{folders.length}</strong>
+                        <span>Folders built</span>
+                    </div>
+                    <div className="home-rail-metric">
+                        <strong>{inProgressCount}</strong>
+                        <span>Sessions in motion</span>
+                    </div>
+                </div>
             </aside>
 
-            <main className="main">
-                <header className="main-header">
-                    <div>
+            <main className="main home-main">
+                <header className="home-hero">
+                    <div className="home-hero-copy">
                         <div className="eyebrow">Dashboard</div>
-                        <h1>Welcome back, learner</h1>
+                        <h1>Build a sharper study system.</h1>
                         <p className="lede">
-                            Pick up where you left off or spin up a new quiz. Organize with folders and
-                            subfolders to keep your study sets tidy.
+                            Organize quizzes into nested folders, surface the sets that still need work,
+                            and keep your revision stack moving without digging through clutter.
                         </p>
+                    </div>
+                    <div className="home-hero-tools">
+                        <div className="search hero-search">
+                            <input
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                placeholder="Search quizzes or subjects"
+                            />
+                        </div>
+                        <div className="home-filter-state">
+                            {selectedFolderName ? (
+                                <>
+                                    <span className="home-filter-chip">
+                                        Filtering: {selectedFolderName}
+                                    </span>
+                                    <button
+                                        className="folder-back"
+                                        type="button"
+                                        onClick={() => setSelectedFolderId(null)}
+                                    >
+                                        ← Back to all quizzes
+                                    </button>
+                                </>
+                            ) : (
+                                <span className="home-filter-chip subdued">
+                                    Browsing all folders and quizzes
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </header>
 
-                <section className="toolbar">
-                    <div className="search">
-                        <input
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search quizzes or subjects"
-                        />
-                    </div>
+                <section className="home-stats">
+                    <article className="stat-card ocean">
+                        <span className="eyebrow">Library</span>
+                        <strong>{quizzes.length}</strong>
+                        <p>{questionCount} total questions across your quiz collection.</p>
+                    </article>
+                    <article className="stat-card ember">
+                        <span className="eyebrow">Momentum</span>
+                        <strong>{inProgressCount}</strong>
+                        <p>Quizzes are currently in progress and ready to resume.</p>
+                    </article>
+                    <article className="stat-card mint">
+                        <span className="eyebrow">Structure</span>
+                        <strong>{folders.length}</strong>
+                        <p>{folderDepthCount} nested folders are already shaping your workspace.</p>
+                    </article>
                 </section>
 
-                <section className="grid-section">
-                    <div className="section-heading">
-                        <div>
-                            <div className="eyebrow">Folders</div>
-                            <h2>Organize your study sets</h2>
+                <section className="home-board">
+                    <div className="grid-section home-folders-section">
+                        <div className="section-heading">
+                            <div>
+                                <div className="eyebrow">Folders</div>
+                                <h2>Organize your study map</h2>
+                            </div>
+                            <span className="muted">{folders.length} total</span>
                         </div>
-                    </div>
 
-                    <div className="folder-create-row">
-                        <input
-                            className="option-input"
-                            placeholder="Folder name"
-                            value={folderName}
-                            onChange={(e) => setFolderName(e.target.value)}
-                        />
-                        <select
-                            className="option-input"
-                            value={folderParentId}
-                            onChange={(e) => setFolderParentId(e.target.value)}
-                        >
-                            <option value="">Root folder</option>
-                            {folderOptions.map((folder) => (
-                                <option key={folder.id} value={folder.id}>
-                                    {folder.label}
-                                </option>
-                            ))}
-                        </select>
-                        <div className="color-swatch-wrap">
-                            <div className="color-swatch-row">
-                                {folderPalette.map((color) => (
+                        <div className="folder-create-row">
+                            <input
+                                className="option-input"
+                                placeholder="Folder name"
+                                value={folderName}
+                                onChange={(e) => setFolderName(e.target.value)}
+                            />
+                            <select
+                                className="option-input"
+                                value={folderParentId}
+                                onChange={(e) => setFolderParentId(e.target.value)}
+                            >
+                                <option value="">Root folder</option>
+                                {folderOptions.map((folder) => (
+                                    <option key={folder.id} value={folder.id}>
+                                        {folder.label}
+                                    </option>
+                                ))}
+                            </select>
+                            <div className="color-swatch-wrap">
+                                <div className="color-swatch-row">
+                                    {folderPalette.map((color) => (
+                                        <button
+                                            key={color}
+                                            type="button"
+                                            className={`color-swatch ${folderColor === color ? "selected" : ""}`}
+                                            style={{ background: color }}
+                                            onClick={() => setFolderColor(color)}
+                                            aria-label={`Select ${color}`}
+                                        />
+                                    ))}
+                                </div>
+                                <div className="muted color-code">{folderColor}</div>
+                            </div>
+                            <button
+                                className="btn secondary"
+                                onClick={handleCreateFolder}
+                                disabled={folderLoading}
+                            >
+                                {folderLoading ? "Creating..." : "New folder"}
+                            </button>
+                        </div>
+                        {folderError && <div className="error-text">{folderError}</div>}
+
+                        {folderCards.length === 0 ? (
+                            <div className="muted">No folders yet.</div>
+                        ) : (
+                            <div className="folder-grid home-folder-grid">
+                                {folderCards.map(({ folder, depth }) => (
                                     <button
-                                        key={color}
+                                        key={folder.id}
+                                        className={`folder-card ${selectedFolderId === folder.id ? "selected" : ""}`}
+                                        style={{
+                                            borderColor: `${folder.color}55`,
+                                            marginLeft: `${depth * 14}px`,
+                                        }}
+                                        onClick={() => setSelectedFolderId(folder.id)}
                                         type="button"
-                                        className={`color-swatch ${folderColor === color ? "selected" : ""}`}
-                                        style={{ background: color }}
-                                        onClick={() => setFolderColor(color)}
-                                        aria-label={`Select ${color}`}
-                                    />
+                                    >
+                                        <div className="folder-dot" style={{ background: folder.color }} />
+                                        <div className="folder-name">{folder.name}</div>
+                                        <div className="folder-meta">
+                                            <span>{folderQuizCount.get(folder.id) ?? 0} quizzes</span>
+                                            <span className="bullet">•</span>
+                                            <span>Updated {new Date(folder.updated_at).toLocaleDateString()}</span>
+                                        </div>
+                                    </button>
                                 ))}
                             </div>
-                            <div className="muted color-code">{folderColor}</div>
-                        </div>
-                        <button className="btn secondary" onClick={handleCreateFolder} disabled={folderLoading}>
-                            {folderLoading ? "Creating..." : "New folder"}
-                        </button>
+                        )}
                     </div>
-                    {folderError && <div className="error-text">{folderError}</div>}
 
-                    {folderCards.length === 0 ? (
-                        <div className="muted">No folders yet.</div>
-                    ) : (
-                        <div className="folder-grid">
-                            {folderCards.map(({ folder, depth }) => (
-                                <button
-                                    key={folder.id}
-                                    className={`folder-card ${selectedFolderId === folder.id ? "selected" : ""}`}
-                                    style={{
-                                        borderColor: `${folder.color}55`,
-                                        marginLeft: `${depth * 16}px`,
-                                    }}
-                                    onClick={() => setSelectedFolderId(folder.id)}
-                                >
-                                    <div className="folder-dot" style={{ background: folder.color }} />
-                                    <div className="folder-name">{folder.name}</div>
-                                    <div className="folder-meta">
-                                        <span>{folderQuizCount.get(folder.id) ?? 0} quizzes</span>
-                                        <span className="bullet">•</span>
-                                        <span>Updated {new Date(folder.updated_at).toLocaleDateString()}</span>
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                </section>
-
-                <section className="grid-section">
-                    <div className="section-heading">
-                        <div>
-                            <div className="eyebrow">
-                                {selectedFolderName ? `Folder: ${selectedFolderName}` : "All quizzes"}
+                    <div className="grid-section home-quizzes-section">
+                        <div className="section-heading">
+                            <div>
+                                <div className="eyebrow">
+                                    {selectedFolderName ? `Folder: ${selectedFolderName}` : "All quizzes"}
+                                </div>
+                                <h2>Keep the streak going</h2>
                             </div>
-                            <h2>Keep the streak going</h2>
+                            <div className="quiz-section-actions">
+                                <span className="muted">{visibleQuizzes.length} visible</span>
+                            </div>
                         </div>
-                        <div className="quiz-section-actions">
-                            {selectedFolderName && (
-                                <button
-                                    className="folder-back"
-                                    type="button"
-                                    onClick={() => setSelectedFolderId(null)}
-                                >
-                                    ← Back to all quizzes
-                                </button>
-                            )}
-                            <span className="muted">{visibleQuizzes.length} total</span>
-                        </div>
-                    </div>
 
-                    {visibleQuizzes.length === 0 ? (
-                        <div className="muted">No quizzes yet. Create one to get started.</div>
-                    ) : (
-                        <div className="quiz-grid">
-                            {visibleQuizzes.map((quiz) => {
-                                const isInProgress = quiz.progress > 0 && quiz.progress < 100;
-                                return (
-                                    <button
-                                        key={quiz.id}
-                                        className="quiz-card"
-                                        onClick={() => onQuizClick(quiz)}
-                                    >
-                                        <div className="quiz-top">
-                                            <span className="muted">
-                                                {isInProgress && (
-                                                    <span style={{ color: "#10b981", marginRight: "8px" }}>
-                                                        ⏸ In progress
-                                                    </span>
-                                                )}
-                                                {quiz.lastPlayed}
-                                            </span>
-                                            <button
-                                                className="ghost small"
-                                                style={{ marginLeft: "auto" }}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onDelete(quiz.id);
-                                                }}
-                                            >
-                                                Delete
-                                            </button>
-                                        </div>
-                                        <div className="quiz-title">{quiz.title || "Untitled quiz"}</div>
-                                        <div className="quiz-meta">
-                                            <span>{quiz.questions} questions</span>
-                                            <span className="bullet">•</span>
-                                            <span>{quiz.progress}% complete</span>
-                                        </div>
-                                        <ProgressBar value={quiz.progress} />
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
+                        {visibleQuizzes.length === 0 ? (
+                            <div className="muted">No quizzes yet. Create one to get started.</div>
+                        ) : (
+                            <div className="quiz-grid home-quiz-grid">
+                                {visibleQuizzes.map((quiz) => {
+                                    const isInProgress = quiz.progress > 0 && quiz.progress < 100;
+                                    return (
+                                        <button
+                                            key={quiz.id}
+                                            className="quiz-card home-quiz-card"
+                                            onClick={() => onQuizClick(quiz)}
+                                            type="button"
+                                        >
+                                            <div className="quiz-top">
+                                                <span className="muted">
+                                                    {isInProgress && (
+                                                        <span style={{ color: "#10b981", marginRight: "8px" }}>
+                                                            ⏸ In progress
+                                                        </span>
+                                                    )}
+                                                    {quiz.lastPlayed}
+                                                </span>
+                                                <button
+                                                    className="ghost small"
+                                                    style={{ marginLeft: "auto" }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onDelete(quiz.id);
+                                                    }}
+                                                    type="button"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
+                                            <div className="quiz-title">{quiz.title || "Untitled quiz"}</div>
+                                            <div className="quiz-meta">
+                                                <span>{quiz.subject || "No subject"}</span>
+                                                <span className="bullet">•</span>
+                                                <span>{quiz.questions} questions</span>
+                                                <span className="bullet">•</span>
+                                                <span>{quiz.progress}% complete</span>
+                                            </div>
+                                            <ProgressBar value={quiz.progress} />
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
                 </section>
             </main>
-
-            <aside className="sidebar right sticky">
-                <AIStudyCoach />
-            </aside>
         </div>
     );
 }
