@@ -1,7 +1,8 @@
+from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 
 class OptionCreate(BaseModel):
@@ -18,7 +19,8 @@ class QuestionCreate(BaseModel):
 
 class QuizCreate(BaseModel):
     title: str
-    owner_id: Optional[UUID] = None
+    subject: Optional[str] = None
+    folder_id: Optional[UUID] = None
     questions: List[QuestionCreate]
 
 
@@ -26,6 +28,7 @@ class QuizSummary(BaseModel):
     id: UUID
     title: str
     subject: Optional[str] = None
+    folder_id: Optional[UUID] = None
 
     class Config:
         from_attributes = True
@@ -33,7 +36,6 @@ class QuizSummary(BaseModel):
 
 class PlayStart(BaseModel):
     quiz_id: UUID
-    user_id: Optional[UUID] = None
 
 
 class PlayAnswer(BaseModel):
@@ -62,7 +64,6 @@ class PlaySession(BaseModel):
 
     class Config:
         from_attributes = True
-        allow_population_by_field_name = True
 
 
 class OptionOut(BaseModel):
@@ -89,7 +90,86 @@ class QuizFull(BaseModel):
     id: UUID
     title: str
     subject: Optional[str] = None
+    folder_id: Optional[UUID] = None
     questions: List[QuestionOut]
 
     class Config:
         from_attributes = True
+
+
+class SignupRequest(BaseModel):
+    email: EmailStr
+    password: str
+    display_name: Optional[str] = None
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class AuthUser(BaseModel):
+    id: UUID
+    email: str
+    display_name: Optional[str] = None
+    is_admin: bool = False
+    created_at: datetime
+
+
+class FolderCreate(BaseModel):
+    name: str
+    color: Optional[str] = "#38bdf8"
+    parent_id: Optional[UUID] = None
+
+
+class FolderUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+    parent_id: Optional[UUID] = None
+
+
+class FolderOut(BaseModel):
+    id: UUID
+    owner_id: UUID
+    parent_id: Optional[UUID] = None
+    name: str
+    color: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class QuizStatusSummary(BaseModel):
+    quiz_id: UUID
+    active_session_id: Optional[UUID] = None
+    current_index: int = 0
+    is_paused: bool = False
+    elapsed_seconds: int = 0
+    last_completed_at: Optional[datetime] = None
+    last_score_correct: int = 0
+    last_score_total: int = 0
+
+
+class BootstrapPayload(BaseModel):
+    user: AuthUser
+    folders: List[FolderOut]
+    quizzes: List[QuizFull]
+    statuses: List[QuizStatusSummary]
+
+
+class AuthSuccess(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    data: BootstrapPayload
+
+
+class SettingsUpdateRequest(BaseModel):
+    display_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str

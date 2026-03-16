@@ -1,19 +1,24 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode } from "react";
+
+type User = {
+    email: string;
+    display_name: string | null;
+};
 
 type Props = {
     children: ReactNode;
     primaryLabel?: string;
     primaryHref?: string;
-    onSaveExit?: () => void;
+    user: User | null;
 };
 
 export function NavBar({
     children,
     primaryLabel = "Create quiz",
-    // if in editor, change button to import
     primaryHref = "/editor",
+    user,
 }: Props) {
-    // const isPlayPage = window.location.hash.startsWith("play");
+    const avatarLabel = (user?.display_name || user?.email || "U").trim().charAt(0).toUpperCase();
 
     return (
         <div className="NavBar">
@@ -22,17 +27,11 @@ export function NavBar({
                     Quizzz
                 </a>
                 <div className="topbar-actions">
-                    {/* {!isPlayPage && ( */}
                     <a className="nav-link" href={primaryHref}>
                         {primaryLabel}
                     </a>
-                    {/* )} */}
-                    <a
-                        className="user-btn"
-                        href="/settings"
-                        aria-label="User settings"
-                    >
-                        <div className="avatar">U</div>
+                    <a className="user-btn" href="/settings" aria-label="User settings">
+                        <div className="avatar">{avatarLabel || "U"}</div>
                     </a>
                 </div>
             </nav>

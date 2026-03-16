@@ -10,7 +10,7 @@ type PlayQuiz = {
 
 type Props = {
     quiz: PlayQuiz | null;
-    apiBase: string;
+    request: (path: string, init?: RequestInit) => Promise<any>;
     onBegin: (
         mode: "new" | "resume",
         opts: { shuffleQuestions: boolean; shuffleChoices: boolean },
@@ -18,7 +18,7 @@ type Props = {
     ) => void;
 };
 
-export function StartPage({ quiz, apiBase, onBegin }: Props) {
+export function StartPage({ quiz, request, onBegin }: Props) {
     const [timerEnabled, setTimerEnabled] = useState(true);
     const [shuffleQ, setShuffleQ] = useState(false);
     const [shuffleC, setShuffleC] = useState(false);
@@ -32,44 +32,33 @@ export function StartPage({ quiz, apiBase, onBegin }: Props) {
     useEffect(() => {
         const fetchMeta = async () => {
             if (!quiz) return;
-            // history
+
             try {
-                const hResp = await fetch(
-                    `${apiBase}/quizzes/${quiz.id}/history`,
-                );
-                if (hResp.ok) {
-                    const hist = await hResp.json();
-                    setAttempts(hist.length);
-                    if (hist.length) {
-                        setLastAttempt({
-                            correct: hist[0].correct ?? 0,
-                            total: hist[0].total ?? 0,
-                        });
-                    } else {
-                        setLastAttempt(null);
-                    }
+                const hist = await request(`/quizzes/${quiz.id}/history`);
+                setAttempts(hist.length);
+                if (hist.length) {
+                    setLastAttempt({
+                        correct: hist[0].correct ?? 0,
+                        total: hist[0].total ?? 0,
+                    });
+                } else {
+                    setLastAttempt(null);
                 }
             } catch {
                 setAttempts(0);
                 setLastAttempt(null);
             }
-            // active session for resume
+
             try {
-                const sResp = await fetch(
-                    `${apiBase}/quizzes/${quiz.id}/session`,
-                );
-                if (sResp.ok) {
-                    const data = await sResp.json();
-                    setResumeSessionId(data.id);
-                } else {
-                    setResumeSessionId(null);
-                }
+                const data = await request(`/quizzes/${quiz.id}/session`);
+                setResumeSessionId(data.id);
             } catch {
                 setResumeSessionId(null);
             }
         };
+
         fetchMeta();
-    }, [quiz, apiBase]);
+    }, [quiz, request]);
 
     if (!quiz) {
         return (
@@ -78,9 +67,7 @@ export function StartPage({ quiz, apiBase, onBegin }: Props) {
                     <div className="placeholder-panel full">
                         <div className="eyebrow">Play</div>
                         <h2>No quiz selected</h2>
-                        <p className="muted">
-                            Choose a quiz from the dashboard to begin.
-                        </p>
+                        <p className="muted">Choose a quiz from the dashboard to begin.</p>
                     </div>
                 </div>
             </div>
@@ -97,10 +84,7 @@ export function StartPage({ quiz, apiBase, onBegin }: Props) {
                     <h2>{quiz.title || "Untitled quiz"}</h2>
                     <p className="muted">{total} questions</p>
                     {resumeSessionId && (
-                        <p
-                            className="muted"
-                            style={{ color: "#10b981", fontWeight: 500 }}
-                        >
+                        <p className="muted" style={{ color: "#10b981", fontWeight: 500 }}>
                             ⏸ In progress - You can resume where you left off
                         </p>
                     )}
@@ -190,9 +174,7 @@ export function StartPage({ quiz, apiBase, onBegin }: Props) {
                             <input
                                 type="checkbox"
                                 checked={timerEnabled}
-                                onChange={(e) =>
-                                    setTimerEnabled(e.target.checked)
-                                }
+                                onChange={(e) => setTimerEnabled(e.target.checked)}
                             />
                             <span className="slider" />
                         </label>

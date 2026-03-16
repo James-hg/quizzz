@@ -28,11 +28,40 @@ class User(Base):
 
     id = uuid_col()
     email = Column(String(255), unique=True, nullable=False)
+    password_hash = Column(String(255), nullable=True)
     display_name = Column(String(255), nullable=True)
+    is_admin = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
 
     quizzes = relationship("Quiz", back_populates="owner")
     sessions = relationship("QuizSession", back_populates="user")
+    folders = relationship("Folder", back_populates="owner")
+
+
+class Folder(Base):
+    __tablename__ = "folders"
+
+    id = uuid_col()
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    parent_id = Column(UUID(as_uuid=True), ForeignKey("folders.id"), nullable=True)
+    name = Column(String(255), nullable=False)
+    color = Column(String(20), nullable=False, default="#38bdf8")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    owner = relationship("User", back_populates="folders")
+    parent = relationship("Folder", remote_side=[id], back_populates="children")
+    children = relationship("Folder", back_populates="parent")
+    quizzes = relationship("Quiz", back_populates="folder")
+
+    __table_args__ = (
+        UniqueConstraint("owner_id", "parent_id", "name", name="uq_folder_sibling_name"),
+    )
 
 
 class Quiz(Base):
@@ -40,13 +69,16 @@ class Quiz(Base):
 
     id = uuid_col()
     title = Column(String(255), nullable=False)
-    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    subject = Column(String(255), nullable=True)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    folder_id = Column(UUID(as_uuid=True), ForeignKey("folders.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
     owner = relationship("User", back_populates="quizzes")
+    folder = relationship("Folder", back_populates="quizzes")
     questions = relationship("Question", back_populates="quiz", cascade="all, delete")
     sessions = relationship("QuizSession", back_populates="quiz")
 
@@ -84,7 +116,7 @@ class QuizSession(Base):
 
     id = uuid_col()
     quiz_id = Column(UUID(as_uuid=True), ForeignKey("quizzes.id"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     completed_at = Column(DateTime, nullable=True)
     current_index = Column(Integer, default=0, nullable=False)
@@ -103,7 +135,9 @@ class Response(Base):
     id = uuid_col()
     session_id = Column(UUID(as_uuid=True), ForeignKey("quiz_sessions.id"), nullable=False)
     question_id = Column(UUID(as_uuid=True), ForeignKey("questions.id"), nullable=False)
-    selected_option_id = Column(UUID(as_uuid=True), ForeignKey("options.id"), nullable=False)
+    selected_option_id = Column(
+        UUID(as_uuid=True), ForeignKey("options.id"), nullable=False
+    )
     is_correct = Column(Boolean, nullable=False)
     answered_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 

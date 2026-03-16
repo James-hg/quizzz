@@ -9,15 +9,15 @@ type DraftQuiz = {
 };
 
 type Props = {
+    request: (path: string, init?: RequestInit) => Promise<any>;
     onExtract: (draft: DraftQuiz) => void;
 };
 
-export function ImportPage({ onExtract }: Props) {
+export function ImportPage({ request, onExtract }: Props) {
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [fileName, setFileName] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
-    const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
     const handleUploadClick = () => {
         fileInputRef.current?.click();
@@ -35,21 +35,19 @@ export function ImportPage({ onExtract }: Props) {
             setError("Please choose a file first.");
             return;
         }
+
         const file = fileInputRef.current.files[0];
         const formData = new FormData();
         formData.append("file", file);
+
         setLoading(true);
         setError(null);
+
         try {
-            const resp = await fetch(`${apiBase}/upload`, {
+            const data = await request("/upload", {
                 method: "POST",
                 body: formData,
             });
-            if (!resp.ok) {
-                const detail = await resp.json().catch(() => ({}));
-                throw new Error(detail.detail || "Extract failed");
-            }
-            const data = (await resp.json()) as DraftQuiz;
             onExtract(data);
         } catch (err) {
             const msg = err instanceof Error ? err.message : "Extract failed";
@@ -71,11 +69,7 @@ export function ImportPage({ onExtract }: Props) {
                     <button className="btn primary" onClick={handleUploadClick}>
                         Upload file
                     </button>
-                    <button
-                        className="btn secondary"
-                        onClick={handleExtract}
-                        disabled={loading}
-                    >
+                    <button className="btn secondary" onClick={handleExtract} disabled={loading}>
                         {loading ? "Extracting..." : "Extract"}
                     </button>
                 </div>
@@ -90,24 +84,18 @@ export function ImportPage({ onExtract }: Props) {
                     <ul>
                         A paragraph is treated as a choice if it:
                         <ul>Is a nested Word list item under a question, or</ul>
-                        <ul>
-                            Starts with a letter such as A. or B)
-                            (case-insensitive).
-                        </ul>
+                        <ul>Starts with a letter such as A. or B) (case-insensitive).</ul>
                     </ul>
                     <ul>
-                        Lines that do not start a new question or choice are
-                        appended to the previous entry.
+                        Lines that do not start a new question or choice are appended to the previous
+                        entry.
                     </ul>
                     <ul>
-                        The correct answer must be bold, with exactly one bold
-                        choice.
+                        The correct answer must be bold, with exactly one bold choice.
                     </ul>
                 </div>
 
-                <div className="file-note">
-                    {fileName ? `Selected: ${fileName}` : "No file chosen yet."}
-                </div>
+                <div className="file-note">{fileName ? `Selected: ${fileName}` : "No file chosen yet."}</div>
                 {error && <div className="error-text">⚠ {error}</div>}
                 <input
                     ref={fileInputRef}

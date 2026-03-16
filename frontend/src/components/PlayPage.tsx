@@ -1,18 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type PlayOption = { id: string; text: string; correct: boolean };
 type PlayQuestion = { id: string; text: string; options: PlayOption[] };
 type PlayQuiz = {
-    id: number;
+    id: string;
     title: string;
     items: PlayQuestion[];
-    serverId?: string;
 };
 
 type Props = {
     quiz: PlayQuiz | null;
     sessionId?: string | null;
-    apiBase: string;
+    request: (path: string, init?: RequestInit) => Promise<any>;
     onProgressChange?: (index: number) => void;
     onElapsedChange?: (seconds: number) => void;
     onComplete?: () => void;
@@ -21,16 +20,14 @@ type Props = {
 export function PlayPage({
     quiz,
     sessionId,
-    apiBase,
+    request,
     onProgressChange,
     onElapsedChange,
     onComplete,
 }: Props) {
     const [index, setIndex] = useState(0);
     const [selected, setSelected] = useState<string | null>(null);
-    const [feedback, setFeedback] = useState<"idle" | "correct" | "wrong">(
-        "idle",
-    );
+    const [feedback, setFeedback] = useState<"idle" | "correct" | "wrong">("idle");
     const [completed, setCompleted] = useState(false);
 
     const total = quiz?.items.length ?? 0;
@@ -45,14 +42,17 @@ export function PlayPage({
         onProgressChange?.(index);
     }, [index, onProgressChange]);
 
-    // Load session (current_index, responses) if backend exposes it
     useEffect(() => {
-        if (!sessionId || !quiz?.serverId) return;
-        // Optional: fetch session to resume index; minimal resume for now
-        fetch(`${apiBase}/plays/${sessionId}`)
-            .then((res) => (res.ok ? res.json() : null))
+        setIndex(0);
+        setSelected(null);
+        setFeedback("idle");
+        setCompleted(false);
+    }, [quiz?.id, sessionId]);
+
+    useEffect(() => {
+        if (!sessionId) return;
+        request(`/plays/${sessionId}`)
             .then((data) => {
-                if (!data) return;
                 if (typeof data.current_index === "number") {
                     setIndex(data.current_index);
                 }
@@ -61,19 +61,16 @@ export function PlayPage({
                 }
             })
             .catch(() => {});
-    }, [sessionId, quiz?.serverId, apiBase, onElapsedChange]);
+    }, [sessionId, request, onElapsedChange]);
 
-    const handleSubmit = async () => {
+    const handleSubmit = useCallback(async () => {
         if (!question || selected === null || !sessionId) return;
-        const isRight = question.options.find(
-            (o) => o.id === selected,
-        )?.correct;
+        const isRight = question.options.find((o) => o.id === selected)?.correct;
         setFeedback(isRight ? "correct" : "wrong");
 
         try {
-            await fetch(`${apiBase}/plays/${sessionId}/answers`, {
+            await request(`/plays/${sessionId}/answers`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     question_id: question.id,
                     selected_option_id: selected,
@@ -85,19 +82,10 @@ export function PlayPage({
 
         const next = index + 1;
 
-        // Always save progress after each answer
         try {
-            const progressResp = await fetch(
-                `${apiBase}/plays/${sessionId}/progress?current_index=${next}`,
-                { method: "PATCH" },
-            );
-            if (progressResp.ok) {
-                console.log(`✓ Progress saved: question ${next}/${total}`);
-            } else {
-                console.log(
-                    `⚠ Progress save failed with status ${progressResp.status}`,
-                );
-            }
+            await request(`/plays/${sessionId}/progress?current_index=${next}`, {
+                method: "PATCH",
+            });
         } catch (err) {
             console.error("Failed to save progress:", err);
         }
@@ -106,7 +94,7 @@ export function PlayPage({
             if (next >= total) {
                 setCompleted(true);
                 try {
-                    await fetch(`${apiBase}/plays/${sessionId}/complete`, {
+                    await request(`/plays/${sessionId}/complete`, {
                         method: "PATCH",
                     });
                 } catch (err) {
@@ -119,7 +107,7 @@ export function PlayPage({
                 setFeedback("idle");
             }
         }, 900);
-    };
+    }, [index, onComplete, question, request, selected, sessionId, total]);
 
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
@@ -163,10 +151,7 @@ export function PlayPage({
                     <div className="play-question-box">
                         <div className="eyebrow">Quiz complete</div>
                         <h2>Nice work!</h2>
-                        <p className="muted">
-                            You finished all questions. Review answers or return
-                            home.
-                        </p>
+                        <p className="muted">You finished all questions. Review answers or return home.</p>
                     </div>
                 </div>
             </div>
@@ -177,21 +162,18 @@ export function PlayPage({
         <div className="play-shell">
             <div className="play-page">
                 <div className="play-question-box">
-                    <h2>{question.text}</h2>
+                    <h2>{question?.text}</h2>
                 </div>
 
                 <div className="choice-grid">
-                    {question.options.map((opt, idx) => {
+                    {question?.options.map((opt, idx) => {
                         const isSelected = selected === opt.id;
                         const showFeedback = feedback !== "idle";
                         const isCorrect = opt.correct;
                         let stateClass = "";
-                        if (showFeedback && isSelected && isCorrect)
-                            stateClass = "choice-correct";
-                        else if (showFeedback && isSelected && !isCorrect)
-                            stateClass = "choice-wrong";
-                        else if (showFeedback && isCorrect)
-                            stateClass = "choice-correct";
+                        if (showFeedback && isSelected && isCorrect) stateClass = "choice-correct";
+                        else if (showFeedback && isSelected && !isCorrect) stateClass = "choice-wrong";
+                        else if (showFeedback && isCorrect) stateClass = "choice-correct";
                         else if (isSelected) stateClass = "choice-selected";
 
                         return (
@@ -211,10 +193,7 @@ export function PlayPage({
                 <div className="play-submit-row">
                     <div className="play-progress">
                         <div className="progress slim">
-                            <div
-                                className="progress-fill"
-                                style={{ width: `${progressPercent}%` }}
-                            />
+                            <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
                         </div>
                         <span className="muted">{`${index + 1}/${total}`}</span>
                     </div>

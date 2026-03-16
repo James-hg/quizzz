@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AIStudyCoach } from "./AIStudyCoach";
 
 type EditableQuestion = {
     id: string;
@@ -12,13 +13,20 @@ type Props = {
         serverId?: string;
         title: string;
         subject: string;
+        folderId?: string | null;
         items: EditableQuestion[];
     } | null;
+    folders: {
+        id: string;
+        name: string;
+        parent_id: string | null;
+    }[];
     onSave: (quiz: {
         id: string;
         serverId?: string;
         title: string;
         subject: string;
+        folderId?: string | null;
         questions: number;
         progress: number;
         lastPlayed: string;
@@ -29,6 +37,7 @@ type Props = {
         serverId?: string;
         title: string;
         subject: string;
+        folderId?: string | null;
         questions: number;
         progress: number;
         lastPlayed: string;
@@ -49,9 +58,16 @@ const blankQuestion = (id: string): EditableQuestion => ({
     })),
 });
 
-export function EditorPage({ quiz, onSave, onDuplicate, onDelete }: Props) {
+export function EditorPage({
+    quiz,
+    folders,
+    onSave,
+    onDuplicate,
+    onDelete,
+}: Props) {
     const [title, setTitle] = useState(quiz?.title ?? "");
     const [subject, setSubject] = useState(quiz?.subject ?? "");
+    const [folderId, setFolderId] = useState<string>(quiz?.folderId ?? "");
     const [questions, setQuestions] = useState<EditableQuestion[]>(
         quiz?.items?.length ? quiz.items : [blankQuestion(newId())],
     );
@@ -61,6 +77,7 @@ export function EditorPage({ quiz, onSave, onDuplicate, onDelete }: Props) {
     useEffect(() => {
         setTitle(quiz?.title ?? "");
         setSubject(quiz?.subject ?? "");
+        setFolderId(quiz?.folderId ?? "");
         setQuestions(
             quiz?.items?.length ? quiz.items : [blankQuestion(newId())],
         );
@@ -68,7 +85,6 @@ export function EditorPage({ quiz, onSave, onDuplicate, onDelete }: Props) {
     }, [quiz]);
 
     const addQuestion = () => {
-        const nextIndex = questions.length;
         setQuestions((prev) => [...prev, blankQuestion(newId())]);
         setDirty(true);
     };
@@ -187,6 +203,7 @@ export function EditorPage({ quiz, onSave, onDuplicate, onDelete }: Props) {
             id: quiz?.id ?? "new",
             title: trimmedTitle,
             subject: subject.trim() || "No subject",
+            folderId: folderId || null,
             questions: questions.length,
             progress: 0,
             lastPlayed: "just now",
@@ -228,6 +245,7 @@ export function EditorPage({ quiz, onSave, onDuplicate, onDelete }: Props) {
                                     serverId: quiz?.serverId,
                                     title: title.trim() || "Untitled quiz",
                                     subject: subject.trim() || "No subject",
+                                    folderId: folderId || null,
                                     questions: questions.length,
                                     progress: 0,
                                     lastPlayed: "just now",
@@ -267,6 +285,21 @@ export function EditorPage({ quiz, onSave, onDuplicate, onDelete }: Props) {
                             setDirty(true);
                         }}
                     />
+                    <select
+                        className="option-input"
+                        value={folderId}
+                        onChange={(e) => {
+                            setFolderId(e.target.value);
+                            setDirty(true);
+                        }}
+                    >
+                        <option value="">No folder</option>
+                        {folders.map((folder) => (
+                            <option key={folder.id} value={folder.id}>
+                                {folder.name}
+                            </option>
+                        ))}
+                    </select>
                 </div>
 
                 <div className="editor-box">
@@ -353,21 +386,7 @@ export function EditorPage({ quiz, onSave, onDuplicate, onDelete }: Props) {
             </main>
 
             <aside className="sidebar right sticky">
-                <div className="eyebrow">AI Chatbot</div>
-                <h3>Placeholder</h3>
-                <p className="muted">
-                    This panel will host the quiz-editing assistant. As you add
-                    questions and options, the chatbot will stay in view to
-                    suggest fixes or generate variations.
-                </p>
-                <div className="placeholder-card">
-                    <div className="placeholder-bubble" />
-                    <div className="placeholder-lines">
-                        <span />
-                        <span />
-                        <span />
-                    </div>
-                </div>
+                <AIStudyCoach />
             </aside>
         </div>
     );
