@@ -1293,6 +1293,22 @@ button {
     margin: 0;
 }
 
+.ai-action-hints {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ai-hint-chip {
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #cbd5e1;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+}
+
 .ai-thread {
     max-height: 320px;
     overflow: auto;
@@ -1321,6 +1337,7 @@ button {
     margin: 0;
     line-height: 1.45;
     font-size: 0.9rem;
+    white-space: pre-wrap;
 }
 
 .ai-role {
@@ -1340,6 +1357,57 @@ button {
 
 .ai-form {
     display: grid;
+    gap: 8px;
+}
+
+.ai-action-card {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    background: rgba(14, 165, 233, 0.08);
+}
+
+.ai-action-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.ai-action-state {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #67e8f9;
+}
+
+.ai-action-detail {
+    margin: 0;
+}
+
+.ai-preview-list {
+    display: grid;
+    gap: 6px;
+    max-height: 220px;
+    overflow: auto;
+    padding-right: 2px;
+}
+
+.ai-preview-line {
+    font-size: 0.88rem;
+    line-height: 1.4;
+    color: #e2e8f0;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ai-action-buttons {
+    display: flex;
     gap: 8px;
 }
 

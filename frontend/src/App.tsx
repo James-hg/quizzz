@@ -532,6 +532,11 @@ export default function App() {
                     onSave={handleSaveQuiz}
                     onDuplicate={handleDuplicateQuiz}
                     onDelete={handleDeleteQuiz}
+                    onStartNewDraft={() => {
+                        setEditingQuizId(null);
+                        setPlayingQuiz(null);
+                        navigate("/editor", true);
+                    }}
                     quiz={
                         editingQuiz
                             ? {

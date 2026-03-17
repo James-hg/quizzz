@@ -1,4 +1,4 @@
-import { ChatGenerateInput, ChatProvider } from "../types";
+import { ChatGenerateInput, ChatProvider, StructuredGenerateInput } from "../types";
 
 export class FallbackProvider implements ChatProvider {
     readonly name = "fallback";
@@ -15,5 +15,9 @@ export class FallbackProvider implements ChatProvider {
             `You asked: \"${prompt}\"`,
             "Once VITE_GEMINI_API_KEY is set, this panel will call Gemini directly.",
         ].join(" ");
+    }
+
+    async generateStructured<T>(_input: StructuredGenerateInput): Promise<T> {
+        throw new Error("Structured AI actions require Gemini to be configured.");
     }
 }

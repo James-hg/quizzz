@@ -1,21 +1,14 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useReducer, useState } from "react";
 import { AIStudyCoach } from "./AIStudyCoach";
-
-type EditableQuestion = {
-    id: string;
-    text: string;
-    options: { id: string; text: string; correct: boolean }[];
-};
+import {
+    EditorDocumentAction,
+    EditorSourceQuiz,
+    createEditorDocument,
+    editorDocumentReducer,
+} from "../editor/draft";
 
 type Props = {
-    quiz: {
-        id: string;
-        serverId?: string;
-        title: string;
-        subject: string;
-        folderId?: string | null;
-        items: EditableQuestion[];
-    } | null;
+    quiz: EditorSourceQuiz | null;
     folders: {
         id: string;
         name: string;
@@ -30,7 +23,7 @@ type Props = {
         questions: number;
         progress: number;
         lastPlayed: string;
-        items: EditableQuestion[];
+        items: EditorSourceQuiz["items"];
     }) => Promise<boolean>;
     onDuplicate?: (quiz: {
         id: string;
@@ -41,22 +34,11 @@ type Props = {
         questions: number;
         progress: number;
         lastPlayed: string;
-        items: EditableQuestion[];
+        items: EditorSourceQuiz["items"];
     }) => Promise<void>;
     onDelete: (id: string, serverId?: string) => void;
+    onStartNewDraft?: () => void;
 };
-
-const newId = () => Math.random().toString(36).slice(2);
-
-const blankQuestion = (id: string): EditableQuestion => ({
-    id,
-    text: "",
-    options: ["A", "B"].map((_, idx) => ({
-        id: newId(),
-        text: "",
-        correct: idx === 0,
-    })),
-});
 
 export function EditorPage({
     quiz,
@@ -64,154 +46,59 @@ export function EditorPage({
     onSave,
     onDuplicate,
     onDelete,
+    onStartNewDraft,
 }: Props) {
-    const [title, setTitle] = useState(quiz?.title ?? "");
-    const [subject, setSubject] = useState(quiz?.subject ?? "");
-    const [folderId, setFolderId] = useState<string>(quiz?.folderId ?? "");
-    const [questions, setQuestions] = useState<EditableQuestion[]>(
-        quiz?.items?.length ? quiz.items : [blankQuestion(newId())],
+    const [document, dispatch] = useReducer(
+        editorDocumentReducer,
+        quiz,
+        createEditorDocument,
     );
     const [dirty, setDirty] = useState(false);
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
-        setTitle(quiz?.title ?? "");
-        setSubject(quiz?.subject ?? "");
-        setFolderId(quiz?.folderId ?? "");
-        setQuestions(
-            quiz?.items?.length ? quiz.items : [blankQuestion(newId())],
-        );
+        dispatch({ type: "hydrate", quiz });
         setDirty(false);
     }, [quiz]);
 
-    const addQuestion = () => {
-        setQuestions((prev) => [...prev, blankQuestion(newId())]);
-        setDirty(true);
-    };
+    const runDraftAction = useCallback((action: EditorDocumentAction) => {
+        dispatch(action);
+        if (action.type !== "hydrate") {
+            setDirty(true);
+        }
+    }, []);
 
-    const updateQuestionText = (id: string, text: string) => {
-        setQuestions((prev) =>
-            prev.map((q) => (q.id === id ? { ...q, text } : q)),
-        );
-        setDirty(true);
-    };
+    const startNewDraft = useCallback(
+        (title?: string) => {
+            runDraftAction({ type: "start_new_draft", title });
+            onStartNewDraft?.();
+        },
+        [onStartNewDraft, runDraftAction],
+    );
 
-    const updateOption = (qId: string, optId: string, text: string) => {
-        setQuestions((prev) =>
-            prev.map((q) =>
-                q.id !== qId
-                    ? q
-                    : {
-                          ...q,
-                          options: q.options.map((o) =>
-                              o.id === optId ? { ...o, text } : o,
-                          ),
-                      },
-            ),
-        );
-        setDirty(true);
-    };
-
-    const markCorrect = (qId: string, optId: string) => {
-        setQuestions((prev) =>
-            prev.map((q) =>
-                q.id !== qId
-                    ? q
-                    : {
-                          ...q,
-                          options: q.options.map((o) => ({
-                              ...o,
-                              correct: o.id === optId,
-                          })),
-                      },
-            ),
-        );
-        setDirty(true);
-    };
-
-    const addOption = (qId: string) => {
-        setQuestions((prev) =>
-            prev.map((q) =>
-                q.id !== qId || q.options.length >= 4
-                    ? q
-                    : {
-                          ...q,
-                          options: [
-                              ...q.options,
-                              {
-                                  id: newId(),
-                                  text: "",
-                                  correct: false,
-                              },
-                          ],
-                      },
-            ),
-        );
-        setDirty(true);
-    };
-
-    const removeOption = (qId: string, optId: string) => {
-        setQuestions((prev) =>
-            prev.map((q) => {
-                if (q.id !== qId || q.options.length <= 2) return q;
-                const filtered = q.options.filter((o) => o.id !== optId);
-                // ensure one correct remains; if removed correct, set first as correct
-                const hasCorrect = filtered.some((o) => o.correct);
-                if (!hasCorrect && filtered.length) {
-                    filtered[0] = { ...filtered[0], correct: true };
-                }
-                return { ...q, options: filtered };
-            }),
-        );
-        setDirty(true);
-    };
-
-    const deleteQuestion = (qId: string) => {
-        setQuestions((prev) => {
-            if (prev.length <= 1) return prev; // keep at least one
-            return prev.filter((q) => q.id !== qId);
-        });
-        setDirty(true);
-    };
-
-    const duplicateQuestion = (qId: string) => {
-        setQuestions((prev) => {
-            const found = prev.find((q) => q.id === qId);
-            if (!found) return prev;
-            const copyId = newId();
-            const copy: EditableQuestion = {
-                id: copyId,
-                text: found.text,
-                options: found.options.map((o) => ({
-                    ...o,
-                    id: o.id,
-                })),
-            };
-            const insertIndex = prev.findIndex((q) => q.id === qId) + 1;
-            const next = [...prev];
-            next.splice(insertIndex, 0, copy);
-            return next;
-        });
-        setDirty(true);
-    };
+    const { draft, sourceQuizId, sourceServerId } = document;
+    const currentQuizId = sourceServerId ?? sourceQuizId ?? undefined;
 
     const handleSave = async () => {
         if (saving) return;
         setSaving(true);
-        const trimmedTitle = title.trim() || "Untitled quiz";
+        const trimmedTitle = draft.title.trim() || "Untitled quiz";
         const payload = {
-            id: quiz?.id ?? "new",
+            id: currentQuizId ?? "new",
+            serverId: currentQuizId,
             title: trimmedTitle,
-            subject: subject.trim() || "No subject",
-            folderId: folderId || null,
-            questions: questions.length,
+            subject: draft.subject.trim() || "No subject",
+            folderId: draft.folderId || null,
+            questions: draft.questions.length,
             progress: 0,
             lastPlayed: "just now",
-            items: questions,
+            items: draft.questions,
         };
         const ok = await onSave(payload);
         setSaving(false);
-        if (ok) setDirty(false);
+        if (ok) {
+            setDirty(false);
+        }
     };
 
     return (
@@ -241,24 +128,23 @@ export function EditorPage({
                             className="btn secondary"
                             onClick={() =>
                                 onDuplicate?.({
-                                    id: quiz?.id ?? "new",
-                                    serverId: quiz?.serverId,
-                                    title: title.trim() || "Untitled quiz",
-                                    subject: subject.trim() || "No subject",
-                                    folderId: folderId || null,
-                                    questions: questions.length,
+                                    id: "new",
+                                    title: draft.title.trim() || "Untitled quiz",
+                                    subject: draft.subject.trim() || "No subject",
+                                    folderId: draft.folderId || null,
+                                    questions: draft.questions.length,
                                     progress: 0,
                                     lastPlayed: "just now",
-                                    items: questions,
+                                    items: draft.questions,
                                 })
                             }
                         >
                             Duplicate
                         </button>
-                        {quiz?.id && (
+                        {currentQuizId && (
                             <button
                                 className="btn third"
-                                onClick={() => onDelete(quiz.id, quiz.serverId)}
+                                onClick={() => onDelete(currentQuizId, sourceServerId ?? undefined)}
                             >
                                 Delete
                             </button>
@@ -270,28 +156,34 @@ export function EditorPage({
                     <input
                         className="option-input"
                         placeholder="Quiz title"
-                        value={title}
-                        onChange={(e) => {
-                            setTitle(e.target.value);
-                            setDirty(true);
-                        }}
+                        value={draft.title}
+                        onChange={(event) =>
+                            runDraftAction({
+                                type: "set_title",
+                                title: event.target.value,
+                            })
+                        }
                     />
                     <input
                         className="option-input"
                         placeholder="Subject (optional)"
-                        value={subject}
-                        onChange={(e) => {
-                            setSubject(e.target.value);
-                            setDirty(true);
-                        }}
+                        value={draft.subject}
+                        onChange={(event) =>
+                            runDraftAction({
+                                type: "set_subject",
+                                subject: event.target.value,
+                            })
+                        }
                     />
                     <select
                         className="option-input"
-                        value={folderId}
-                        onChange={(e) => {
-                            setFolderId(e.target.value);
-                            setDirty(true);
-                        }}
+                        value={draft.folderId}
+                        onChange={(event) =>
+                            runDraftAction({
+                                type: "set_folder",
+                                folderId: event.target.value,
+                            })
+                        }
                     >
                         <option value="">No folder</option>
                         {folders.map((folder) => (
@@ -303,74 +195,102 @@ export function EditorPage({
                 </div>
 
                 <div className="editor-box">
-                    {questions.map((q, idx) => (
-                        <div key={q.id} className="question-card">
+                    {draft.questions.map((question, index) => (
+                        <div key={question.id} className="question-card">
                             <div className="question-row">
                                 <div className="question-label">
-                                    Question {idx + 1}
+                                    Question {index + 1}
                                 </div>
                                 <div className="question-actions">
                                     <button
                                         className="ghost small"
-                                        onClick={() => duplicateQuestion(q.id)}
+                                        onClick={() =>
+                                            runDraftAction({
+                                                type: "duplicate_question",
+                                                questionId: question.id,
+                                            })
+                                        }
                                     >
                                         Duplicate
                                     </button>
                                     <button
                                         className="ghost small"
-                                        onClick={() => deleteQuestion(q.id)}
-                                        disabled={questions.length <= 1}
+                                        onClick={() =>
+                                            runDraftAction({
+                                                type: "delete_question",
+                                                questionId: question.id,
+                                            })
+                                        }
+                                        disabled={draft.questions.length <= 1}
                                     >
                                         Delete
                                     </button>
                                 </div>
                                 <textarea
-                                    value={q.text}
-                                    onChange={(e) =>
-                                        updateQuestionText(q.id, e.target.value)
+                                    value={question.text}
+                                    onChange={(event) =>
+                                        runDraftAction({
+                                            type: "set_question_text",
+                                            questionId: question.id,
+                                            text: event.target.value,
+                                        })
                                     }
                                     placeholder="Enter your question..."
                                 />
                             </div>
                             <div className="options-grid">
-                                {q.options.map((opt, oi) => (
-                                    <label key={opt.id} className="option-row">
+                                {question.options.map((option, optionIndex) => (
+                                    <label key={option.id} className="option-row">
                                         <input
                                             type="radio"
-                                            name={`correct-${q.id}`}
-                                            checked={opt.correct}
+                                            name={`correct-${question.id}`}
+                                            checked={option.correct}
                                             onChange={() =>
-                                                markCorrect(q.id, opt.id)
+                                                runDraftAction({
+                                                    type: "set_correct_option",
+                                                    questionId: question.id,
+                                                    optionId: option.id,
+                                                })
                                             }
                                         />
                                         <input
                                             className="option-input"
-                                            value={opt.text}
-                                            onChange={(e) =>
-                                                updateOption(
-                                                    q.id,
-                                                    opt.id,
-                                                    e.target.value,
-                                                )
+                                            value={option.text}
+                                            onChange={(event) =>
+                                                runDraftAction({
+                                                    type: "set_option_text",
+                                                    questionId: question.id,
+                                                    optionId: option.id,
+                                                    text: event.target.value,
+                                                })
                                             }
-                                            placeholder={`Choice ${oi + 1}`}
+                                            placeholder={`Choice ${optionIndex + 1}`}
                                         />
                                         <button
                                             className="ghost small"
                                             onClick={() =>
-                                                removeOption(q.id, opt.id)
+                                                runDraftAction({
+                                                    type: "remove_option",
+                                                    questionId: question.id,
+                                                    optionId: option.id,
+                                                })
                                             }
-                                            disabled={q.options.length <= 2}
+                                            disabled={question.options.length <= 2}
                                         >
-                                            ✕
+                                            X
                                         </button>
                                     </label>
                                 ))}
                                 <div className="options-controls">
                                     <button
                                         className="ghost"
-                                        onClick={() => addOption(q.id)}
-                                        disabled={q.options.length >= 4}
+                                        onClick={() =>
+                                            runDraftAction({
+                                                type: "add_option",
+                                                questionId: question.id,
+                                            })
+                                        }
+                                        disabled={question.options.length >= 4}
                                     >
                                         + Add choice
                                     </button>
@@ -379,14 +299,26 @@ export function EditorPage({
                         </div>
                     ))}
 
-                    <button className="add-question" onClick={addQuestion}>
+                    <button
+                        className="add-question"
+                        onClick={() => runDraftAction({ type: "add_question" })}
+                    >
                         + Create new question
                     </button>
                 </div>
             </main>
 
             <aside className="sidebar right sticky">
-                <AIStudyCoach />
+                <AIStudyCoach
+                    key={currentQuizId ?? "new"}
+                    mode="editor"
+                    editor={{
+                        draft,
+                        dirty,
+                        runDraftAction,
+                        startNewDraft,
+                    }}
+                />
             </aside>
         </div>
     );
