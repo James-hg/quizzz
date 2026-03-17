@@ -3,12 +3,19 @@ import { EditableOption, EditableQuestion, EditorDraft } from "../editor/draft";
 export type EditorIntentKind =
     | "chat"
     | "create_quiz"
+    | "generate_questions"
     | "add_question"
     | "remove_question"
     | "update_question"
     | "randomize_question"
+    | "rename_quiz"
     | "shuffle_questions"
     | "shuffle_choices";
+
+export type QuestionGenerationRequest = {
+    count?: number;
+    topic?: string;
+};
 
 export type QuestionTargetReference =
     | { type: "ordinal"; value: number | "first" | "last" }
@@ -18,6 +25,8 @@ export type ParsedEditorIntent = {
     kind: EditorIntentKind;
     raw: string;
     title?: string;
+    count?: number;
+    topic?: string;
     questionText?: string;
     options?: string[];
     correctAnswer?: string | number;
@@ -42,6 +51,14 @@ export type QuestionTargetResolution =
 export function parseEditorIntent(input: string): ParsedEditorIntent {
     const text = input.trim();
     const lowered = text.toLowerCase();
+
+    if (/\brename\b/.test(lowered) && /\bquiz\b/.test(lowered)) {
+        return {
+            kind: "rename_quiz",
+            raw: text,
+            title: extractRenameTitle(text),
+        };
+    }
 
     if (/\bshuffle\b.*\b(choices|options|answers)\b/.test(lowered)) {
         return { kind: "shuffle_choices", raw: text };
@@ -76,6 +93,16 @@ export function parseEditorIntent(input: string): ParsedEditorIntent {
         };
     }
 
+    if (isBatchQuestionRequest(lowered)) {
+        const request = extractQuestionGenerationRequest(text);
+        return {
+            kind: "generate_questions",
+            raw: text,
+            count: request.count,
+            topic: request.topic,
+        };
+    }
+
     if (/\badd\b.*\bquestion\b/.test(lowered)) {
         return {
             kind: "add_question",
@@ -95,6 +122,17 @@ export function parseEditorIntent(input: string): ParsedEditorIntent {
     return {
         kind: "chat",
         raw: text,
+    };
+}
+
+export function mergeQuestionGenerationRequest(
+    existing: QuestionGenerationRequest,
+    input: string,
+): QuestionGenerationRequest {
+    const next = extractQuestionGenerationRequest(input);
+    return {
+        count: existing.count ?? next.count ?? extractStandaloneCount(input),
+        topic: existing.topic ?? next.topic ?? extractStandaloneTopic(input),
     };
 }
 
@@ -251,6 +289,16 @@ export function summarizeQuestion(question: EditableQuestion, index: number) {
     return `${index + 1}. ${truncate(question.text, 72)}`;
 }
 
+export function summarizeQuestionBatch(questions: EditableQuestion[]) {
+    return questions.flatMap((question, index) => [
+        `Question ${index + 1}: ${truncate(question.text, 76)}`,
+        ...question.options.map(
+            (option, optionIndex) =>
+                `  ${optionIndex + 1}. ${truncate(option.text, 64)}${option.correct ? " [correct]" : ""}`,
+        ),
+    ]);
+}
+
 function extractQuizTitle(input: string): string | undefined {
     const match =
         input.match(/\b(?:quiz\s+name|named|called)\s*[:\-]?\s*(.+)$/i) ??
@@ -258,10 +306,50 @@ function extractQuizTitle(input: string): string | undefined {
     return match?.[1]?.trim() || undefined;
 }
 
+function extractRenameTitle(input: string): string | undefined {
+    const match =
+        input.match(/\brename\b.*?\bquiz\b\s*(?:to|as|=|called)?\s*[:\-]?\s*(.+)$/i) ??
+        input.match(/\brename\s+to\s+(.+)$/i);
+    const value = match?.[1]?.trim();
+    if (!value) {
+        return undefined;
+    }
+
+    const normalized = value.toLowerCase();
+    if (normalized === "this" || normalized === "this quiz") {
+        return undefined;
+    }
+
+    return value;
+}
+
 function extractAddQuestionText(input: string): string | undefined {
     const match = input.match(/\badd\b.*\bquestion\b[:\s-]*(.+)$/i);
     const value = match?.[1]?.trim();
     return value ? value : undefined;
+}
+
+function extractQuestionGenerationRequest(input: string): QuestionGenerationRequest {
+    const count = extractStandaloneCount(input);
+    const topic = extractStandaloneTopic(input);
+    return { count, topic };
+}
+
+function extractStandaloneCount(input: string) {
+    const match = input.match(/\b(\d+)\b/);
+    return match?.[1] ? Number(match[1]) : undefined;
+}
+
+function extractStandaloneTopic(input: string): string | undefined {
+    const stripped = input
+        .replace(/\b(add|generate|create|make)\b/gi, "")
+        .replace(/\b\d+\b/g, "")
+        .replace(/\bquestions?\b/gi, "")
+        .replace(/\b(?:about|on|for)\b/gi, "")
+        .replace(/^[\s:,-]+/, "")
+        .trim();
+
+    return stripped || undefined;
 }
 
 function extractQuestionTarget(input: string): QuestionTargetReference | undefined {
@@ -329,6 +417,14 @@ function extractUpdateChanges(input: string): ParsedEditorIntent["changes"] | un
     }
 
     return Object.keys(changes).length > 0 ? changes : undefined;
+}
+
+function isBatchQuestionRequest(lowered: string) {
+    return (
+        /\b(generate|create|make)\b.*\bquestions?\b/.test(lowered) ||
+        /\badd\b.*\bquestions\b/.test(lowered) ||
+        /\badd\s+\d+\s+question\b/.test(lowered)
+    );
 }
 
 function ensureChangedShuffle<T>(items: T[]): T[] {

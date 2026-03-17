@@ -39,6 +39,7 @@ export type EditorDocumentAction =
     | { type: "set_subject"; subject: string }
     | { type: "set_folder"; folderId: string }
     | { type: "add_question"; question?: EditableQuestion }
+    | { type: "add_questions_batch"; questions: EditableQuestion[] }
     | { type: "delete_question"; questionId: string }
     | { type: "duplicate_question"; questionId: string }
     | { type: "set_question_text"; questionId: string; text: string }
@@ -171,6 +172,22 @@ export function editorDocumentReducer(
                     questions: [...state.draft.questions, cloneQuestion(action.question ?? blankQuestion())],
                 },
             };
+        case "add_questions_batch": {
+            const nextQuestions = action.questions.map((question) => sanitizeQuestion(question));
+            if (nextQuestions.length === 0) {
+                return state;
+            }
+
+            return {
+                ...state,
+                draft: {
+                    ...state.draft,
+                    questions: hasOnlyBlankPlaceholder(state.draft.questions)
+                        ? nextQuestions
+                        : [...state.draft.questions, ...nextQuestions],
+                },
+            };
+        }
         case "delete_question": {
             if (state.draft.questions.length <= 1) {
                 return state;
@@ -376,6 +393,21 @@ export function cloneQuestion(
             correct: option.correct,
         })),
     };
+}
+
+export function hasOnlyBlankPlaceholder(questions: EditableQuestion[]) {
+    return questions.length === 1 && isBlankPlaceholderQuestion(questions[0]);
+}
+
+export function isBlankPlaceholderQuestion(question: EditableQuestion) {
+    return (
+        question.text.trim() === "" &&
+        question.options.length === 2 &&
+        question.options[0]?.text.trim() === "" &&
+        question.options[0]?.correct === true &&
+        question.options[1]?.text.trim() === "" &&
+        question.options[1]?.correct === false
+    );
 }
 
 function sanitizeQuestion(question: EditableQuestion): EditableQuestion {

@@ -3,12 +3,15 @@ import { createChatProvider } from "../ai/chatClient";
 import {
     buildShuffledChoices,
     buildShuffledQuestionOrder,
+    mergeQuestionGenerationRequest,
     parseCorrectAnswer,
     parseEditorIntent,
     parseOptionList,
     resolveQuestionTarget,
     summarizeQuestion,
+    summarizeQuestionBatch,
     type ParsedEditorIntent,
+    type QuestionGenerationRequest,
     type ResolvedQuestionTarget,
 } from "../ai/editorActions";
 import { ChatMessage } from "../ai/types";
@@ -41,6 +44,18 @@ type Props =
 
 type PendingEditorAction =
     | { kind: "confirm_create_quiz"; title?: string }
+    | { kind: "collect_generate_questions"; count?: number; topic?: string }
+    | {
+          kind: "confirm_generate_questions";
+          count: number;
+          topic: string;
+          questions: EditableQuestion[];
+      }
+    | {
+          kind: "confirm_rename_quiz";
+          title: string;
+          source: "explicit" | "suggested";
+      }
     | { kind: "add_question_text" }
     | { kind: "add_question_options"; questionText: string }
     | { kind: "add_question_correct"; questionText: string; optionTexts: string[] }
@@ -103,14 +118,27 @@ type RandomizeQuestionResponse = {
     correctOptionIndex?: number;
 };
 
+type GeneratedQuestionResponse = {
+    questionText?: string;
+    options?: string[];
+    correctOptionIndex?: number;
+};
+
+type GenerateQuestionsResponse = {
+    questions?: GeneratedQuestionResponse[];
+};
+
+type RenameSuggestionResponse = {
+    title?: string;
+};
+
 const actionHints = [
-    "create quiz",
-    "add question",
+    "add 5 questions about geography",
+    "rename this quiz",
     "remove question 2",
     "update question 1",
     "randomize question 3",
     "shuffle questions",
-    "shuffle choices",
 ];
 
 function createWelcomeMessage(mode: Props["mode"]): ChatMessage {
@@ -121,7 +149,7 @@ function createWelcomeMessage(mode: Props["mode"]): ChatMessage {
             mode === "editor"
                 ? [
                       "I can edit this quiz draft for you.",
-                      "Try actions like: create quiz, add question, remove question 2, update question 1, randomize question 3, shuffle questions, or shuffle choices.",
+                      "Try actions like: add 5 questions about grade 11 geography, rename this quiz, remove question 2, update question 1, randomize question 3, shuffle questions, or shuffle choices.",
                       "I will always show a preview before I change the draft.",
                   ].join("\n\n")
                 : "I am your study coach. Ask for quiz ideas, revision plans, or question improvements.",
@@ -173,6 +201,24 @@ export function AIStudyCoach(props: Props) {
                         ? `Started a new draft named "${pendingAction.title}".`
                         : "Started a new blank quiz draft.",
                 );
+                return;
+            case "confirm_generate_questions":
+                props.editor.runDraftAction({
+                    type: "add_questions_batch",
+                    questions: pendingAction.questions,
+                });
+                clearPendingAction(
+                    `Added ${pendingAction.count} generated question${
+                        pendingAction.count === 1 ? "" : "s"
+                    } about ${pendingAction.topic} to the draft.`,
+                );
+                return;
+            case "confirm_rename_quiz":
+                props.editor.runDraftAction({
+                    type: "set_title",
+                    title: pendingAction.title,
+                });
+                clearPendingAction(`Renamed the quiz to "${pendingAction.title}".`);
                 return;
             case "confirm_add_question":
                 props.editor.runDraftAction({
@@ -319,6 +365,26 @@ export function AIStudyCoach(props: Props) {
                           : "Ready to start a new blank draft. Confirm when you want me to reset the editor.",
                 );
                 return true;
+            case "generate_questions":
+                await startQuestionGenerationFlow({
+                    count: intent.count,
+                    topic: intent.topic,
+                });
+                return true;
+            case "rename_quiz":
+                if (intent.title?.trim()) {
+                    setPendingAction({
+                        kind: "confirm_rename_quiz",
+                        title: intent.title.trim(),
+                        source: "explicit",
+                    });
+                    appendAssistantMessage(
+                        `I can rename this quiz to "${intent.title.trim()}". Confirm if you want me to apply it.`,
+                    );
+                    return true;
+                }
+                await startRenameSuggestionFlow();
+                return true;
             case "add_question":
                 if (intent.questionText) {
                     setPendingAction({
@@ -380,6 +446,17 @@ export function AIStudyCoach(props: Props) {
         }
 
         switch (pendingAction.kind) {
+            case "collect_generate_questions": {
+                const merged = mergeQuestionGenerationRequest(
+                    {
+                        count: pendingAction.count,
+                        topic: pendingAction.topic,
+                    },
+                    input,
+                );
+                await startQuestionGenerationFlow(merged);
+                return;
+            }
             case "add_question_text": {
                 setPendingAction({
                     kind: "add_question_options",
@@ -532,6 +609,106 @@ export function AIStudyCoach(props: Props) {
             }
             default:
                 return;
+        }
+    };
+
+    const startQuestionGenerationFlow = async (
+        request: QuestionGenerationRequest,
+    ) => {
+        if (!isEditorMode) {
+            return;
+        }
+
+        const count = normalizeRequestedCount(request.count);
+        const topic = request.topic?.trim();
+
+        if (request.count !== undefined && !count) {
+            setPendingAction({
+                kind: "collect_generate_questions",
+                count: undefined,
+                topic,
+            });
+            appendAssistantMessage("Tell me how many questions to generate using a number greater than zero.");
+            return;
+        }
+
+        if (!count || !topic) {
+            setPendingAction({
+                kind: "collect_generate_questions",
+                count,
+                topic,
+            });
+            if (!count && !topic) {
+                appendAssistantMessage("How many questions should I generate, and what topic should they cover?");
+            } else if (!count) {
+                appendAssistantMessage("How many questions should I generate?");
+            } else {
+                appendAssistantMessage(`What topic should the ${count} generated question${count === 1 ? "" : "s"} cover?`);
+            }
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const questions = await generateQuestionBatch(count, topic, props.editor.draft);
+            setPendingAction({
+                kind: "confirm_generate_questions",
+                count,
+                topic,
+                questions,
+            });
+            appendAssistantMessage(
+                `I generated ${count} question${count === 1 ? "" : "s"} about ${topic}. Review the batch and confirm if you want me to add it to the draft.`,
+            );
+        } catch (err) {
+            appendAssistantMessage(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to generate questions.",
+            );
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const startRenameSuggestionFlow = async () => {
+        if (!isEditorMode) {
+            return;
+        }
+
+        if (!hasMeaningfulDraft(props.editor.draft)) {
+            appendAssistantMessage(
+                "I need some quiz content before I can suggest a name.",
+            );
+            return;
+        }
+
+        if (provider.name !== "gemini") {
+            appendAssistantMessage(
+                "Rename suggestion requires Gemini to be configured. You can still rename the quiz by saying something like: rename quiz to Geo 11 Final Review.",
+            );
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const title = await suggestQuizTitle(props.editor.draft);
+            setPendingAction({
+                kind: "confirm_rename_quiz",
+                title,
+                source: "suggested",
+            });
+            appendAssistantMessage(
+                `I suggested the title "${title}". Confirm if you want me to rename the quiz.`,
+            );
+        } catch (err) {
+            appendAssistantMessage(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to suggest a title.",
+            );
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -741,6 +918,96 @@ export function AIStudyCoach(props: Props) {
         }
     };
 
+    const generateQuestionBatch = async (
+        count: number,
+        topic: string,
+        draftState: EditorDraft,
+    ) => {
+        if (provider.name !== "gemini") {
+            throw new Error(
+                "Batch question generation requires Gemini to be configured.",
+            );
+        }
+
+        const response = await provider.generateStructured<GenerateQuestionsResponse>({
+            systemInstruction:
+                "You generate quiz questions for students. Return valid JSON only with a questions array. Each question must have exactly 4 answer choices and exactly 1 correct answer. Avoid duplicating existing quiz questions.",
+            prompt: [
+                `Generate ${count} multiple-choice question${count === 1 ? "" : "s"}.`,
+                `Topic: ${topic}`,
+                "Each question must have exactly 4 choices.",
+                "Each question must have exactly 1 correct answer.",
+                "Keep the language clear and student-friendly.",
+                "Avoid repeating existing questions from the current draft.",
+                "Current draft context:",
+                describeDraftForAI(draftState),
+                "Return JSON only in this shape:",
+                '{"questions":[{"questionText":"","options":["","","",""],"correctOptionIndex":0}]}',
+            ].join("\n"),
+            maxOutputTokens: 1536,
+            temperature: 0.7,
+        });
+
+        const rawQuestions = response.questions ?? [];
+        if (rawQuestions.length !== count) {
+            throw new Error(
+                `Gemini returned ${rawQuestions.length} questions, but ${count} were requested. No changes were applied.`,
+            );
+        }
+
+        const generated = rawQuestions.map((question, index) => {
+            const questionText = question.questionText?.trim();
+            const optionTexts = question.options?.map((option) => option.trim()).filter(Boolean) ?? [];
+            const correctOptionIndex = question.correctOptionIndex ?? -1;
+
+            if (
+                !questionText ||
+                optionTexts.length !== 4 ||
+                correctOptionIndex < 0 ||
+                correctOptionIndex >= optionTexts.length
+            ) {
+                throw new Error(
+                    `Gemini returned invalid data for generated question ${index + 1}. No changes were applied.`,
+                );
+            }
+
+            return createQuestionFromTexts({
+                questionText,
+                optionTexts,
+                correctIndex: correctOptionIndex,
+            });
+        });
+
+        return generated;
+    };
+
+    const suggestQuizTitle = async (draftState: EditorDraft) => {
+        if (provider.name !== "gemini") {
+            throw new Error("Rename suggestion requires Gemini to be configured.");
+        }
+
+        const response = await provider.generateStructured<RenameSuggestionResponse>({
+            systemInstruction:
+                "You suggest concise, descriptive quiz titles. Return valid JSON only with a title field. Keep it under 60 characters.",
+            prompt: [
+                "Suggest one strong title for this quiz draft.",
+                "Return JSON only in this shape:",
+                '{"title":""}',
+                "Quiz context:",
+                describeDraftForAI(draftState),
+            ].join("\n"),
+            maxOutputTokens: 120,
+            temperature: 0.4,
+        });
+
+        const title = response.title?.trim();
+        if (!title) {
+            throw new Error("Gemini did not return a valid title suggestion.");
+        }
+
+        return title;
+    };
+
     const generateRandomizedQuestion = async (question: EditableQuestion) => {
         const correctIndex = question.options.findIndex((option) => option.correct);
         if (correctIndex < 0) {
@@ -813,7 +1080,7 @@ export function AIStudyCoach(props: Props) {
                 {isEditorMode
                     ? hasGemini
                         ? "The assistant can edit your local draft and will always ask for confirmation before applying changes."
-                        : "Deterministic draft actions still work. Configure Gemini to enable question randomization and better freeform chat."
+                        : "Deterministic draft actions still work. Configure Gemini to enable batch question generation, rename suggestions, and question randomization."
                     : hasGemini
                       ? "Gemini is active. Responses are generated in real-time."
                       : "Set VITE_GEMINI_API_KEY to enable Gemini responses."}
@@ -851,7 +1118,7 @@ export function AIStudyCoach(props: Props) {
                     onChange={(event) => setDraft(event.target.value)}
                     placeholder={
                         isEditorMode
-                            ? "Try: add question, remove question 2, or shuffle choices"
+                            ? "Try: add 5 questions about grade 11 geography or rename this quiz"
                             : "Ask: create me a 7-day revision plan for biology"
                     }
                     rows={3}
@@ -885,8 +1152,8 @@ export function AIStudyCoach(props: Props) {
                 <p className="muted ai-action-detail">{detail}</p>
                 {previewLines.length > 0 && (
                     <div className="ai-preview-list">
-                        {previewLines.map((line) => (
-                            <div key={line} className="ai-preview-line">
+                        {previewLines.map((line, index) => (
+                            <div key={`${line}-${index}`} className="ai-preview-line">
                                 {line}
                             </div>
                         ))}
@@ -921,6 +1188,38 @@ function describePendingAction(action: PendingEditorAction): {
                     ? `This will reset the editor to a new draft named "${action.title}".`
                     : "This will reset the editor to a new blank draft.",
                 previewLines: action.title ? [`Title: ${action.title}`] : [],
+                confirmable: true,
+            };
+        case "collect_generate_questions":
+            return {
+                title: "Generate questions",
+                detail:
+                    !action.count && !action.topic
+                        ? "Waiting for question count and topic."
+                        : !action.count
+                          ? "Waiting for question count."
+                          : "Waiting for the topic to generate questions about.",
+                previewLines: [
+                    ...(action.count ? [`Count: ${action.count}`] : []),
+                    ...(action.topic ? [`Topic: ${action.topic}`] : []),
+                ],
+                confirmable: false,
+            };
+        case "confirm_generate_questions":
+            return {
+                title: "Generate questions",
+                detail: `Review the ${action.count} generated question${action.count === 1 ? "" : "s"} before adding them to the draft.`,
+                previewLines: summarizeQuestionBatch(action.questions),
+                confirmable: true,
+            };
+        case "confirm_rename_quiz":
+            return {
+                title: "Rename quiz",
+                detail:
+                    action.source === "explicit"
+                        ? "Review the new quiz title before applying it."
+                        : "Review the suggested title before applying it.",
+                previewLines: [`New title: ${action.title}`],
                 confirmable: true,
             };
         case "add_question_text":
@@ -1160,6 +1459,25 @@ function hasMeaningfulDraft(draft: EditorDraft) {
             question.text.trim() ||
             question.options.some((option) => option.text.trim()),
     );
+}
+
+function describeDraftForAI(draft: EditorDraft) {
+    return [
+        `Title: ${draft.title.trim() || "Untitled quiz"}`,
+        `Subject: ${draft.subject.trim() || "No subject"}`,
+        `Question count: ${draft.questions.length}`,
+        "Questions:",
+        ...draft.questions.slice(0, 12).map((question, index) =>
+            `${index + 1}. ${question.text.trim() || "Untitled question"}`,
+        ),
+    ].join("\n");
+}
+
+function normalizeRequestedCount(count?: number) {
+    if (!count || !Number.isFinite(count) || count < 1) {
+        return undefined;
+    }
+    return Math.floor(count);
 }
 
 function isCancelCommand(input: string) {
