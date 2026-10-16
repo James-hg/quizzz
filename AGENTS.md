@@ -31,5 +31,8 @@ This repo is being rebuilt from a FastAPI + Vite app into a single Next.js app. 
 - Store timestamps as `timestamptz` in UTC. Use the user's timezone for "today".
 - Don't ship placeholders, mock responses, or static screens in production code paths.
 
+## Commits and PRs
+Do not add Claude/AI attribution (no `Co-Authored-By` trailer, no "Generated with Claude Code" line) to commits or PR descriptions.
+
 ## Before opening a PR
 Run `npm run typecheck`, `npm run lint`, and `npm test` (once the scaffold issue lands; check `package.json` for the exact scripts). Add or update tests for the behavior you changed. Note in the PR any acceptance criteria you couldn't meet.
