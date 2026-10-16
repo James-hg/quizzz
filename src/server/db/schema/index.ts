@@ -1,2 +1,5 @@
-// Domain tables arrive in A3 and auth tables in A4; export them from here.
-export {};
+export * from "./courses";
+export * from "./enums";
+export * from "./questions";
+export * from "./sessions";
+export * from "./sources";
