@@ -1,43 +1,32 @@
 # Quizzz
 
-A quiz app to revise for exams
+A quiz app to revise for exams. The app is being rebuilt as a single Next.js app (see `PROJECT_BRIEF.md`); `backend/` and `frontend/` are legacy and will be removed.
 
-## Next steps
-
-1. Install backend dependencies and run `uvicorn app.main:app --reload`
-2. `npm install` inside the frontend and run `npm run dev`
-3. Adjust `fetch` in `frontend/src/App.tsx` if the API URL changes
-
-## Docker
-
-### One-shot with Compose
+## Local setup (no Python)
 
 ```sh
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
-docker compose up --build
+cp .env.example .env.local   # set BETTER_AUTH_SECRET (openssl rand -base64 32)
+docker compose up -d db      # PostgreSQL 16 on localhost:5432
+npm ci
+npm run db:migrate           # applies versioned SQL migrations in ./drizzle
+npm run dev                  # http://localhost:3000, health: /api/health
 ```
 
-- Backend: <http://localhost:8000>
-- Frontend: <http://localhost:5173> (talks to backend via `VITE_API_URL`)
+Or run everything in containers: `docker compose up` (starts Postgres, runs migrations, then the dev server).
 
-### Manual builds
+The database user/password/name in compose are `quizzz`/`quizzz`/`quizzz`, matching `.env.example`.
+
+## Database
+
+- Drizzle ORM with the `postgres` (postgres.js) driver. Schema lives in `src/server/db/schema`.
+- Change the schema, then `npm run db:generate` to create a SQL migration in `drizzle/`, and `npm run db:migrate` to apply it. The app never alters the schema at startup.
+
+## Tests
 
 ```sh
-# Backend
-docker build -t quizzz-backend ./backend
-docker run -p 8000:8000 quizzz-backend
-
-# Frontend (serves built assets with `serve`)
-docker build -t quizzz-frontend ./frontend
-docker run -p 5173:5173 quizzz-frontend
+npm run test:unit          # no database needed
+createdb quizzz_test       # or create it in your Postgres container
+TEST_DATABASE_URL=postgres://quizzz:quizzz@localhost:5432/quizzz_test npm run test:integration
 ```
 
-### Truncate command
-
-- Run docker-compose normally
-
-```sh
-docker compose exec db psql -U postgres -d quizzz -c "
-TRUNCATE responses, quiz_sessions, options, questions, quizzes CASCADE;"
-```
+`npm test` runs both. Integration tests use a dedicated database (`TEST_DATABASE_URL`, never `DATABASE_URL`), and each test runs in a transaction that is rolled back.

@@ -1,45 +1,45 @@
 services:
-    db:
-        image: postgres:16
-        container_name: quizzz-db
-        restart: unless-stopped
-        environment:
-            POSTGRES_DB: quizzz
-            POSTGRES_USER: postgres
-            POSTGRES_PASSWORD: postgres
-        ports:
-            - "5432:5432"
-        volumes:
-            - db_data:/var/lib/postgresql/data
+  db:
+    image: postgres:16
+    container_name: quizzz-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: quizzz
+      POSTGRES_USER: quizzz
+      POSTGRES_PASSWORD: quizzz
+    ports:
+      - "5432:5432"
+    volumes:
+      # New volume name on purpose: never reuse the legacy `db_data` volume by accident.
+      - quizzz_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quizzz -d quizzz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
-    backend:
-        build: ./backend
-        container_name: quizzz-backend
-        ports:
-            - "8000:8000"
-        environment:
-            - UVICORN_HOST=0.0.0.0
-            - UVICORN_PORT=8000
-            - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@db:5432/quizzz}
-        env_file:
-            - path: ./backend/.env
-              required: false
-        volumes:
-            - ./backend/app:/app/app:ro
-        depends_on:
-            - db
-        restart: unless-stopped
-
-    frontend:
-        build: ./frontend
-        container_name: quizzz-frontend
-        ports:
-            - "5173:5173"
-        environment:
-            - VITE_API_URL=http://localhost:8000
-        depends_on:
-            - backend
-        restart: unless-stopped
+  app:
+    image: node:22-alpine
+    container_name: quizzz-app
+    working_dir: /app
+    command: sh -c "npm ci && npm run db:migrate && npm run dev -- --hostname 0.0.0.0"
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://quizzz:quizzz@db:5432/quizzz
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-dev-only-secret-change-me-dev-only-secret}
+      BETTER_AUTH_URL: http://localhost:3000
+      AI_PROVIDER: ${AI_PROVIDER:-disabled}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+      STORAGE_DIR: /app/storage
+    volumes:
+      - .:/app
+      - app_node_modules:/app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
-    db_data:
+  quizzz_pg_data:
+  app_node_modules:
