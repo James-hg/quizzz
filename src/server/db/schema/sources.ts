@@ -10,6 +10,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { Anchor } from "@/lib/schemas";
+import { user } from "./auth";
 import { courses } from "./courses";
 import { segmentKind } from "./enums";
 
@@ -17,7 +18,9 @@ export const sourceDocuments = pgTable(
   "source_documents",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    ownerId: uuid("owner_id").notNull(),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
     courseId: uuid("course_id")
       .notNull()
       .references(() => courses.id, { onDelete: "cascade" }),
