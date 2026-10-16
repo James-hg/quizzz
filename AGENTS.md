@@ -9,6 +9,7 @@ This repo is being rebuilt from a FastAPI + Vite app into a single Next.js app. 
 - Zod for every request body, env var, and AI output.
 - Vitest for unit/integration tests (integration tests use a real Postgres). Playwright for end-to-end tests.
 - Package manager: npm. Pin dependency versions; choose current stable releases and check Node compatibility and licenses.
+- Formatting: Prettier (`npm run format`, `npm run format:check`); linting: ESLint with `eslint-config-next`. TypeScript is pinned to 6.0.x until `typescript-eslint` supports 7.
 - No Python, Ollama, or paid service in the standard setup.
 
 ## Layout (target)
