@@ -113,9 +113,7 @@ describe("sign up, sign in, sign out", () => {
   it("stores no plaintext password", async () => {
     const { email, password } = await signUp();
     const rows = await db.execute<{ password: string }>(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (await import("drizzle-orm"))
-        .sql`select a.password from account a join "user" u on u.id = a.user_id where u.email = ${email}`,
+      sql`select a.password from account a join "user" u on u.id = a.user_id where u.email = ${email}`,
     );
     expect(rows[0]?.password).toBeTruthy();
     expect(rows[0]?.password).not.toContain(password);

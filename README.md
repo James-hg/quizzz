@@ -30,3 +30,18 @@ TEST_DATABASE_URL=postgres://quizzz:quizzz@localhost:5432/quizzz_test npm run te
 ```
 
 `npm test` runs both. Integration tests use a dedicated database (`TEST_DATABASE_URL`, never `DATABASE_URL`), and each test runs in a transaction that is rolled back.
+
+## Auth
+
+Better Auth (email + password, database sessions, HTTP-only cookies) is mounted at `/api/auth/*`. No email verification is required locally. Passwords are never trimmed; only length (8-128) is validated.
+
+```sh
+# sign up (cookie saved to ./jar), read the session, update the profile
+curl -c jar -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
+  -d '{"email":"a@b.co","password":"correct horse","name":"A"}' localhost:3000/api/auth/sign-up/email
+curl -b jar localhost:3000/api/me
+curl -b jar -X PATCH -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
+  -d '{"timezone":"America/Vancouver"}' localhost:3000/api/me
+```
+
+Other endpoints: `/api/auth/sign-in/email`, `/api/auth/sign-out`, `/api/auth/get-session`, `/api/auth/change-password` (requires the current password).
