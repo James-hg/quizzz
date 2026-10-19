@@ -1,5 +1,5 @@
 {
-  "id": "e3a97e9d-8ff5-4db6-89cc-13a53b4cad04",
+  "id": "cbd74596-c218-42e7-8e66-58558d0373af",
   "prevId": "c8f60133-c06b-4917-8bd0-585dbdd98788",
   "version": "7",
   "dialect": "postgresql",
@@ -840,6 +840,13 @@
           "notNull": true,
           "default": "'[]'::jsonb"
         },
+        "revision_ids": {
+          "name": "revision_ids",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
         "policy_version": {
           "name": "policy_version",
           "type": "text",
@@ -888,6 +895,34 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "study_sessions_live_uq": {
+          "name": "study_sessions_live_uq",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "question_set_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "mode",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"study_sessions\".\"state\" in ('active', 'paused')",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1830,76 +1865,6 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.ai_usage": {
-      "name": "ai_usage",
-      "schema": "",
-      "columns": {
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "window_start": {
-          "name": "window_start",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "count": {
-          "name": "count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        }
-      },
-      "indexes": {
-        "ai_usage_window_start_idx": {
-          "name": "ai_usage_window_start_idx",
-          "columns": [
-            {
-              "expression": "window_start",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "ai_usage_user_id_user_id_fk": {
-          "name": "ai_usage_user_id_user_id_fk",
-          "tableFrom": "ai_usage",
-          "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "ai_usage_user_id_window_start_pk": {
-          "name": "ai_usage_user_id_window_start_pk",
-          "columns": [
-            "user_id",
-            "window_start"
-          ]
-        }
-      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},

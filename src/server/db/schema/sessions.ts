@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -7,6 +8,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import type { QuestionResponse } from "@/lib/schemas";
@@ -35,6 +37,9 @@ export const studySessions = pgTable(
     activeStartedAt: timestamp("active_started_at", { withTimezone: true }),
     currentIndex: integer("current_index").notNull().default(0),
     itemOrder: jsonb("item_order").$type<string[]>().notNull().default([]),
+    // questionId -> revisionId, fixed when the session is created so later edits cannot
+    // change what this session shows or how it grades.
+    revisionIds: jsonb("revision_ids").$type<Record<string, string>>().notNull().default({}),
     policyVersion: text("policy_version").notNull().default("v1"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -42,6 +47,10 @@ export const studySessions = pgTable(
   (t) => [
     index("study_sessions_user_id_idx").on(t.userId),
     index("study_sessions_course_id_idx").on(t.courseId),
+    // At most one live (active or paused) session per user, question set, and mode.
+    uniqueIndex("study_sessions_live_uq")
+      .on(t.userId, t.questionSetId, t.mode)
+      .where(sql`${t.state} in ('active', 'paused')`),
   ],
 );
 

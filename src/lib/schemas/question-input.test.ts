@@ -54,6 +54,23 @@ describe("questionContentSchema", () => {
   });
 });
 
+describe("output_prediction defaults", () => {
+  it("is case sensitive unless told otherwise", () => {
+    const parsed = questionContentSchema.parse({
+      type: "output_prediction",
+      prompt: "print(True)",
+      accepted: ["True"],
+    });
+    expect(parsed).toMatchObject({ caseSensitive: true });
+    const short = questionContentSchema.parse({
+      type: "short_answer",
+      prompt: "Q",
+      accepted: ["x"],
+    });
+    expect(short).toMatchObject({ caseSensitive: false });
+  });
+});
+
 describe("revision mapping", () => {
   it("round-trips content through revision columns", () => {
     const content = questionContentSchema.parse(single(["b"]));

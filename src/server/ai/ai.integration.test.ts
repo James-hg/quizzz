@@ -308,6 +308,12 @@ describe("review-gated proposals", () => {
     expect(await listPlayableQuestionIds(db, setId)).toEqual([]);
   });
 
+  it("keeps an unreviewed proposal out of play even if its status were forced to active", async () => {
+    const question = await saved();
+    await db.update(questions).set({ status: "active" }).where(eq(questions.id, question.id));
+    expect(await listPlayableQuestionIds(db, setId)).toEqual([]);
+  });
+
   it("blocks restore until the owner approves, and keeps provenance", async () => {
     const question = await saved();
     const params = { questionId: question.id };
