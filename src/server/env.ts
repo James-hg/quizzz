@@ -15,6 +15,14 @@ export const envSchema = z.object({
   GEMINI_API_KEY: optionalString,
   GEMINI_MODEL: optionalString,
   STORAGE_DIR: z.string().min(1),
+  MAX_UPLOAD_BYTES: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(10 * 1024 * 1024),
+  ),
 });
 
 export type Env = z.infer<typeof envSchema>;
