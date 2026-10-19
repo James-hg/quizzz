@@ -11,13 +11,18 @@ import {
   questionSets,
   questions,
   studySessions,
+  user,
 } from "./schema";
 
 const tx = withTestTransaction();
 
 async function seed() {
   const db = tx();
-  const ownerId = randomUUID();
+  const [owner] = await db
+    .insert(user)
+    .values({ name: "Test", email: `${randomUUID()}@example.test` })
+    .returning();
+  const ownerId = owner!.id;
   const [course] = await db
     .insert(courses)
     .values({ ownerId, title: "CS 101", subject: "Intro programming", language: "python" })

@@ -11,6 +11,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { AnswerKey, Option } from "@/lib/schemas";
+import { user } from "./auth";
 import { courses } from "./courses";
 import {
   evidenceStatus,
@@ -29,7 +30,9 @@ export const questionSets = pgTable(
     courseId: uuid("course_id")
       .notNull()
       .references(() => courses.id, { onDelete: "cascade" }),
-    ownerId: uuid("owner_id").notNull(),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
     title: text("title").notNull(),
     origin: questionSetOrigin("origin").notNull(),
     sourceDocumentId: uuid("source_document_id").references(() => sourceDocuments.id, {
@@ -79,7 +82,7 @@ export const questionRevisions = pgTable(
     explanation: text("explanation"),
     origin: revisionOrigin("origin").notNull(),
     evidenceStatus: evidenceStatus("evidence_status").notNull().default("unresolved"),
-    createdBy: uuid("created_by"),
+    createdBy: uuid("created_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

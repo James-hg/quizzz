@@ -10,6 +10,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { QuestionResponse } from "@/lib/schemas";
+import { user } from "./auth";
 import { courses } from "./courses";
 import { activityRole, gradingOutcome, sessionMode, sessionState } from "./enums";
 import { questionRevisions, questionSets, questions } from "./questions";
@@ -18,7 +19,9 @@ export const studySessions = pgTable(
   "study_sessions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
     courseId: uuid("course_id")
       .notNull()
       .references(() => courses.id, { onDelete: "restrict" }),
@@ -49,7 +52,9 @@ export const attempts = pgTable(
     sessionId: uuid("session_id")
       .notNull()
       .references(() => studySessions.id, { onDelete: "restrict" }),
-    userId: uuid("user_id").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
     questionId: uuid("question_id")
       .notNull()
       .references(() => questions.id, { onDelete: "restrict" }),
