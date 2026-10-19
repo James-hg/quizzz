@@ -1,0 +1,2 @@
+ALTER TABLE "study_sessions" ADD COLUMN "revision_ids" jsonb DEFAULT '{}'::jsonb NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "study_sessions_live_uq" ON "study_sessions" USING btree ("user_id","question_set_id","mode") WHERE "study_sessions"."state" in ('active', 'paused');
