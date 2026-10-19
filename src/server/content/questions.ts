@@ -144,6 +144,12 @@ export async function setQuestionStatus(
   if (question.status === "reported" && status === "active") {
     throw conflict("Reported questions are restored through review", "reported");
   }
+  if (status === "active") {
+    const revision = await currentRevision(db, question);
+    if (revision.answerKey.kind === "unresolved") {
+      throw conflict("Set the correct answer before restoring this question", "unresolved_answer");
+    }
+  }
   const [row] = await db
     .update(questions)
     .set({ status })
