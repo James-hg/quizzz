@@ -16,7 +16,7 @@ export class ExtractError extends ApiError {
 }
 
 export class UnsupportedFormat extends ExtractError {
-  constructor(message = "This file type is not supported. Upload a .docx file.") {
+  constructor(message = "This file type is not supported.") {
     super("unsupported_format", 415, message);
     this.name = "UnsupportedFormat";
   }
