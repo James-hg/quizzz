@@ -16,7 +16,9 @@ export type SampleEntry = {
 export type SampleProblem = { file: string; issues: SampleIssue[] };
 
 export function resolveSamplesDir(configured?: string): string {
-  return path.resolve(process.cwd(), configured ?? DEFAULT_SAMPLES_DIR);
+  // The fixtures are shipped explicitly via outputFileTracingIncludes in next.config.ts, so
+  // tell the bundler not to trace the whole project from this dynamic path.
+  return path.resolve(/*turbopackIgnore: true*/ process.cwd(), configured ?? DEFAULT_SAMPLES_DIR);
 }
 
 export function describeProblem(problem: SampleProblem): string {
