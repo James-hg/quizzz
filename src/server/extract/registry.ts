@@ -4,7 +4,7 @@ import { extractResultSchema } from "@/lib/schemas";
 import { Corrupt, ExtractError, UnsupportedFormat } from "./errors";
 import { validateUpload } from "./limits";
 import { withTimeout } from "./timeout";
-import type { ExtractLimits, Extractor, UploadedFile } from "./types";
+import type { ExtractLimits, Extractor, SupportedFormat, UploadedFile } from "./types";
 
 const extractors: Extractor[] = [];
 
@@ -14,6 +14,11 @@ export function registerExtractor(extractor: Extractor): void {
     throw new Error(`Extractor "${extractor.name}" is already registered`);
   }
   extractors.push(extractor);
+}
+
+/** Formats of every registered extractor, for accurate upload messaging. */
+export function supportedFormats(): SupportedFormat[] {
+  return extractors.flatMap((e) => [...(e.formats ?? [])]);
 }
 
 export function findExtractor(file: UploadedFile): Extractor | undefined {
