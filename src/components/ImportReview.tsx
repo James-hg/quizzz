@@ -92,7 +92,7 @@ export function ImportReview({ initial, existingSets, defaultTitle }: Props) {
 
       {error ? <Alert tone="error">{error}</Alert> : null}
 
-      {isPublished ? (
+      {isPublished && !published ? (
         <Alert tone="success">
           This import is published.{" "}
           {draft.publishedQuestionSetId ? (

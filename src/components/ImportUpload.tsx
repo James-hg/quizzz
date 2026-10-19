@@ -15,6 +15,10 @@ export function ImportUpload({ courseId, formats, maxUploadBytes }: Props) {
   const [failedImportId, setFailedImportId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
+  function unsupportedMessage(filename: string) {
+    return `“${filename}” is not a supported file type. Supported formats: ${formats.map((f) => f.label).join(", ")}.`;
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -22,6 +26,11 @@ export function ImportUpload({ courseId, formats, maxUploadBytes }: Props) {
     const file = new FormData(event.currentTarget).get("file");
     if (!(file instanceof File) || file.size === 0) {
       setError("Choose a file to upload.");
+      return;
+    }
+    const extension = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "";
+    if (!formats.some((f) => f.extension === extension)) {
+      setError(unsupportedMessage(file.name));
       return;
     }
     const body = new FormData();
@@ -34,10 +43,9 @@ export function ImportUpload({ courseId, formats, maxUploadBytes }: Props) {
       );
       router.push(`/imports/${draft.id}`);
     } catch (e) {
-      const names = formats.map((f) => f.label).join(", ");
       setError(
-        e instanceof ApiClientError && e.code === "unsupported_format" && names
-          ? `${e.message} Supported formats: ${names}.`
+        e instanceof ApiClientError && e.code === "unsupported_format"
+          ? unsupportedMessage(file.name)
           : errorMessage(e),
       );
       const importId = e instanceof ApiClientError ? e.details?.importId : undefined;

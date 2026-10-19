@@ -465,11 +465,12 @@ legend {
 .option input {
   margin-top: 0.3rem;
 }
-.option-correct {
+/* Doubled class so these beat the selected-option highlight above. */
+.option.option-correct {
   border-color: var(--success);
   background: var(--success-bg);
 }
-.option-wrong {
+.option.option-wrong {
   border-color: var(--danger);
   background: var(--danger-bg);
 }
