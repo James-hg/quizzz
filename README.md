@@ -157,3 +157,19 @@ curl -b /tmp/quizzz-jar -X POST -H 'Origin: http://localhost:3000' -H 'Content-T
 curl -b /tmp/quizzz-jar -X POST -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
   -d '{"count":3,"topic":"loops"}' localhost:3000/api/ai/question-sets/<setId>/generate-questions
 ```
+
+## Sample courses
+
+Ready-made courses (one per language) that a student can copy into their account. The project owner supplies the checked content; see `fixtures/sample-courses/README.md` for the format, the template, and how to add one. With none present, the app shows none.
+
+| Route | Purpose |
+| --- | --- |
+| `GET /api/samples` | Available samples (`language`, `title`, counts); empty when there are none |
+| `POST /api/samples/:language/load` | Copy a sample into your account: `201` the first time, `200` with the same copy afterwards |
+
+```sh
+npm run samples:validate                                   # also runs in CI
+npm run samples:load -- python --email you@example.com     # copy into an account from the CLI
+curl -b /tmp/quizzz-jar localhost:3000/api/samples
+curl -b /tmp/quizzz-jar -X POST -H 'Origin: http://localhost:3000' localhost:3000/api/samples/python/load
+```

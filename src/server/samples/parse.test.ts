@@ -153,3 +153,15 @@ describe("parseSampleCourse", () => {
     }
   });
 });
+
+describe("the shipped template", () => {
+  it("is a valid fixture, so the documented format cannot go stale", () => {
+    const template = readFileSync(
+      path.join(process.cwd(), "fixtures/sample-courses/_template/course.yaml"),
+      "utf8",
+    );
+    const result = parseSampleCourse(template);
+    expect(result.issues).toEqual([]);
+    expect(result.ok).toBe(true);
+  });
+});
