@@ -40,3 +40,9 @@ jobs:
       - run: npm run db:migrate
       - run: npm test
       - run: npm run build
+        env:
+          # A recognizable value: check:bundle fails if it shows up in browser-visible output.
+          GEMINI_API_KEY: ci-leak-sentinel-0123456789
+      - run: npm run check:bundle
+        env:
+          GEMINI_API_KEY: ci-leak-sentinel-0123456789

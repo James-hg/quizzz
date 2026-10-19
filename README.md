@@ -137,3 +137,23 @@ curl -b jar localhost:3000/api/question-sets/<setId>/history
 ```
 
 Response shapes: `{"kind":"options","selectedOptionIds":[...]}`, `{"kind":"text","text":"..."}`, `{"kind":"blanks","values":[...]}`.
+
+## AI (optional)
+
+AI is off by default (`AI_PROVIDER=disabled`); practice never needs it. To enable Gemini, set `AI_PROVIDER=gemini` and a server-only `GEMINI_API_KEY` (optionally `GEMINI_MODEL`, see `docs/ai-model.md`). Keys never reach the browser: `npm run build && npm run check:bundle` fails if a secret appears in client output.
+
+| Route | Purpose |
+| --- | --- |
+| `POST /api/ai/chat` | `{ message, history?, courseId?, questionSetId? }` -> short reply |
+| `POST /api/ai/question-sets/:id/generate-questions` | `{ count?, topic? }` -> validated proposals, nothing saved |
+| `POST /api/ai/question-sets/:id/save-proposals` | `{ proposals }` -> stored as excluded, `ai_proposed`, `generated_unreviewed` |
+| `POST /api/ai/question-sets/:id/suggest-title` | -> `{ title }` |
+
+AI routes return `503 ai_unavailable` when AI is off. Saved proposals stay out of practice until you approve them (`PATCH /api/questions/:id` with `{"approve": true}`) and restore them (`POST /api/questions/:id/restore`); restore returns `409 needs_review` until then.
+
+```sh
+curl -b /tmp/quizzz-jar -X POST -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
+  -d '{"message":"What is a list comprehension?"}' localhost:3000/api/ai/chat
+curl -b /tmp/quizzz-jar -X POST -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
+  -d '{"count":3,"topic":"loops"}' localhost:3000/api/ai/question-sets/<setId>/generate-questions
+```

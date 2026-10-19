@@ -127,8 +127,13 @@ export async function updateQuestion(
   });
   const revision = await addRevision(db, questionId, {
     ...contentToRevision(merged),
-    origin: "original",
-    evidenceStatus: statusFor(approve),
+    // Editing never launders provenance: AI-proposed stays AI-proposed, and an unreviewed
+    // revision stays unreviewed until the owner explicitly approves it.
+    origin: current.origin,
+    evidenceStatus:
+      approve || current.evidenceStatus !== "generated_unreviewed"
+        ? statusFor(approve)
+        : "generated_unreviewed",
     createdBy: userId,
   });
   return toOwnerView({ ...question, currentRevisionId: revision.id }, revision);
@@ -148,6 +153,9 @@ export async function setQuestionStatus(
     const revision = await currentRevision(db, question);
     if (revision.answerKey.kind === "unresolved") {
       throw conflict("Set the correct answer before restoring this question", "unresolved_answer");
+    }
+    if (revision.evidenceStatus === "generated_unreviewed") {
+      throw conflict("Review and approve this AI-proposed question first", "needs_review");
     }
   }
   const [row] = await db
@@ -253,7 +261,8 @@ export async function shuffleOptions(
 
 /**
  * Questions a new session may draw from, with the revision to pin. Excluded questions are
- * skipped, and so are revisions known to be bad (rejected or needing review). Unresolved
+ * skipped, and so are revisions known to be bad (rejected or needing review) or AI-generated
+ * and not yet approved. Unresolved
  * questions are practiceable.
  */
 export async function listPlayableItems(db: Database, setId: string) {
@@ -265,7 +274,11 @@ export async function listPlayableItems(db: Database, setId: string) {
       and(
         eq(questions.questionSetId, setId),
         eq(questions.status, "active"),
-        notInArray(questionRevisions.evidenceStatus, ["rejected", "needs_review"]),
+        notInArray(questionRevisions.evidenceStatus, [
+          "rejected",
+          "needs_review",
+          "generated_unreviewed",
+        ]),
       ),
     )
     .orderBy(asc(questions.position));

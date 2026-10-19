@@ -19,7 +19,8 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "fixtures:docx": "tsx scripts/make-docx-fixtures.ts"
+    "fixtures:docx": "tsx scripts/make-docx-fixtures.ts",
+    "check:bundle": "node scripts/check-bundle.mjs"
   },
   "dependencies": {
     "better-auth": "1.7.10",
