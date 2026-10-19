@@ -27,3 +27,6 @@ __pycache__/
 .quizzz.env
 .venv/
 frontend/dist/
+
+# curl cookie jars
+jar

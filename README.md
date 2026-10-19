@@ -36,11 +36,11 @@ TEST_DATABASE_URL=postgres://quizzz:quizzz@localhost:5432/quizzz_test npm run te
 Better Auth (email + password, database sessions, HTTP-only cookies) is mounted at `/api/auth/*`. No email verification is required locally. Passwords are never trimmed; only length (8-128) is validated.
 
 ```sh
-# sign up (cookie saved to ./jar), read the session, update the profile
-curl -c jar -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
+# sign up (cookie saved to /tmp/quizzz-jar), read the session, update the profile
+curl -c /tmp/quizzz-jar -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
   -d '{"email":"a@b.co","password":"correct horse","name":"A"}' localhost:3000/api/auth/sign-up/email
-curl -b jar localhost:3000/api/me
-curl -b jar -X PATCH -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
+curl -b /tmp/quizzz-jar localhost:3000/api/me
+curl -b /tmp/quizzz-jar -X PATCH -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
   -d '{"timezone":"America/Vancouver"}' localhost:3000/api/me
 ```
 
