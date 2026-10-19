@@ -31,7 +31,10 @@ export function resultOf(attempt: AttemptRow, revision: RevisionRow) {
   };
 }
 
-/** What the student may see of a question before answering: no key, no explanation. */
+/**
+ * What the student may see of a question before answering: no key, no explanation. The only
+ * thing derived from the key is how many blanks a fill-in question has, which the form needs.
+ */
 function questionForPlay(revision: RevisionRow, questionId: string) {
   return {
     questionId,
@@ -40,6 +43,9 @@ function questionForPlay(revision: RevisionRow, questionId: string) {
     prompt: revision.prompt,
     codeSnippet: revision.codeSnippet,
     options: revision.options.map((o) => ({ id: o.id, text: o.text })),
+    ...(revision.answerKey.kind === "blanks"
+      ? { blankCount: revision.answerKey.blanks.length }
+      : {}),
   };
 }
 

@@ -81,3 +81,66 @@ export type OwnerQuestionView = {
   origin: string;
   evidenceStatus: string;
 };
+
+export type PlayOption = { id: string; text: string };
+
+export type PlayQuestion = {
+  questionId: string;
+  revisionNumber: number;
+  type: QuestionType;
+  prompt: string;
+  codeSnippet: string | null;
+  options: PlayOption[];
+  /** Only for fill-in questions: how many answers to collect. */
+  blankCount?: number;
+};
+
+export type PlayResponse =
+  | { kind: "options"; selectedOptionIds: string[] }
+  | { kind: "text"; text: string }
+  | { kind: "blanks"; values: string[] };
+
+export type CorrectAnswer =
+  | { kind: "options"; correctOptionIds: string[] }
+  | { kind: "text"; accepted: string[] }
+  | { kind: "blanks"; blanks: string[][] }
+  | { kind: "unresolved" };
+
+export type AnswerResult = {
+  attemptId: string;
+  outcome: "correct" | "incorrect" | "uncertain";
+  isCorrect: boolean | null;
+  response: PlayResponse;
+  correctAnswer: CorrectAnswer;
+  explanation: string | null;
+  submittedAt: string;
+};
+
+export type PlayItem =
+  | { questionId: string; position: number; status: "pending" | "removed" }
+  | { questionId: string; position: number; status: "answered"; result: AnswerResult };
+
+export type PlaySession = {
+  id: string;
+  questionSetId: string;
+  courseId: string;
+  mode: string;
+  state: "active" | "paused" | "completed" | "abandoned";
+  startedAt: string;
+  completedAt: string | null;
+  elapsedSeconds: number;
+  currentIndex: number;
+  progress: { total: number; answered: number; removed: number };
+  items: PlayItem[];
+  current: PlayQuestion | null;
+};
+
+export type SessionSummary = {
+  totalItems: number;
+  answered: number;
+  correct: number;
+  incorrect: number;
+  uncertain: number;
+  unanswered: number;
+  elapsedSeconds: number;
+};
