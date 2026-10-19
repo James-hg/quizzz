@@ -112,7 +112,8 @@ export type RevisionColumns = {
   answerKey:
     | { kind: "options"; correctOptionIds: string[] }
     | { kind: "text"; accepted: string[]; caseSensitive: boolean }
-    | { kind: "blanks"; blanks: string[][]; caseSensitive: boolean };
+    | { kind: "blanks"; blanks: string[][]; caseSensitive: boolean }
+    | { kind: "unresolved" };
 };
 
 /** Maps validated editor content onto question_revisions columns. */
@@ -162,6 +163,10 @@ export function revisionToContentInput(rev: RevisionColumns): Record<string, unk
   const key = rev.answerKey;
   if (key.kind === "options") {
     return { ...common, options: rev.options, correctOptionIds: key.correctOptionIds };
+  }
+  if (key.kind === "unresolved") {
+    // The editor must supply the answer: validation fails until correctOptionIds is patched in.
+    return { ...common, options: rev.options, correctOptionIds: [] };
   }
   if (key.kind === "text") {
     return { ...common, accepted: key.accepted, caseSensitive: key.caseSensitive };

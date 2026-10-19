@@ -410,6 +410,7 @@ export async function extractDocx(
 
 export const docxExtractor: Extractor = {
   name: "docx",
+  formats: [{ extension: "docx", label: "Word (.docx)" }],
   canHandle(file: UploadedFile): boolean {
     if (extensionOf(file.filename) !== "docx") return false;
     return (

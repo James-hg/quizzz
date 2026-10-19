@@ -11,6 +11,8 @@ export const answerKeySchema = z.discriminatedUnion("kind", [
     accepted: z.array(z.string()).min(1),
     caseSensitive: z.boolean().default(false),
   }),
+  // Imported questions whose correct answer could not be determined. Never gradable.
+  z.object({ kind: z.literal("unresolved") }),
   z.object({
     kind: z.literal("blanks"),
     blanks: z.array(z.array(z.string()).min(1)).min(1),
