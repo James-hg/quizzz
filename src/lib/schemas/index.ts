@@ -7,4 +7,5 @@ export * from "./profile";
 export * from "./content";
 export * from "./question-input";
 export * from "./extract";
+export * from "./session";
 export * from "./import";

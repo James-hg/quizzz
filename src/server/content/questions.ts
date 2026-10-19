@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, max } from "drizzle-orm";
+import { and, asc, eq, max, notInArray } from "drizzle-orm";
 import type { z } from "zod";
 import {
   contentToRevision,
@@ -251,12 +251,27 @@ export async function shuffleOptions(
   return toOwnerView({ ...question, currentRevisionId: revision.id }, revision);
 }
 
-/** Questions a new session may draw from: active only, in order. Excluded ones are skipped. */
-export async function listPlayableQuestionIds(db: Database, setId: string) {
+/**
+ * Questions a new session may draw from, with the revision to pin. Excluded questions are
+ * skipped, and so are revisions known to be bad (rejected or needing review). Unresolved
+ * questions are practiceable.
+ */
+export async function listPlayableItems(db: Database, setId: string) {
   const rows = await db
-    .select({ id: questions.id })
+    .select({ questionId: questions.id, revisionId: questions.currentRevisionId })
     .from(questions)
-    .where(and(eq(questions.questionSetId, setId), eq(questions.status, "active")))
+    .innerJoin(questionRevisions, eq(questions.currentRevisionId, questionRevisions.id))
+    .where(
+      and(
+        eq(questions.questionSetId, setId),
+        eq(questions.status, "active"),
+        notInArray(questionRevisions.evidenceStatus, ["rejected", "needs_review"]),
+      ),
+    )
     .orderBy(asc(questions.position));
-  return rows.map((r) => r.id);
+  return rows.map((r) => ({ questionId: r.questionId, revisionId: r.revisionId! }));
+}
+
+export async function listPlayableQuestionIds(db: Database, setId: string) {
+  return (await listPlayableItems(db, setId)).map((item) => item.questionId);
 }

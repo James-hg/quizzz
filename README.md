@@ -108,3 +108,32 @@ curl -b /tmp/quizzz-jar localhost:3000/api/imports/<importId>
 curl -b /tmp/quizzz-jar -X PATCH -H 'Content-Type: application/json' -d '{"decision":"accepted"}' localhost:3000/api/imports/<importId>/items/<itemId>
 curl -b /tmp/quizzz-jar -X POST -H 'Content-Type: application/json' -d '{"title":"Week 1"}' localhost:3000/api/imports/<importId>/publish
 ```
+
+## Play API (quiz sessions)
+
+The server grades; answer keys, explanations and correctness never reach the browser before submission.
+
+| Route | Purpose |
+| --- | --- |
+| `POST /api/sessions` `{ questionSetId, mode: "quiz" }` | Resume the live session for the set (200) or create one (201). Excluded questions are skipped; unresolved ones are practiced. |
+| `GET /api/sessions/:id` | State, elapsed time, progress, the current question (no key or explanation), and results for answered items. |
+| `POST /api/sessions/:id/answers` `{ questionId, response, idempotencyKey }` | Grade and store one answer. The same key returns the stored result (`replayed: true`) with no second attempt. 409 when the session is completed or paused. |
+| `PATCH /api/sessions/:id` `{ action: "pause" \| "resume" }` | Elapsed time only counts while active. |
+| `POST /api/sessions/:id/complete` | End the session (also with unanswered items); returns a summary. |
+| `GET /api/question-sets/:id/history` | Completed sessions with `answered` / `correct` / `totalItems`, from one aggregate query. |
+
+A session pins the revision of every question when it starts, so editing a question mid-session does not change what that session shows or how it grades; the edit applies to the next session. Questions removed from the set mid-session appear as `removed` and are skipped.
+
+```sh
+# after signing up (see Auth) and creating a course, set, and question (see Content API):
+curl -b jar -H 'Content-Type: application/json' -d '{"questionSetId":"<setId>"}' localhost:3000/api/sessions
+curl -b jar localhost:3000/api/sessions/<sessionId>
+curl -b jar -H 'Content-Type: application/json' \
+  -d '{"questionId":"<questionId>","response":{"kind":"options","selectedOptionIds":["b"]},"idempotencyKey":"try-0001"}' \
+  localhost:3000/api/sessions/<sessionId>/answers      # run it twice: second reply has "replayed": true
+curl -b jar -X PATCH -H 'Content-Type: application/json' -d '{"action":"pause"}' localhost:3000/api/sessions/<sessionId>
+curl -b jar -X POST localhost:3000/api/sessions/<sessionId>/complete
+curl -b jar localhost:3000/api/question-sets/<setId>/history
+```
+
+Response shapes: `{"kind":"options","selectedOptionIds":[...]}`, `{"kind":"text","text":"..."}`, `{"kind":"blanks","values":[...]}`.
