@@ -21,6 +21,7 @@ import type { ExtractLimits } from "@/server/extract/types";
 import { ApiError, notFound } from "@/server/http/errors";
 import type { StorageAdapter } from "@/server/storage/types";
 import { detectorFor } from "./detectors";
+import { ensureImportersRegistered } from "./setup";
 import { insertSegments, setExtractionStatus, sha256 } from "./sources";
 import type { DetectedQuestion } from "./types";
 import type { ReceivedUpload } from "./upload";
@@ -116,6 +117,7 @@ export async function createImport(
   limits: ExtractLimits,
 ) {
   await assertOwnsCourse(db, userId, courseId);
+  ensureImportersRegistered();
 
   const file = { filename: upload.filename, mimeType: upload.mimeType };
   let validated;
@@ -177,10 +179,11 @@ export async function createImport(
   }
 
   const detector = detectorFor(extractor.name);
-  const detected = detector ? detector(result) : [];
-  const built = buildDraftItems(result, detected);
+  const detection = detector ? detector(result) : { questions: [], warnings: [] };
+  const built = buildDraftItems(result, detection.questions);
   const warnings: ImportWarning[] = [
     ...result.warnings.map((w) => ({ code: w.code, message: w.message, anchor: w.anchor })),
+    ...detection.warnings.map((w) => ({ code: w.code, message: w.message, anchor: w.anchor })),
     ...built.warnings,
   ];
   if (!detector) {

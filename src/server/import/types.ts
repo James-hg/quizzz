@@ -13,4 +13,10 @@ export type DetectedQuestion = {
   warnings: Warning[];
 };
 
-export type Detector = (result: ExtractResult) => DetectedQuestion[];
+export type Detection = {
+  questions: DetectedQuestion[];
+  /** Problems not tied to one question (e.g. an option before any question). */
+  warnings: Warning[];
+};
+
+export type Detector = (result: ExtractResult) => Detection;

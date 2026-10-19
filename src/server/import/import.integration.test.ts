@@ -36,7 +36,7 @@ import { clearExtractors, registerExtractor } from "@/server/extract/registry";
 import { Corrupt } from "@/server/extract/errors";
 import type { Extractor, ExtractResult } from "@/server/extract/types";
 import { clearDetectors, registerDetector } from "./detectors";
-import type { DetectedQuestion } from "./types";
+import type { DetectedQuestion, Detection } from "./types";
 import { getStorage } from "@/server/storage";
 
 // A stand-in format: the real DOCX extractor arrives in A7. Blocks are "Q: stem",
@@ -83,7 +83,7 @@ const fakeExtractor: Extractor = {
   },
 };
 
-function detect(result: ExtractResult): DetectedQuestion[] {
+function detect(result: ExtractResult): Detection {
   const found: DetectedQuestion[] = [];
   let current: DetectedQuestion | undefined;
   for (const block of result.blocks) {
@@ -101,7 +101,7 @@ function detect(result: ExtractResult): DetectedQuestion[] {
       current.blockIds!.push(block.id);
     }
   }
-  return found;
+  return { questions: found, warnings: [] };
 }
 
 function docxFile(script?: string) {
