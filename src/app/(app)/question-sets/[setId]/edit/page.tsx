@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { QuestionEditor } from "@/components/editor/QuestionEditor";
+import { AssistantPanel } from "@/components/AssistantPanel";
 import { RenameSetForm } from "@/components/RenameSetForm";
 import { StartPracticeButton } from "@/components/StartPracticeButton";
 import type { OwnerQuestionView } from "@/lib/client/types";
@@ -10,6 +11,7 @@ import { getCourse } from "@/server/content/courses";
 import { getQuestionSet } from "@/server/content/question-sets";
 import { listQuestions } from "@/server/content/questions";
 import { getDb } from "@/server/db";
+import { getEnv } from "@/server/env";
 import { listSetHistory } from "@/server/sessions/history";
 
 export const metadata: Metadata = { title: "Edit questions · Quizzz" };
@@ -51,6 +53,13 @@ export default async function EditSetPage({ params }: { params: Promise<{ setId:
       </div>
 
       <QuestionEditor questionSetId={set.id} questions={initial} />
+
+      <AssistantPanel
+        enabled={getEnv().AI_PROVIDER !== "disabled"}
+        questionSetId={set.id}
+        courseId={course.id}
+        setTitle={set.title}
+      />
 
       {history.length > 0 ? (
         <section className="card" aria-labelledby="history-heading">
