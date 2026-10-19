@@ -25,6 +25,12 @@ export function parseRevisionJson<T extends Pick<RevisionRow, "options" | "answe
 export async function addRevision(db: Database, questionId: string, input: NewRevision) {
   const validated = parseRevisionJson({ ...input, options: input.options ?? [] });
   return db.transaction(async (tx) => {
+    // Serialize concurrent edits of one question so revision numbers never collide.
+    await tx
+      .select({ id: questions.id })
+      .from(questions)
+      .where(eq(questions.id, questionId))
+      .for("update");
     const [latest] = await tx
       .select({ n: max(questionRevisions.revisionNumber) })
       .from(questionRevisions)
