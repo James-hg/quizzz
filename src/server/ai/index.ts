@@ -34,5 +34,10 @@ export function getAiProvider(): AiProvider {
   return globalForAi.__quizzzAi;
 }
 
+/** Test seam: replace (or reset with undefined) the process-wide provider. */
+export function setAiProviderForTesting(provider: AiProvider | undefined): void {
+  globalForAi.__quizzzAi = provider;
+}
+
 export { AiInvalidOutput, AiQuotaExceeded, AiTimeout, AiUnavailable } from "./errors";
 export type { AiMessage, AiProvider, GenerateOptions } from "./provider";

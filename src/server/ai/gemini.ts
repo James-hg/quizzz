@@ -19,6 +19,8 @@ export type GeminiConfig = {
   /** Injectable for tests. */
   fetch?: typeof fetch;
   baseUrl?: string;
+  /** Default deadline per call when the caller gives none. */
+  timeoutMs?: number;
 };
 
 type Part = { text?: string };
@@ -58,13 +60,13 @@ function textOf(body: GeminiResponse): string {
 }
 
 /** One deadline for a whole call; aborts when the deadline passes or the caller's signal fires. */
-function withDeadline(options: GenerateOptions | undefined) {
+function withDeadline(options: GenerateOptions | undefined, defaultMs: number) {
   const controller = new AbortController();
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, options?.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  }, options?.timeoutMs ?? defaultMs);
   const onAbort = () => controller.abort();
   if (options?.signal?.aborted) controller.abort();
   else options?.signal?.addEventListener("abort", onAbort, { once: true });
@@ -142,7 +144,7 @@ export class GeminiProvider implements AiProvider {
   }
 
   async generateText(input: string | AiMessage[], options?: GenerateOptions): Promise<string> {
-    const deadline = withDeadline(options);
+    const deadline = withDeadline(options, this.config.timeoutMs ?? DEFAULT_TIMEOUT_MS);
     try {
       return await this.call(toMessages(input), options, false, deadline.signal);
     } catch (error) {
@@ -157,7 +159,7 @@ export class GeminiProvider implements AiProvider {
     schema: z.ZodType<T>,
     options?: GenerateOptions,
   ): Promise<T> {
-    const deadline = withDeadline(options);
+    const deadline = withDeadline(options, this.config.timeoutMs ?? DEFAULT_TIMEOUT_MS);
     const system = [options?.system, schemaInstruction(schema)].filter(Boolean).join("\n\n");
     try {
       return await structuredWithRepair(
@@ -176,7 +178,7 @@ export class GeminiProvider implements AiProvider {
     input: string | AiMessage[],
     options?: GenerateOptions,
   ): AsyncGenerator<string> {
-    const deadline = withDeadline(options);
+    const deadline = withDeadline(options, this.config.timeoutMs ?? DEFAULT_TIMEOUT_MS);
     try {
       const response = await this.request(
         "streamGenerateContent",
