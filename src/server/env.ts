@@ -15,6 +15,8 @@ export const envSchema = z.object({
   GEMINI_API_KEY: optionalString,
   GEMINI_MODEL: optionalString,
   STORAGE_DIR: z.string().min(1),
+  // Where sample course fixtures live (default: fixtures/sample-courses in the project).
+  SAMPLES_DIR: optionalString,
   AI_REQUESTS_PER_HOUR: z.preprocess(
     (value) => (value === "" ? undefined : value),
     z.coerce.number().int().positive().default(30),
