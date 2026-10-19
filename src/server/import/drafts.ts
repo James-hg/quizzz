@@ -159,14 +159,21 @@ export async function createImport(
     // Keep the source document so the failure is visible and the file is not lost.
     const message = error instanceof ExtractError ? error.message : "This file could not be read.";
     await setExtractionStatus(db, documentId, "failed");
-    await db.insert(importDrafts).values({
-      ownerId: userId,
-      courseId,
-      sourceDocumentId: documentId,
-      status: "failed",
-      errorMessage: message,
-    });
-    throw error;
+    const [failed] = await db
+      .insert(importDrafts)
+      .values({
+        ownerId: userId,
+        courseId,
+        sourceDocumentId: documentId,
+        status: "failed",
+        errorMessage: message,
+      })
+      .returning({ id: importDrafts.id });
+    // Tell the client where to read the failed import, keeping the original status and code.
+    if (error instanceof ExtractError) {
+      throw new ApiError(error.status, error.code, error.message, { importId: failed!.id });
+    }
+    throw new ApiError(422, "corrupt", message, { importId: failed!.id });
   }
 
   const detector = detectorFor(extractor.name);
