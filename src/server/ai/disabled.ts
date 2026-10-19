@@ -6,7 +6,7 @@ import type { AiMessage, AiProvider, GenerateOptions } from "./provider";
 export class DisabledProvider implements AiProvider {
   readonly name = "disabled";
 
-  constructor(private readonly reason = "AI help is turned off on this server.") {}
+  constructor(public readonly reason = "AI help is turned off on this server.") {}
 
   generateText(...args: [input: string | AiMessage[], options?: GenerateOptions]): Promise<string> {
     void args;

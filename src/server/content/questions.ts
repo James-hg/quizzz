@@ -127,8 +127,13 @@ export async function updateQuestion(
   });
   const revision = await addRevision(db, questionId, {
     ...contentToRevision(merged),
-    origin: "original",
-    evidenceStatus: statusFor(approve),
+    // Editing never launders provenance: AI-proposed stays AI-proposed, and an unreviewed
+    // revision stays unreviewed until the owner explicitly approves it.
+    origin: current.origin,
+    evidenceStatus:
+      approve || current.evidenceStatus !== "generated_unreviewed"
+        ? statusFor(approve)
+        : "generated_unreviewed",
     createdBy: userId,
   });
   return toOwnerView({ ...question, currentRevisionId: revision.id }, revision);
@@ -148,6 +153,9 @@ export async function setQuestionStatus(
     const revision = await currentRevision(db, question);
     if (revision.answerKey.kind === "unresolved") {
       throw conflict("Set the correct answer before restoring this question", "unresolved_answer");
+    }
+    if (revision.evidenceStatus === "generated_unreviewed") {
+      throw conflict("Review and approve this AI-proposed question first", "needs_review");
     }
   }
   const [row] = await db
