@@ -86,4 +86,25 @@ Uploaded documents are untrusted data. `src/server/extract/` validates size and 
 
 ```sh
 npx vitest run src/server/extract src/server/import
+
+## Import API
+
+Upload a document, review the detected questions, then publish them into a question set. All routes need a session cookie and return `404` for other users' resources.
+
+| Route | Purpose |
+| --- | --- |
+| `GET /api/import/formats` | Supported formats and the upload size limit |
+| `POST /api/courses/:courseId/imports` | Multipart upload (`file` field) -> draft with items, warnings, source excerpts |
+| `GET /api/imports/:importId` | Read a draft (also shows failed imports and their error) |
+| `PATCH /api/imports/:importId/items/:itemId` | `{ decision: "accepted"\|"excluded"\|"pending", edit: {...} }` |
+| `POST /api/imports/:importId/publish` | `{ title }` (new set) or `{ questionSetId }`; safe to retry |
+
+Questions with no marked answer are never guessed. They publish with an `unresolved` answer key, `evidence_status=unresolved` and `status=excluded`, so they cannot be played or scheduled until the owner sets an answer (`PATCH /api/questions/:id` with `correctOptionIds`, then `POST /api/questions/:id/restore`). Unsupported types return `415` with `error.details.supportedFormats`.
+
+```sh
+curl -b /tmp/quizzz-jar localhost:3000/api/import/formats
+curl -b /tmp/quizzz-jar -F file=@fixtures/docx/<fixture>.docx localhost:3000/api/courses/<courseId>/imports
+curl -b /tmp/quizzz-jar localhost:3000/api/imports/<importId>
+curl -b /tmp/quizzz-jar -X PATCH -H 'Content-Type: application/json' -d '{"decision":"accepted"}' localhost:3000/api/imports/<importId>/items/<itemId>
+curl -b /tmp/quizzz-jar -X POST -H 'Content-Type: application/json' -d '{"title":"Week 1"}' localhost:3000/api/imports/<importId>/publish
 ```

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { anchorSchema, answerKeySchema, optionsSchema, responseSchema } from "./index";
+import {
+  anchorSchema,
+  answerKeySchema,
+  draftQuestionPayloadSchema,
+  optionsSchema,
+  publishImportSchema,
+  responseSchema,
+} from "./index";
 
 describe("jsonb schemas", () => {
   it("rejects duplicate option ids", () => {
@@ -26,5 +33,35 @@ describe("jsonb schemas", () => {
 
   it("rejects an unknown response kind", () => {
     expect(responseSchema.safeParse({ kind: "voice" }).success).toBe(false);
+  });
+
+  it("accepts the unresolved answer key", () => {
+    expect(answerKeySchema.parse({ kind: "unresolved" })).toEqual({ kind: "unresolved" });
+  });
+
+  it("allows unresolved draft questions but rejects bad answers", () => {
+    const base = {
+      kind: "question",
+      type: "mcq_single",
+      prompt: "Q",
+      options: [
+        { id: "a", text: "x" },
+        { id: "b", text: "y" },
+      ],
+    };
+    expect(draftQuestionPayloadSchema.safeParse({ ...base, correctOptionIds: [] }).success).toBe(
+      true,
+    );
+    expect(draftQuestionPayloadSchema.safeParse({ ...base, correctOptionIds: ["z"] }).success).toBe(
+      false,
+    );
+    expect(
+      draftQuestionPayloadSchema.safeParse({ ...base, correctOptionIds: ["a", "b"] }).success,
+    ).toBe(false);
+  });
+
+  it("publish needs exactly one of title or questionSetId", () => {
+    expect(publishImportSchema.safeParse({}).success).toBe(false);
+    expect(publishImportSchema.safeParse({ title: "x" }).success).toBe(true);
   });
 });
