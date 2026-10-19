@@ -18,8 +18,12 @@ export type UploadedFile = {
   detectedMime?: string;
 };
 
+export type SupportedFormat = { extension: string; label: string };
+
 export interface Extractor {
   readonly name: string;
+  /** Formats shown to students, e.g. [{ extension: "docx", label: "Word (.docx)" }]. */
+  readonly formats?: readonly SupportedFormat[];
   canHandle(file: UploadedFile): boolean;
   /** Must observe `signal` and stop work when it aborts. Never fetch external resources. */
   extract(buffer: Buffer, limits: ExtractLimits, signal: AbortSignal): Promise<ExtractResult>;
