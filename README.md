@@ -45,3 +45,29 @@ curl -b jar -X PATCH -H 'Origin: http://localhost:3000' -H 'Content-Type: applic
 ```
 
 Other endpoints: `/api/auth/sign-in/email`, `/api/auth/sign-out`, `/api/auth/get-session`, `/api/auth/change-password` (requires the current password).
+
+## Content API
+
+All routes need a session cookie and return `404` for other users' ids. Errors look like `{ "error": { "code", "message" } }`.
+
+| Route | Methods |
+| --- | --- |
+| `/api/courses` | `GET`, `POST` |
+| `/api/courses/:courseId` | `GET`, `PATCH`, `DELETE` |
+| `/api/courses/:courseId/question-sets` | `GET`, `POST` |
+| `/api/question-sets/:setId` | `GET`, `PATCH` (rename), `DELETE` |
+| `/api/question-sets/:setId/questions` | `GET`, `POST` |
+| `/api/question-sets/:setId/questions/order` | `PUT` `{ questionIds }` |
+| `/api/questions/:questionId` | `GET`, `PATCH` (creates a new revision), `DELETE` |
+| `/api/questions/:questionId/revisions` | `GET` |
+| `/api/questions/:questionId/exclude`, `/restore`, `/shuffle-options` | `POST` |
+
+Editing never rewrites history: `PATCH` appends revision N+1, and attempts keep pointing at the revision they answered. Courses, sets and questions with attempts cannot be deleted (`409 has_history`); exclude a question instead. These owner endpoints include answer keys; the play endpoints (A9) will not.
+
+```sh
+curl -b jar -H 'Content-Type: application/json' -d '{"title":"CS 101","subject":"Intro","language":"python"}' localhost:3000/api/courses
+curl -b jar -H 'Content-Type: application/json' -d '{"title":"Week 1"}' localhost:3000/api/courses/<courseId>/question-sets
+curl -b jar -H 'Content-Type: application/json' -d '{"type":"mcq_single","prompt":"2+2?","options":[{"id":"a","text":"3"},{"id":"b","text":"4"}],"correctOptionIds":["b"],"approve":true}' localhost:3000/api/question-sets/<setId>/questions
+curl -b jar -X PATCH -H 'Content-Type: application/json' -d '{"prompt":"What is 2+2?"}' localhost:3000/api/questions/<questionId>
+curl -b jar localhost:3000/api/questions/<questionId>/revisions
+```
