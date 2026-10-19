@@ -36,11 +36,11 @@ TEST_DATABASE_URL=postgres://quizzz:quizzz@localhost:5432/quizzz_test npm run te
 Better Auth (email + password, database sessions, HTTP-only cookies) is mounted at `/api/auth/*`. No email verification is required locally. Passwords are never trimmed; only length (8-128) is validated.
 
 ```sh
-# sign up (cookie saved to ./jar), read the session, update the profile
-curl -c jar -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
+# sign up (cookie saved to /tmp/quizzz-jar), read the session, update the profile
+curl -c /tmp/quizzz-jar -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
   -d '{"email":"a@b.co","password":"correct horse","name":"A"}' localhost:3000/api/auth/sign-up/email
-curl -b jar localhost:3000/api/me
-curl -b jar -X PATCH -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
+curl -b /tmp/quizzz-jar localhost:3000/api/me
+curl -b /tmp/quizzz-jar -X PATCH -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
   -d '{"timezone":"America/Vancouver"}' localhost:3000/api/me
 ```
 
@@ -65,9 +65,13 @@ All routes need a session cookie and return `404` for other users' ids. Errors l
 Editing never rewrites history: `PATCH` appends revision N+1, and attempts keep pointing at the revision they answered. Courses, sets and questions with attempts cannot be deleted (`409 has_history`); exclude a question instead. These owner endpoints include answer keys; the play endpoints (A9) will not.
 
 ```sh
-curl -b jar -H 'Content-Type: application/json' -d '{"title":"CS 101","subject":"Intro","language":"python"}' localhost:3000/api/courses
-curl -b jar -H 'Content-Type: application/json' -d '{"title":"Week 1"}' localhost:3000/api/courses/<courseId>/question-sets
-curl -b jar -H 'Content-Type: application/json' -d '{"type":"mcq_single","prompt":"2+2?","options":[{"id":"a","text":"3"},{"id":"b","text":"4"}],"correctOptionIds":["b"],"approve":true}' localhost:3000/api/question-sets/<setId>/questions
-curl -b jar -X PATCH -H 'Content-Type: application/json' -d '{"prompt":"What is 2+2?"}' localhost:3000/api/questions/<questionId>
-curl -b jar localhost:3000/api/questions/<questionId>/revisions
+curl -b /tmp/quizzz-jar -H 'Content-Type: application/json' -d '{"title":"CS 101","subject":"Intro","language":"python"}' localhost:3000/api/courses
+curl -b /tmp/quizzz-jar -H 'Content-Type: application/json' -d '{"title":"Week 1"}' localhost:3000/api/courses/<courseId>/question-sets
+curl -b /tmp/quizzz-jar -H 'Content-Type: application/json' -d '{"type":"mcq_single","prompt":"2+2?","options":[{"id":"a","text":"3"},{"id":"b","text":"4"}],"correctOptionIds":["b"],"approve":true}' localhost:3000/api/question-sets/<setId>/questions
+curl -b /tmp/quizzz-jar -X PATCH -H 'Content-Type: application/json' -d '{"prompt":"What is 2+2?"}' localhost:3000/api/questions/<questionId>
+curl -b /tmp/quizzz-jar localhost:3000/api/questions/<questionId>/revisions
 ```
+
+## Uploads and extraction
+
+Uploaded documents are untrusted data. `src/server/extract/` validates size and magic bytes (not just the extension), inspects ZIP containers without inflating them (entry count, declared and actual expanded size, path traversal), and runs extractors under a timeout. Extractors register with `registerExtractor`; the DOCX extractor arrives in A7. Original files are kept by `src/server/storage/` under `STORAGE_DIR` (default `./storage`) with random keys, outside the web root and never served over HTTP. `MAX_UPLOAD_BYTES` raises or lowers the size cap.
