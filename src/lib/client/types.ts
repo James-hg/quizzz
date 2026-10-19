@@ -54,3 +54,30 @@ export function describeAnchor(anchor?: AnchorView): string {
   if (anchor.type === "line" && anchor.line) return `line ${anchor.line}`;
   return "";
 }
+
+export type QuestionType =
+  "mcq_single" | "mcq_multi" | "short_answer" | "fill_blank" | "output_prediction";
+
+export type OwnerAnswerKey =
+  | { kind: "options"; correctOptionIds: string[] }
+  | { kind: "text"; accepted: string[]; caseSensitive: boolean }
+  | { kind: "blanks"; blanks: string[][]; caseSensitive: boolean }
+  | { kind: "unresolved" };
+
+/** A question as its owner sees it in the editor (includes the answer key). */
+export type OwnerQuestionView = {
+  id: string;
+  questionSetId: string;
+  position: number;
+  status: "active" | "excluded" | "reported";
+  revisionId: string;
+  revisionNumber: number;
+  type: QuestionType;
+  prompt: string;
+  codeSnippet: string | null;
+  options: ImportOption[];
+  answerKey: OwnerAnswerKey;
+  explanation: string | null;
+  origin: string;
+  evidenceStatus: string;
+};

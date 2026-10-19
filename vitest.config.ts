@@ -11,6 +11,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    setupFiles: ["./src/test/dom-setup.ts"],
     include: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.ts"],
     exclude: ["**/node_modules/**", "src/**/*.integration.test.{ts,tsx}"],
   },
