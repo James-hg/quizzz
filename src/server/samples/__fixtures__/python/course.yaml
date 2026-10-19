@@ -1,0 +1,38 @@
+# TEST-ONLY fixture used by automated tests. It is not sample course content and is never
+# shown to students. Real samples live in fixtures/sample-courses/.
+format: 1
+course:
+  title: Test Course (python)
+  subject: Test subject
+  language: python
+
+sections:
+  - id: lists
+    title: Test section one
+    text: |
+      First paragraph of test text.
+
+      Second paragraph of test text.
+  - id: dicts
+    title: Test section two
+    text: Only one paragraph here.
+
+questions:
+  - id: q-checked
+    type: mcq_single
+    prompt: Test prompt with a checked answer
+    options:
+      - { id: a, text: Wrong }
+      - { id: b, text: Right }
+    correctOptionIds: [b]
+    explanation: Test explanation.
+    sections: [lists]
+    provenance:
+      checkedBy: Test Checker
+      checkedAt: 2026-01-15
+
+  - id: q-unchecked
+    type: short_answer
+    prompt: Test prompt without provenance
+    accepted: ["answer one", "answer two"]
+    sections: [lists, dicts]

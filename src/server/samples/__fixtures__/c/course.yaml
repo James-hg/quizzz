@@ -1,0 +1,15 @@
+# TEST-ONLY fixture used by automated tests (second language, no sections).
+format: 1
+course:
+  title: Test Course (c)
+  subject: Test subject
+  language: c
+
+questions:
+  - id: only
+    type: fill_blank
+    prompt: Test prompt with ___ blank
+    blanks: [["x"]]
+    provenance:
+      checkedBy: Test Checker
+      checkedAt: 2026-01-15
