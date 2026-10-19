@@ -19,3 +19,15 @@ export async function orNotFound<T>(read: Promise<T>): Promise<T> {
     throw error;
   }
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Reads a dynamic route param that must be a uuid; anything else is a not-found page. */
+export async function idParam<K extends string>(
+  params: Promise<Record<K, string>>,
+  key: K,
+): Promise<string> {
+  const value = (await params)[key];
+  if (!UUID.test(value)) notFound();
+  return value;
+}
