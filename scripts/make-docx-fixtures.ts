@@ -2,7 +2,16 @@
 // Run: npm run fixtures:docx
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { AlignmentType, Document, ImageRun, LevelFormat, Packer, Paragraph, TextRun } from "docx";
+import {
+  AlignmentType,
+  Document,
+  HeadingLevel,
+  ImageRun,
+  LevelFormat,
+  Packer,
+  Paragraph,
+  TextRun,
+} from "docx";
 
 const OUT = join(process.cwd(), "fixtures", "docx");
 
@@ -50,6 +59,7 @@ const bullet = (text: string, bold = false) =>
 const fixtures: Record<string, Paragraph[]> = {
   "numbered-list": [
     plain("Python basics quiz"),
+    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun("Week 1")] }),
     question("What does len([1, 2]) return?"),
     option("1"),
     option("2", true),
@@ -77,8 +87,8 @@ const fixtures: Record<string, Paragraph[]> = {
   "wrapped-option": [
     question("Which statement about Python lists is"),
     plain("true when the list is empty?"),
-    option("len(x) is zero", true),
-    new Paragraph({ children: [new TextRun({ text: "bool(x) is True and it", bold: true })] }),
+    option("len(x) is zero"),
+    option("bool(x) is True and it", true),
     new Paragraph({ children: [new TextRun({ text: "has no items", bold: true })] }),
     option("x is None"),
   ],
