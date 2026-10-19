@@ -15,6 +15,10 @@ export const envSchema = z.object({
   GEMINI_API_KEY: optionalString,
   GEMINI_MODEL: optionalString,
   STORAGE_DIR: z.string().min(1),
+  AI_REQUESTS_PER_HOUR: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().positive().default(30),
+  ),
   MAX_UPLOAD_BYTES: z.preprocess(
     (value) => (value === "" ? undefined : value),
     z.coerce
