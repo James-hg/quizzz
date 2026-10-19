@@ -45,3 +45,7 @@ curl -b /tmp/quizzz-jar -X PATCH -H 'Origin: http://localhost:3000' -H 'Content-
 ```
 
 Other endpoints: `/api/auth/sign-in/email`, `/api/auth/sign-out`, `/api/auth/get-session`, `/api/auth/change-password` (requires the current password).
+
+## Uploads and extraction
+
+Uploaded documents are untrusted data. `src/server/extract/` validates size and magic bytes (not just the extension), inspects ZIP containers without inflating them (entry count, declared and actual expanded size, path traversal), and runs extractors under a timeout. Extractors register with `registerExtractor`; the DOCX extractor arrives in A7. Original files are kept by `src/server/storage/` under `STORAGE_DIR` (default `./storage`) with random keys, outside the web root and never served over HTTP. `MAX_UPLOAD_BYTES` raises or lowers the size cap.

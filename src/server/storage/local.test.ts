@@ -32,7 +32,9 @@ describe("LocalStorageAdapter", () => {
   });
 
   it("deleting a missing key is a no-op", async () => {
-    await expect(storage.delete("aa/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")).resolves.toBeUndefined();
+    await expect(
+      storage.delete("aa/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+    ).resolves.toBeUndefined();
   });
 
   it.each(["../etc/passwd", "/etc/passwd", "aa/../../x", "notes.docx", "", "aa/bb", "a\\b"])(
