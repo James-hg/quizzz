@@ -116,6 +116,23 @@ describe("uncertain outcomes", () => {
   });
 });
 
+describe("unresolved keys", () => {
+  it("are uncertain for every question type, whatever the response", () => {
+    const key: AnswerKey = { kind: "unresolved" };
+    for (const type of [
+      "mcq_single",
+      "mcq_multi",
+      "short_answer",
+      "fill_blank",
+      "output_prediction",
+    ]) {
+      expect(gradeResponse({ type, answerKey: key }, options("a"))).toBe("uncertain");
+      expect(gradeResponse({ type, answerKey: key }, text("a"))).toBe("uncertain");
+    }
+    expect(revealAnswer(key)).toEqual({ kind: "unresolved" });
+  });
+});
+
 describe("revealAnswer", () => {
   it("drops everything except the answer itself", () => {
     expect(revealAnswer(textKey(["x"], true))).toEqual({ kind: "text", accepted: ["x"] });

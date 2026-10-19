@@ -23,6 +23,8 @@ const equalLines = (a: string[], b: string[]) =>
  */
 export function gradeResponse(question: Gradable, response: QuestionResponse): GradingOutcome {
   const key = question.answerKey;
+  // No usable key (e.g. an imported question whose answer could not be determined): never guess.
+  if (key.kind === "unresolved") return "uncertain";
   switch (question.type) {
     case "mcq_single":
     case "mcq_multi": {
@@ -62,6 +64,7 @@ export function gradeResponse(question: Gradable, response: QuestionResponse): G
 export function revealAnswer(key: AnswerKey) {
   if (key.kind === "options")
     return { kind: "options" as const, correctOptionIds: key.correctOptionIds };
+  if (key.kind === "unresolved") return { kind: "unresolved" as const };
   if (key.kind === "text") return { kind: "text" as const, accepted: key.accepted };
   return { kind: "blanks" as const, blanks: key.blanks };
 }

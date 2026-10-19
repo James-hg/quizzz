@@ -12,6 +12,7 @@ import { createCourse } from "@/server/content/courses";
 import { createQuestionSet } from "@/server/content/question-sets";
 import { createQuestion, setQuestionStatus, updateQuestion } from "@/server/content/questions";
 import { getDb } from "@/server/db";
+import { addRevision } from "@/server/db/repositories/questions";
 import * as schema from "@/server/db/schema";
 import { attempts } from "@/server/db/schema";
 import { call } from "@/test/api";
@@ -274,6 +275,32 @@ describe("grading and idempotency", () => {
       key(),
     );
     expect(res.body.result.outcome).toBe("correct");
+  });
+});
+
+describe("questions without a resolved answer", () => {
+  it("are practiced but graded uncertain, never incorrect", async () => {
+    const { set, q1 } = await makeSet();
+    await addRevision(db, q1.id, {
+      type: "mcq_single",
+      prompt: "Imported, answer unknown",
+      options: [
+        { id: "a", text: "A" },
+        { id: "b", text: "B" },
+      ],
+      answerKey: { kind: "unresolved" },
+      origin: "original",
+      evidenceStatus: "unresolved",
+    });
+    const sessionId = (await start(set.id)).body.session.id as string;
+    const res = await answer(sessionId, q1.id, choose("a"), key());
+    expect(res.status).toBe(201);
+    expect(res.body.result).toMatchObject({ outcome: "uncertain", isCorrect: null });
+    const done = await call(completePost, "/api/x", alice, {
+      method: "POST",
+      params: { sessionId },
+    });
+    expect(done.body.summary).toMatchObject({ uncertain: 1, incorrect: 0, correct: 0 });
   });
 });
 
