@@ -68,12 +68,13 @@ const mcqMulti = z
   })
   .superRefine((v, ctx) => checkCorrectIds(v, ctx, false));
 
-const textLike = (type: "short_answer" | "output_prediction") =>
+// Program output is case sensitive by default ("True" and "true" differ in Python).
+const textLike = (type: "short_answer" | "output_prediction", caseSensitiveDefault: boolean) =>
   z.object({
     type: z.literal(type),
     ...base,
     accepted: z.array(nonEmptyAnswer).min(1, "needs at least 1 accepted answer"),
-    caseSensitive: z.boolean().default(false),
+    caseSensitive: z.boolean().default(caseSensitiveDefault),
   });
 
 const fillBlank = z.object({
@@ -89,8 +90,8 @@ const fillBlank = z.object({
 export const questionContentSchema = z.discriminatedUnion("type", [
   mcqSingle,
   mcqMulti,
-  textLike("short_answer"),
-  textLike("output_prediction"),
+  textLike("short_answer", false),
+  textLike("output_prediction", true),
   fillBlank,
 ]);
 
