@@ -51,7 +51,7 @@ export function parseSampleCourse(text: string): SampleParseResult {
       issue.code === "unrecognized_keys" && keys
         ? `unknown field ${keys.map((k) => `"${k}"`).join(", ")}`
         : issue.message;
-    return { path: formatPath(path) || "(root)", message, line: lineFor(path) };
+    return { path: formatPath(path) || "(root)", message: friendly(message), line: lineFor(path) };
   });
   // Cross-checks are skipped by Zod when a field is already invalid; run them on the raw data
   // too so one pass reports everything, without duplicating issues Zod already produced.
@@ -62,6 +62,12 @@ export function parseSampleCourse(text: string): SampleParseResult {
     issues.push({ path, message: cross.message, line: lineFor(cross.path) });
   }
   return { ok: false, issues };
+}
+
+/** Zod says "received undefined" for a missing field; say what the author needs to do. */
+function friendly(message: string): string {
+  const missing = /^Invalid input: expected (.+), received undefined$/.exec(message);
+  return missing ? `is required (expected ${missing[1]})` : message;
 }
 
 export function formatIssue(file: string, issue: SampleIssue): string {

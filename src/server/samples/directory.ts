@@ -25,7 +25,8 @@ export function describeProblem(problem: SampleProblem): string {
 
 async function readEntry(root: string, name: string): Promise<SampleEntry | SampleProblem> {
   const file = path.join(root, name, SAMPLE_FILE);
-  const display = path.relative(process.cwd(), file) || file;
+  const relative = path.relative(process.cwd(), file);
+  const display = relative && !relative.startsWith("..") ? relative : file;
   let raw: Buffer;
   try {
     raw = await readFile(file);

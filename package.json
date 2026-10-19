@@ -20,7 +20,9 @@
     "db:studio": "drizzle-kit studio",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "fixtures:docx": "tsx scripts/make-docx-fixtures.ts",
-    "check:bundle": "node scripts/check-bundle.mjs"
+    "check:bundle": "node scripts/check-bundle.mjs",
+    "samples:validate": "tsx scripts/samples-validate.ts",
+    "samples:load": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/samples-load.ts"
   },
   "dependencies": {
     "better-auth": "1.7.10",

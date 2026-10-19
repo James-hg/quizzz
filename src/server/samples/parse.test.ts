@@ -61,6 +61,15 @@ describe("parseSampleCourse", () => {
     );
   });
 
+  it("says a missing required field is required", () => {
+    const issues = issuesFor(edit("correctOptionIds: [b]", "unrelated: 1"));
+    expect(
+      issues.some(
+        (i) => i.path === "questions[0].correctOptionIds" && /is required/.test(i.message),
+      ),
+    ).toBe(true);
+  });
+
   it("catches misspelled and misplaced fields", () => {
     const typo = issuesFor(edit("correctOptionIds: [b]", "correctOptionId: [b]"));
     expect(typo.map((i) => i.message).join("\n")).toMatch(

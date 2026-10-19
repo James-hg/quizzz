@@ -1,0 +1,73 @@
+# TEMPLATE - copy this file to fixtures/sample-courses/<language>/course.yaml and replace
+# everything. The directory name must be the language: python, java, c, cpp or javascript.
+# Directories starting with "_" are never loaded. This template is validated in CI so it
+# cannot go stale, but the text below is instructions, not sample content.
+#
+# Run `npm run samples:validate` after every edit; it reports problems with line numbers.
+
+format: 1
+
+course:
+  title: REPLACE - course title shown to students
+  subject: REPLACE - e.g. Introductory programming
+  language: python # must match the directory name
+
+# Source material the questions are based on. Optional, but it powers "show me where this
+# comes from". Separate paragraphs with a blank line.
+sections:
+  - id: variables # unique; letters, digits, - and _
+    title: REPLACE - section heading
+    text: |
+      REPLACE - first paragraph of explanation.
+
+      REPLACE - second paragraph.
+    # provenance: # optional for sections
+    #   checkedBy: Your Name
+    #   checkedAt: 2026-01-31
+
+# Question types and their fields mirror the question editor.
+questions:
+  # Single answer: exactly one id in correctOptionIds.
+  - id: q1
+    type: mcq_single
+    prompt: REPLACE - the question text
+    codeSnippet: | # optional; shown as code in the course language
+      print("replace me")
+    options:
+      - { id: a, text: REPLACE option }
+      - { id: b, text: REPLACE option }
+      - { id: c, text: REPLACE option }
+    correctOptionIds: [a]
+    explanation: REPLACE - why the answer is right. Optional.
+    sections: [variables] # which sections it is based on. Optional.
+    # Provenance is what marks a question as checked. Without it the question is loaded as
+    # "needs review" and is not used in practice until the student approves it.
+    provenance:
+      checkedBy: REPLACE - who verified the answer
+      checkedAt: 2026-01-31 # YYYY-MM-DD, not in the future
+
+  # Several correct answers.
+  - id: q2
+    type: mcq_multi
+    prompt: REPLACE
+    options:
+      - { id: a, text: REPLACE }
+      - { id: b, text: REPLACE }
+      - { id: c, text: REPLACE }
+    correctOptionIds: [a, b]
+    provenance: { checkedBy: REPLACE, checkedAt: 2026-01-31 }
+
+  # Typed answers. Every string in `accepted` counts as correct.
+  - id: q3
+    type: short_answer # or output_prediction
+    prompt: REPLACE
+    accepted: ["REPLACE", "an alternative spelling"]
+    caseSensitive: false
+    provenance: { checkedBy: REPLACE, checkedAt: 2026-01-31 }
+
+  # Fill in the blanks: one list of accepted answers per blank, in order.
+  - id: q4
+    type: fill_blank
+    prompt: "REPLACE: x = ___ + ___"
+    blanks: [["1"], ["2", "two"]]
+    provenance: { checkedBy: REPLACE, checkedAt: 2026-01-31 }
