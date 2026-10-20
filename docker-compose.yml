@@ -1,7 +1,6 @@
 services:
   db:
     image: postgres:16
-    container_name: quizzz-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: quizzz
@@ -22,7 +21,6 @@ services:
 
   app:
     image: node:22-alpine
-    container_name: quizzz-app
     working_dir: /app
     command: sh -c "npm ci && npm run db:migrate && npm run dev -- --hostname 0.0.0.0"
     ports:

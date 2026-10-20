@@ -29,6 +29,8 @@ DB_PORT=5433 docker compose up -d db
 # .env.local: DATABASE_URL=postgres://quizzz:quizzz@localhost:5433/quizzz
 ```
 
+**Upgrading from the old version?** It used a container named `quizzz-db` and a volume `quizzz_db_data`. The new setup does not reuse them (your old data is untouched). If that old container is running and holding port 5432, stop it with `docker stop quizzz-db` or use `DB_PORT` as above.
+
 **No Docker?** Create the databases yourself (`createdb quizzz`, `createdb quizzz_test`) and point `DATABASE_URL` at them.
 
 **Everything in containers:** `docker compose up` starts PostgreSQL, applies migrations, and runs the dev server on port 3000 (first start installs dependencies, so it takes a minute).
