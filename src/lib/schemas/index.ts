@@ -10,3 +10,4 @@ export * from "./extract";
 export * from "./session";
 export * from "./import";
 export * from "./ai";
+export * from "./sample-course";
