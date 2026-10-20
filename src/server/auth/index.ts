@@ -4,9 +4,9 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { getDb, type Database } from "@/server/db";
 import { account, rateLimit, session, user, verification } from "@/server/db/schema";
 import { getEnv } from "@/server/env";
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@/lib/auth-rules";
 
-export const PASSWORD_MIN_LENGTH = 8;
-export const PASSWORD_MAX_LENGTH = 128;
+export { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH };
 
 type AuthOptions = {
   baseURL: string;

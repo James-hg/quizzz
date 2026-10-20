@@ -173,3 +173,27 @@ npm run samples:load -- python --email you@example.com     # copy into an accoun
 curl -b /tmp/quizzz-jar localhost:3000/api/samples
 curl -b /tmp/quizzz-jar -X POST -H 'Origin: http://localhost:3000' localhost:3000/api/samples/python/load
 ```
+## Using the app
+
+```sh
+docker compose up -d db
+cp .env.example .env.local        # set BETTER_AUTH_SECRET; AI_PROVIDER=disabled works fine
+npm ci && npm run db:migrate && npm run dev
+```
+
+Open <http://localhost:3000>, create an account, then:
+
+| Page | What it does |
+| --- | --- |
+| `/sign-up`, `/sign-in` | Better Auth email + password. Sessions live in HTTP-only cookies. |
+| `/` | Your courses, recent question sets, and any practice session you can resume. |
+| `/courses/:id` | Course details, question sets (with counts), imported materials, import entry. |
+| `/courses/:id/import` | Upload a document. The picker lists exactly the formats the server supports. |
+| `/imports/:id` | Review detected questions: fix flagged items, accept or exclude, then publish. Unresolved answers are marked; those questions are added excluded until you set an answer. |
+| `/question-sets/:id/edit` | Question editor (every save creates a new revision), AI panel, past sessions. |
+| `/question-sets/:id/play/:sessionId` | Practice. Reloading resumes where you were. |
+| `/settings` | Display name, email, timezone, password. |
+
+With `AI_PROVIDER=disabled` the AI panel says so and everything else works. The play screen never receives answer keys before you submit an answer.
+
+Component and state tests: `npx vitest run src/components`. The main flow (sign up, import, fix, publish, practise, finish) is also covered at handler level in `src/app/journey.integration.test.ts`.
