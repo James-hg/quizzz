@@ -8,9 +8,9 @@ services:
       POSTGRES_USER: quizzz
       POSTGRES_PASSWORD: quizzz
     ports:
-      - "5432:5432"
+      # Set DB_PORT if 5432 is already used by a local Postgres.
+      - "${DB_PORT:-5432}:5432"
     volumes:
-      # New volume name on purpose: never reuse the legacy `db_data` volume by accident.
       - quizzz_pg_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U quizzz -d quizzz"]

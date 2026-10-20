@@ -2,9 +2,6 @@
 coverage
 node_modules
 package-lock.json
-backend
-frontend
-plan.md
 *.md
 docker-compose.yml
 drizzle
