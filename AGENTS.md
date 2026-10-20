@@ -1,6 +1,6 @@
 # Agent guide for Quizzz
 
-This repo is a single Next.js app (it replaced an earlier FastAPI + Vite version, which lives only in git history). Read `PROJECT_BRIEF.md` for product scope. GitHub issues (milestones "Phase A" to "Phase E") describe the work. Work one issue per branch/PR and follow its acceptance criteria.
+This repo is a single Next.js app (it replaced an earlier two-service version, which lives only in git history). Read `PROJECT_BRIEF.md` for product scope. GitHub issues (milestones "Phase A" to "Phase E") describe the work. Work one issue per branch/PR and follow its acceptance criteria.
 
 ## Stack
 - Next.js App Router + TypeScript (strict) at the repo root. Route Handlers run on the Node.js runtime (`export const runtime = "nodejs"`).
