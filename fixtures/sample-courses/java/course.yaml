@@ -1,0 +1,380 @@
+# DRAFT sample course (Java). Written by an AI assistant at the project owner's request to
+# provide starter content. It has NOT been checked by a person: there is deliberately no
+# `provenance` on any item, so every question loads as "needs review" and is not used in
+# practice until a student approves it. After you have verified a question, add
+#   provenance: { checkedBy: <your name>, checkedAt: YYYY-MM-DD }
+# to mark it as checked. Run `npm run samples:validate` after editing.
+
+format: 1
+
+course:
+  title: Java fundamentals
+  subject: Introductory programming
+  language: java
+
+sections:
+  - id: types-and-operators
+    title: Types and operators
+    text: |
+      Java has eight primitive types, including int, double, boolean and char. String, Integer and
+      ArrayList are reference types (classes). Generics such as `ArrayList<Integer>` only accept
+      reference types, so a primitive is wrapped automatically in its wrapper class; this is
+      called autoboxing.
+
+      Dividing two ints gives an int: `7 / 2` is 3. If either operand is a double the result is a
+      double: `7 / 2.0` is 3.5. The remainder operator keeps the sign of the left operand, so
+      `-7 % 3` is -1. A compound assignment such as `x += 3.7` includes an implicit cast back to
+      the type of x. Casting a double to int truncates toward zero.
+
+      Adding with `+` is evaluated left to right: `1 + 2 + "A"` is "3A", but `"A" + 1 + 2` is
+      "A12". `char` values can be incremented because char is a numeric type.
+
+  - id: strings
+    title: Strings
+    text: |
+      Strings are objects. The `==` operator compares references, so two distinct String objects
+      with the same text are not `==`, but they are `equals`. Always compare text with `equals`.
+      Calling a method on a null reference throws NullPointerException.
+
+  - id: control-flow-and-arrays
+    title: Control flow and arrays
+    text: |
+      `while` checks its condition before each iteration, `do-while` checks it after, so a do-while
+      body always runs at least once. Arrays have a fixed length; valid indexes run from 0 to
+      length - 1, and using any other index throws ArrayIndexOutOfBoundsException.
+
+      Arrays can be declared as `int[] a = new int[3];`, `int a[] = {1, 2, 3};` or
+      `int[] a = new int[]{1, 2, 3};`. Numeric array elements start as 0.
+
+      In `i = i++ + ++i`, the post-increment yields the old value of i and the pre-increment
+      yields the new one; they are evaluated left to right.
+
+  - id: classes-and-objects
+    title: Classes and objects
+    text: |
+      A program starts in `public static void main(String[] args)`. Objects are created with
+      `new`. Fields of numeric type default to 0. `extends` makes a subclass, and a class marked
+      `final` cannot be extended. `private` members are visible only inside their own class.
+      A static method belongs to the class and cannot use instance fields directly.
+
+      Overloading means several methods share a name but have different parameter lists.
+
+  - id: collections-and-exceptions
+    title: Collections and exceptions
+    text: |
+      A HashSet stores each element once. An ArrayList keeps duplicates and order.
+
+      Exceptions are handled with try, catch and finally. Checked exceptions such as IOException
+      and FileNotFoundException must be caught or declared. Runtime exceptions such as
+      NullPointerException, IllegalArgumentException and ArithmeticException do not have to be.
+
+questions:
+  - id: java-primitive-type
+    type: mcq_single
+    prompt: Which of these is a primitive type in Java?
+    options:
+      - { id: a, text: int }
+      - { id: b, text: String }
+      - { id: c, text: Integer }
+      - { id: d, text: ArrayList }
+    correctOptionIds: [a]
+    explanation: String, Integer and ArrayList are classes. int is a primitive.
+    sections: [types-and-operators]
+
+  - id: java-int-division
+    type: mcq_single
+    prompt: What does `System.out.println(7 / 2);` print?
+    options:
+      - { id: a, text: "3" }
+      - { id: b, text: "3.5" }
+      - { id: c, text: "4" }
+      - { id: d, text: "3.0" }
+    correctOptionIds: [a]
+    explanation: Both operands are ints, so the division is integer division.
+    sections: [types-and-operators]
+
+  - id: java-double-division
+    type: mcq_single
+    prompt: What does `System.out.println(7 / 2.0);` print?
+    options:
+      - { id: a, text: "3" }
+      - { id: b, text: "3.5" }
+      - { id: c, text: "4.0" }
+      - { id: d, text: It does not compile. }
+    correctOptionIds: [b]
+    sections: [types-and-operators]
+
+  - id: java-negative-remainder
+    type: mcq_single
+    prompt: What does `System.out.println(-7 % 3);` print?
+    options:
+      - { id: a, text: "2" }
+      - { id: b, text: "-2" }
+      - { id: c, text: "1" }
+      - { id: d, text: "-1" }
+    correctOptionIds: [d]
+    explanation: The result of % takes the sign of the left operand, and -7 = -2 * 3 + (-1).
+    sections: [types-and-operators]
+
+  - id: java-compound-assignment
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      int x = 5;
+      x += 3.7;
+      System.out.println(x);
+    accepted: ["8"]
+    explanation: "`x += 3.7` is `x = (int)(x + 3.7)`. 8.7 is truncated to 8."
+    sections: [types-and-operators]
+
+  - id: java-string-identity
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      String a = "hi";
+      String b = new String("hi");
+      System.out.println(a == b);
+      System.out.println(a.equals(b));
+    accepted: ["false\ntrue"]
+    explanation: "`new String` creates a distinct object, so `==` is false. `equals` compares the text."
+    sections: [strings]
+
+  - id: java-concat-text-first
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      System.out.println("A" + 1 + 2);
+    accepted: ["A12"]
+    explanation: Evaluation is left to right; "A" + 1 is already a String.
+    sections: [types-and-operators]
+
+  - id: java-concat-numbers-first
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      System.out.println(1 + 2 + "A");
+    accepted: ["3A"]
+    explanation: 1 + 2 is added as numbers first, then joined with "A".
+    sections: [types-and-operators]
+
+  - id: java-char-increment
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      char c = 'a';
+      c++;
+      System.out.println(c);
+    accepted: ["b"]
+    sections: [types-and-operators]
+
+  - id: java-cast-truncation
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      System.out.println((int) 3.99);
+    accepted: ["3"]
+    explanation: Casting a double to int truncates; it does not round.
+    sections: [types-and-operators]
+
+  - id: java-increment-expression
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      int i = 0;
+      i = i++ + ++i;
+      System.out.println(i);
+    accepted: ["2"]
+    explanation: i++ yields 0 (i becomes 1), then ++i makes i 2 and yields 2. 0 + 2 = 2.
+    sections: [control-flow-and-arrays]
+
+  - id: java-do-while
+    type: mcq_single
+    prompt: Which loop always executes its body at least once?
+    options:
+      - { id: a, text: while }
+      - { id: b, text: for }
+      - { id: c, text: do-while }
+      - { id: d, text: for-each }
+    correctOptionIds: [c]
+    sections: [control-flow-and-arrays]
+
+  - id: java-int-default
+    type: mcq_single
+    prompt: What is the default value of an `int` field in a new object?
+    options:
+      - { id: a, text: "0" }
+      - { id: b, text: "null" }
+      - { id: c, text: "-1" }
+      - { id: d, text: It has no default; it must be set before use. }
+    correctOptionIds: [a]
+    explanation: Fields get default values. (Local variables do not.)
+    sections: [classes-and-objects]
+
+  - id: java-final-class
+    type: mcq_single
+    prompt: Which keyword prevents a class from being extended?
+    options:
+      - { id: a, text: static }
+      - { id: b, text: final }
+      - { id: c, text: private }
+      - { id: d, text: abstract }
+    correctOptionIds: [b]
+    sections: [classes-and-objects]
+
+  - id: java-array-declarations
+    type: mcq_multi
+    prompt: Which of these are valid array declarations?
+    options:
+      - { id: a, text: "int[] a = new int[3];" }
+      - { id: b, text: "int a[] = {1, 2, 3};" }
+      - { id: c, text: "int[] a = new int[]{1, 2, 3};" }
+      - { id: d, text: "int a = new int[3];" }
+      - { id: e, text: "int[3] a;" }
+    correctOptionIds: [a, b, c]
+    sections: [control-flow-and-arrays]
+
+  - id: java-extends-keyword
+    type: short_answer
+    prompt: Which keyword makes one class inherit from another?
+    accepted: ["extends"]
+    caseSensitive: false
+    sections: [classes-and-objects]
+
+  - id: java-main-method
+    type: short_answer
+    prompt: What is the name of the method where a Java program starts running?
+    accepted: ["main", "main()"]
+    caseSensitive: true
+    sections: [classes-and-objects]
+
+  - id: java-new-keyword
+    type: short_answer
+    prompt: Which keyword creates a new object?
+    accepted: ["new"]
+    caseSensitive: false
+    sections: [classes-and-objects]
+
+  - id: java-main-return-type
+    type: fill_blank
+    prompt: "Complete the entry point: public static ___ main(String[] args)"
+    blanks: [["void"]]
+    sections: [classes-and-objects]
+
+  - id: java-string-equals
+    type: fill_blank
+    prompt: "Complete the call that compares the text of two strings: s1.___(s2)"
+    blanks: [["equals"]]
+    sections: [strings]
+
+  - id: java-try-catch-finally
+    type: fill_blank
+    prompt: "Complete the statement: try { ... } ___ (Exception e) { ... } ___ { ... }"
+    blanks: [["catch"], ["finally"]]
+    sections: [collections-and-exceptions]
+
+  - id: java-null-pointer
+    type: mcq_single
+    prompt: What happens when `s.length()` runs and `s` is `null`?
+    options:
+      - { id: a, text: It returns 0. }
+      - { id: b, text: It throws a NullPointerException. }
+      - { id: c, text: It throws an IllegalStateException. }
+      - { id: d, text: It does not compile. }
+    correctOptionIds: [b]
+    sections: [strings]
+
+  - id: java-array-bounds
+    type: mcq_single
+    prompt: "Given `int[] a = new int[3];`, what happens at runtime when `a[3] = 1;` executes?"
+    options:
+      - { id: a, text: The array grows to length 4. }
+      - { id: b, text: It throws an ArrayIndexOutOfBoundsException. }
+      - { id: c, text: It throws a NullPointerException. }
+      - { id: d, text: The value is ignored. }
+    correctOptionIds: [b]
+    explanation: Valid indexes are 0, 1 and 2.
+    sections: [control-flow-and-arrays]
+
+  - id: java-hashset
+    type: mcq_single
+    prompt: Which of these collections does not store duplicate elements?
+    options:
+      - { id: a, text: ArrayList }
+      - { id: b, text: LinkedList }
+      - { id: c, text: HashSet }
+      - { id: d, text: Vector }
+    correctOptionIds: [c]
+    sections: [collections-and-exceptions]
+
+  - id: java-generics-primitive
+    type: mcq_single
+    prompt: Which declaration is correct for a list of whole numbers?
+    options:
+      - { id: a, text: "ArrayList<int> xs = new ArrayList<>();" }
+      - { id: b, text: "ArrayList<Integer> xs = new ArrayList<>();" }
+      - { id: c, text: "ArrayList<Int> xs = new ArrayList<>();" }
+      - { id: d, text: "ArrayList xs = new ArrayList<int>();" }
+    correctOptionIds: [b]
+    explanation: Generic type arguments must be reference types, so use the wrapper class Integer.
+    sections: [types-and-operators]
+
+  - id: java-autoboxing
+    type: mcq_single
+    prompt: What is autoboxing?
+    options:
+      - { id: a, text: Automatically converting a primitive value to its wrapper object. }
+      - { id: b, text: Automatically freeing memory that is no longer used. }
+      - { id: c, text: Automatically converting a String to an int. }
+      - { id: d, text: Automatically making a method static. }
+    correctOptionIds: [a]
+    sections: [types-and-operators]
+
+  - id: java-private-access
+    type: mcq_single
+    prompt: Which access modifier makes a member visible only inside its own class?
+    options:
+      - { id: a, text: public }
+      - { id: b, text: protected }
+      - { id: c, text: private }
+      - { id: d, text: static }
+    correctOptionIds: [c]
+    sections: [classes-and-objects]
+
+  - id: java-static-instance-field
+    type: mcq_single
+    prompt: Can a static method read an instance field directly, by its name alone?
+    options:
+      - { id: a, text: Yes, always. }
+      - { id: b, text: No; it needs an object reference to access the field. }
+      - { id: c, text: Yes, but only if the field is public. }
+      - { id: d, text: No; static methods cannot read any fields. }
+    correctOptionIds: [b]
+    explanation: A static method has no `this`, so it needs an object to reach instance fields. It can read static fields.
+    sections: [classes-and-objects]
+
+  - id: java-overloading
+    type: mcq_single
+    prompt: What is method overloading?
+    options:
+      - { id: a, text: A subclass replacing a method it inherits. }
+      - {
+          id: b,
+          text: Several methods in a class that share a name but have different parameter lists.,
+        }
+      - { id: c, text: A method that calls itself. }
+      - { id: d, text: A method declared in an interface. }
+    correctOptionIds: [b]
+    sections: [classes-and-objects]
+
+  - id: java-checked-exceptions
+    type: mcq_multi
+    prompt: Which of these are checked exceptions?
+    options:
+      - { id: a, text: IOException }
+      - { id: b, text: NullPointerException }
+      - { id: c, text: FileNotFoundException }
+      - { id: d, text: IllegalArgumentException }
+      - { id: e, text: ArithmeticException }
+    correctOptionIds: [a, c]
+    explanation: FileNotFoundException is a subclass of IOException. The others extend RuntimeException.
+    sections: [collections-and-exceptions]
