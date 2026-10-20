@@ -1,0 +1,385 @@
+# DRAFT sample course (C++). Written by an AI assistant at the project owner's request to
+# provide starter content. It has NOT been checked by a person: there is deliberately no
+# `provenance` on any item, so every question loads as "needs review" and is not used in
+# practice until a student approves it. After you have verified a question, add
+#   provenance: { checkedBy: <your name>, checkedAt: YYYY-MM-DD }
+# to mark it as checked. Run `npm run samples:validate` after editing.
+#
+# Questions assume C++17 and `using` qualifications are written out (std::).
+
+format: 1
+
+course:
+  title: C++ fundamentals
+  subject: Introductory programming
+  language: cpp
+
+sections:
+  - id: types-and-operators
+    title: Types and operators
+    text: |
+      `std::cout` (declared in `<iostream>`) writes to standard output. Integer division truncates,
+      so `7 / 2` is 3, while `1 / 2.0` is 0.5. In C++ a character literal such as `'a'` has type
+      char, so `sizeof('a')` is 1 (unlike C, where it is an int).
+
+      `auto` asks the compiler to deduce a variable's type from its initializer, so it must have
+      one. A `const` variable cannot be assigned after initialization.
+
+  - id: references-and-pointers
+    title: References and pointers
+    text: |
+      A reference is another name for an existing object: `int &r = x;`. It must be initialized
+      when declared and cannot later be made to refer to something else. Changing `r` changes `x`.
+      A pointer can be null and can be reassigned. `nullptr` is the null pointer literal.
+
+  - id: classes
+    title: Classes and inheritance
+    text: |
+      Members of a `struct` are public by default; members of a `class` are private by default.
+      A destructor is declared with a leading tilde: `~Foo();`. A member function marked `const`
+      promises not to modify the object, so it can be called on const objects.
+
+      A function declared `virtual void f() = 0;` is pure virtual and makes its class abstract.
+      In a derived class, `override` makes the compiler check that a base virtual function is
+      really being overridden. Some operators cannot be overloaded, including `::`.
+
+      Templates write code once for many types: `template <typename T> T add(T a, T b)`. `class`
+      can be used instead of `typename` in the parameter list.
+
+  - id: standard-library
+    title: The standard library
+    text: |
+      `std::vector` is a resizable array: `push_back` appends, `size` counts, `back` reads the last
+      element. `std::vector<int> v(3, 7)` makes three elements, all 7. `std::string` is mutable: its
+      characters can be assigned. `std::map` keeps key/value pairs ordered by key, and `m[key]`
+      inserts a default value (0 for int) when the key is missing. `std::unordered_set` and
+      `std::map` are containers; `std::mutex` and `std::thread` are not.
+
+      A range-based `for` loop visits each element of a container or initializer list. A lambda can
+      capture variables: `[x]` copies x at the moment the lambda is created.
+
+  - id: memory-and-raii
+    title: Ownership and RAII
+    text: |
+      RAII (resource acquisition is initialization) ties a resource's lifetime to an object's
+      lifetime, so the destructor releases it. `std::unique_ptr` has exclusive ownership and cannot
+      be copied, only moved. `std::shared_ptr` allows shared ownership through reference counting.
+
+      `std::move` does not move anything by itself; it casts its argument to an rvalue reference so
+      that a move constructor or move assignment can take its resources.
+
+questions:
+  - id: cpp-iostream-header
+    type: mcq_single
+    prompt: Which header declares `std::cout`?
+    options:
+      - { id: a, text: "<iostream>" }
+      - { id: b, text: "<stdio.h>" }
+      - { id: c, text: "<ostream.h>" }
+      - { id: d, text: "<string>" }
+    correctOptionIds: [a]
+    sections: [types-and-operators]
+
+  - id: cpp-char-literal-size
+    type: mcq_single
+    prompt: In C++, what is `sizeof('a')`?
+    options:
+      - { id: a, text: "1" }
+      - { id: b, text: "sizeof(int)" }
+      - { id: c, text: "2" }
+      - { id: d, text: "It does not compile." }
+    correctOptionIds: [a]
+    explanation: A character literal has type char in C++ (but type int in C).
+    sections: [types-and-operators]
+
+  - id: cpp-int-division
+    type: mcq_single
+    prompt: "What does `std::cout << 7 / 2;` print?"
+    options:
+      - { id: a, text: "3" }
+      - { id: b, text: "3.5" }
+      - { id: c, text: "4" }
+      - { id: d, text: "3.0" }
+    correctOptionIds: [a]
+    sections: [types-and-operators]
+
+  - id: cpp-reference-declaration
+    type: mcq_single
+    prompt: Which line declares a reference to the int `x`?
+    options:
+      - { id: a, text: "int *r = x;" }
+      - { id: b, text: "int &r = x;" }
+      - { id: c, text: "int r = &x;" }
+      - { id: d, text: "ref int r = x;" }
+    correctOptionIds: [b]
+    sections: [references-and-pointers]
+
+  - id: cpp-vector-fill-constructor
+    type: mcq_single
+    prompt: What does `std::vector<int> v(3, 7);` create?
+    options:
+      - { id: a, text: "A vector with three elements, each equal to 7" }
+      - { id: b, text: "A vector with seven elements, each equal to 3" }
+      - { id: c, text: "A vector with the two elements 3 and 7" }
+      - { id: d, text: "A vector with a capacity of 3 and no elements" }
+    correctOptionIds: [a]
+    sections: [standard-library]
+
+  - id: cpp-reference-alias
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      int a = 1;
+      int &r = a;
+      r = 5;
+      std::cout << a << "\n";
+    accepted: ["5"]
+    sections: [references-and-pointers]
+
+  - id: cpp-vector-push-back
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      std::vector<int> v = {1, 2, 3};
+      v.push_back(4);
+      std::cout << v.size() << " " << v.back() << "\n";
+    accepted: ["4 4"]
+    sections: [standard-library]
+
+  - id: cpp-string-mutation
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      std::string s = "hello";
+      s[0] = 'J';
+      std::cout << s << "\n";
+    accepted: ["Jello"]
+    sections: [standard-library]
+
+  - id: cpp-lambda-capture-by-value
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      int x = 10;
+      auto f = [x](int y) { return x + y; };
+      x = 20;
+      std::cout << f(1) << "\n";
+    accepted: ["11"]
+    explanation: "`[x]` copies x when the lambda is created, so later changes to x do not affect it."
+    sections: [standard-library]
+
+  - id: cpp-double-division
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      std::cout << 1 / 2.0 << "\n";
+    accepted: ["0.5"]
+    sections: [types-and-operators]
+
+  - id: cpp-range-for
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      for (int i : {1, 2, 3})
+          std::cout << i * i << " ";
+    accepted: ["1 4 9"]
+    explanation: There is a space after each number; the trailing space is ignored when grading.
+    sections: [standard-library]
+
+  - id: cpp-map-default-insert
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      std::map<std::string, int> m;
+      m["a"]++;
+      m["a"]++;
+      std::cout << m["a"] << " " << m.size() << "\n";
+    accepted: ["2 1"]
+    explanation: m["a"] inserts 0 the first time, and it is incremented twice. There is still one key.
+    sections: [standard-library]
+
+  - id: cpp-unique-ptr
+    type: mcq_single
+    prompt: Which statement about `std::unique_ptr` is true?
+    options:
+      - { id: a, text: Several unique_ptrs can share ownership of one object. }
+      - { id: b, text: It has exclusive ownership and cannot be copied, only moved. }
+      - { id: c, text: It must be released manually with delete. }
+      - { id: d, text: It can only point to arrays. }
+    correctOptionIds: [b]
+    sections: [memory-and-raii]
+
+  - id: cpp-raii
+    type: mcq_single
+    prompt: What does RAII mean?
+    options:
+      - {
+          id: a,
+          text: Tying the lifetime of a resource to the lifetime of an object,
+          so its destructor releases it.,
+        }
+      - { id: b, text: Running all initialization at compile time. }
+      - { id: c, text: Reading all input before allocating memory. }
+      - { id: d, text: Reusing allocated objects instead of creating new ones. }
+    correctOptionIds: [a]
+    sections: [memory-and-raii]
+
+  - id: cpp-override-keyword
+    type: mcq_single
+    prompt: Which keyword makes the compiler verify that a derived-class function overrides a base-class virtual function?
+    options:
+      - { id: a, text: final }
+      - { id: b, text: override }
+      - { id: c, text: virtual }
+      - { id: d, text: explicit }
+    correctOptionIds: [b]
+    sections: [classes]
+
+  - id: cpp-pure-virtual
+    type: mcq_single
+    prompt: What does declaring `virtual void f() = 0;` in a class do?
+    options:
+      - { id: a, text: It makes f unusable. }
+      - { id: b, text: It makes the class abstract, so it cannot be instantiated directly. }
+      - { id: c, text: It makes f run at compile time. }
+      - { id: d, text: It makes f private. }
+    correctOptionIds: [b]
+    sections: [classes]
+
+  - id: cpp-containers
+    type: mcq_multi
+    prompt: Which of these are standard library containers?
+    options:
+      - { id: a, text: std::vector }
+      - { id: b, text: std::map }
+      - { id: c, text: std::unordered_set }
+      - { id: d, text: std::mutex }
+      - { id: e, text: std::thread }
+    correctOptionIds: [a, b, c]
+    sections: [standard-library]
+
+  - id: cpp-struct-default-access
+    type: mcq_single
+    prompt: What is the default access of members of a `struct`?
+    options:
+      - { id: a, text: private }
+      - { id: b, text: protected }
+      - { id: c, text: public }
+      - { id: d, text: There is no default; it must be written. }
+    correctOptionIds: [c]
+    explanation: Members of a class are private by default.
+    sections: [classes]
+
+  - id: cpp-const-member-function
+    type: mcq_single
+    prompt: What does marking a member function `const` mean?
+    options:
+      - { id: a, text: It returns a constant value. }
+      - { id: b, text: It does not modify the object and can be called on const objects. }
+      - { id: c, text: It can only be called once. }
+      - { id: d, text: It is evaluated at compile time. }
+    correctOptionIds: [b]
+    sections: [classes]
+
+  - id: cpp-non-overloadable-operator
+    type: mcq_single
+    prompt: Which of these operators cannot be overloaded?
+    options:
+      - { id: a, text: "+" }
+      - { id: b, text: "[]" }
+      - { id: c, text: "::" }
+      - { id: d, text: "()" }
+    correctOptionIds: [c]
+    sections: [classes]
+
+  - id: cpp-auto-keyword
+    type: short_answer
+    prompt: Which keyword lets the compiler deduce a variable's type from its initializer?
+    accepted: ["auto"]
+    caseSensitive: false
+    sections: [types-and-operators]
+
+  - id: cpp-cout
+    type: short_answer
+    prompt: "What is the name of the standard output stream object (without the std:: prefix)?"
+    accepted: ["cout", "std::cout"]
+    caseSensitive: true
+    sections: [types-and-operators]
+
+  - id: cpp-shared-ptr
+    type: short_answer
+    prompt: Which smart pointer type allows several owners to share one object through reference counting?
+    accepted: ["shared_ptr", "std::shared_ptr"]
+    caseSensitive: true
+    sections: [memory-and-raii]
+
+  - id: cpp-push-back
+    type: fill_blank
+    prompt: "Complete the call that appends 5 to the end of the vector: v.___(5);"
+    blanks: [["push_back", "emplace_back"]]
+    sections: [standard-library]
+
+  - id: cpp-destructor-syntax
+    type: fill_blank
+    prompt: "Complete the destructor declaration for class Foo: ___Foo();"
+    blanks: [["~"]]
+    sections: [classes]
+
+  - id: cpp-template-parameter
+    type: fill_blank
+    prompt: "Complete the template: template <___ T> T add(T a, T b) { return a + b; }"
+    blanks: [["typename", "class"]]
+    sections: [classes]
+
+  - id: cpp-std-move
+    type: mcq_single
+    prompt: What does `std::move(x)` do by itself?
+    options:
+      - { id: a, text: It moves the contents of x into a new variable immediately. }
+      - {
+          id: b,
+          text: It casts x to an rvalue reference so a move constructor or assignment can take its resources.,
+        }
+      - { id: c, text: It copies x to the heap. }
+      - { id: d, text: It deletes x. }
+    correctOptionIds: [b]
+    sections: [memory-and-raii]
+
+  - id: cpp-reference-and-pointer
+    type: mcq_single
+    prompt: "After `int x = 5; int &r = x; int *p = &r; *p = 8;`, what is the value of x?"
+    options:
+      - { id: a, text: "5" }
+      - { id: b, text: "8" }
+      - { id: c, text: It does not compile. }
+      - { id: d, text: The address of x }
+    correctOptionIds: [b]
+    explanation: "`&r` is the address of x, so writing through p changes x."
+    sections: [references-and-pointers]
+
+  - id: cpp-reference-vs-pointer
+    type: mcq_single
+    prompt: Which statement correctly compares references and pointers?
+    options:
+      - { id: a, text: A reference can be null, a pointer cannot. }
+      - {
+          id: b,
+          text: A reference must be initialized and cannot be reseated,
+          a pointer can be null and reassigned.,
+        }
+      - { id: c, text: A reference can be reassigned to another object, a pointer cannot. }
+      - { id: d, text: They are identical in every respect. }
+    correctOptionIds: [b]
+    sections: [references-and-pointers]
+
+  - id: cpp-compile-errors
+    type: mcq_multi
+    prompt: Which of these declarations cause a compile error?
+    options:
+      - { id: a, text: "const int x = 1; x = 2;" }
+      - { id: b, text: "int &r;" }
+      - { id: c, text: "auto a;" }
+      - { id: d, text: "int *p = nullptr;" }
+    correctOptionIds: [a, b, c]
+    explanation: A const variable cannot be assigned, a reference needs an initializer, and auto needs an initializer to deduce from. A null pointer is valid.
+    sections: [types-and-operators, references-and-pointers]
