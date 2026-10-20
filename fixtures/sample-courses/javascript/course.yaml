@@ -1,0 +1,373 @@
+# DRAFT sample course (JavaScript). Written by an AI assistant at the project owner's request
+# to provide starter content. It has NOT been checked by a person: there is deliberately no
+# `provenance` on any item, so every question loads as "needs review" and is not used in
+# practice until a student approves it. After you have verified a question, add
+#   provenance: { checkedBy: <your name>, checkedAt: YYYY-MM-DD }
+# to mark it as checked. Run `npm run samples:validate` after editing.
+#
+# Questions assume a current JavaScript engine (ES2020 or later), for example Node.js 20.
+
+format: 1
+
+course:
+  title: JavaScript fundamentals
+  subject: Introductory programming
+  language: javascript
+
+sections:
+  - id: values-and-types
+    title: Values, types, and coercion
+    text: |
+      JavaScript converts between types in some operations. `+` joins strings when either side is a
+      string, so `"5" + 3` is "53", while `-` always works on numbers, so `"5" - 3` is 2. Operators
+      evaluate left to right: `1 + "2" + 3` is "123".
+
+      `typeof null` is "object" (a long-standing quirk), `typeof undefined` is "undefined" and
+      `typeof NaN` is "number". Numbers are floating point, so `0.1 + 0.2 === 0.3` is false. The
+      falsy values are `false`, `0`, `""`, `null`, `undefined` and `NaN`; the string `"0"` and the
+      empty array `[]` are truthy.
+
+      `==` converts types before comparing (`null == undefined` is true), while `===` does not.
+      Adding two empty arrays converts them to strings, so `[] + []` is the empty string. Unary
+      plus converts to a number: `+"a"` is NaN, so `"b" + "a" + +"a" + "a"` is "baNaNa".
+
+  - id: variables-and-scope
+    title: Variables, scope, and closures
+    text: |
+      `const` and `let` are block scoped; `const` cannot be reassigned, but an object stored in a
+      `const` can still be changed. `var` is function scoped and its declaration is hoisted to the top
+      of its function, so reading it before the assignment gives `undefined`.
+
+      Because a `var` loop variable is shared by every iteration, closures created in the loop all
+      see its final value.
+
+  - id: functions
+    title: Functions
+    text: |
+      A function can be defined as a declaration (`function f() {}`), a function expression
+      (`const f = function () {}`) or an arrow function (`const f = () => {}`). Arrow functions have no
+      `this` of their own; they use the surrounding one.
+
+  - id: arrays-and-objects
+    title: Arrays and objects
+    text: |
+      Objects and arrays are stored by reference: assigning one to another variable does not copy
+      it. `push` appends to an array. `map` transforms every element, `filter` keeps elements that
+      pass a test and `reduce` folds an array into one value. `Array.isArray(x)` checks for an
+      array. `sort()` without a comparison function compares elements as strings, so
+      `[10, 1, 3].sort()` is `[1, 10, 3]`.
+
+      `for...in` loops over an object's keys; `for...of` loops over an iterable's values.
+      `JSON.stringify` leaves out properties whose value is `undefined`.
+
+  - id: asynchronous-code
+    title: Asynchronous code
+    text: |
+      Callbacks from promises (`.then`) run as microtasks after the current synchronous code
+      finishes, and before timer callbacks such as `setTimeout(fn, 0)`. An `async` function returns a
+      promise, and `await` pauses it until another promise settles.
+
+questions:
+  - id: js-typeof-null
+    type: mcq_single
+    prompt: What does `typeof null` return?
+    options:
+      - { id: a, text: '"null"' }
+      - { id: b, text: '"object"' }
+      - { id: c, text: '"undefined"' }
+      - { id: d, text: '"number"' }
+    correctOptionIds: [b]
+    explanation: This is a long-standing quirk of the language.
+    sections: [values-and-types]
+
+  - id: js-floating-point
+    type: mcq_single
+    prompt: What does `0.1 + 0.2 === 0.3` evaluate to?
+    options:
+      - { id: a, text: "true" }
+      - { id: b, text: "false" }
+      - { id: c, text: "undefined" }
+      - { id: d, text: It throws an error. }
+    correctOptionIds: [b]
+    explanation: Numbers are binary floating point, and 0.1 + 0.2 is 0.30000000000000004.
+    sections: [values-and-types]
+
+  - id: js-string-plus-number
+    type: mcq_single
+    prompt: What does `"5" + 3` evaluate to?
+    options:
+      - { id: a, text: "8" }
+      - { id: b, text: '"53"' }
+      - { id: c, text: "NaN" }
+      - { id: d, text: It throws a TypeError. }
+    correctOptionIds: [b]
+    sections: [values-and-types]
+
+  - id: js-string-minus-number
+    type: mcq_single
+    prompt: What does `"5" - 3` evaluate to?
+    options:
+      - { id: a, text: "2" }
+      - { id: b, text: '"53"' }
+      - { id: c, text: "NaN" }
+      - { id: d, text: '"2"' }
+    correctOptionIds: [a]
+    explanation: The `-` operator converts both sides to numbers.
+    sections: [values-and-types]
+
+  - id: js-const-keyword
+    type: mcq_single
+    prompt: Which declaration is block scoped and cannot be reassigned?
+    options:
+      - { id: a, text: var }
+      - { id: b, text: let }
+      - { id: c, text: const }
+      - { id: d, text: static }
+    correctOptionIds: [c]
+    sections: [variables-and-scope]
+
+  - id: js-falsy-values
+    type: mcq_multi
+    prompt: Which of these values are falsy?
+    options:
+      - { id: a, text: "0" }
+      - { id: b, text: '"" (the empty string)' }
+      - { id: c, text: '"0" (a string containing the character 0)' }
+      - { id: d, text: "null" }
+      - { id: e, text: "[]" }
+    correctOptionIds: [a, b, d]
+    explanation: A non-empty string, even "0", and an empty array are truthy.
+    sections: [values-and-types]
+
+  - id: js-map-join
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      console.log([1, 2, 3].map(x => x * 2).join(","));
+    accepted: ["2,4,6"]
+    sections: [arrays-and-objects]
+
+  - id: js-typeof-values
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      console.log(typeof undefined, typeof NaN);
+    accepted: ["undefined number"]
+    sections: [values-and-types]
+
+  - id: js-array-reference
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      let a = [1, 2, 3];
+      let b = a;
+      b.push(4);
+      console.log(a.length);
+    accepted: ["4"]
+    explanation: Both variables refer to the same array.
+    sections: [arrays-and-objects]
+
+  - id: js-left-to-right-plus
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      console.log(1 + "2" + 3);
+    accepted: ["123"]
+    sections: [values-and-types]
+
+  - id: js-var-hoisting
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      console.log(x);
+      var x = 5;
+    accepted: ["undefined"]
+    explanation: The declaration of x is hoisted, but the assignment happens later.
+    sections: [variables-and-scope]
+
+  - id: js-var-closure-loop
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      const fns = [];
+      for (var i = 0; i < 3; i++) fns.push(() => i);
+      console.log(fns.map(f => f()).join(","));
+    accepted: ["3,3,3"]
+    explanation: All closures share the one function-scoped `i`, which is 3 when the loop ends.
+    sections: [variables-and-scope]
+
+  - id: js-default-sort
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      console.log([10, 1, 3].sort().join(","));
+    accepted: ["1,10,3"]
+    explanation: Without a comparison function, elements are sorted as strings.
+    sections: [arrays-and-objects]
+
+  - id: js-banana
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      console.log("b" + "a" + +"a" + "a");
+    accepted: ["baNaNa"]
+    explanation: Unary plus converts "a" to NaN, which is then joined as the text "NaN".
+    sections: [values-and-types]
+
+  - id: js-event-loop-order
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      console.log("A");
+      setTimeout(() => console.log("B"), 0);
+      Promise.resolve().then(() => console.log("C"));
+      console.log("D");
+    accepted: ["A\nD\nC\nB"]
+    explanation: Synchronous code runs first, then the promise callback (a microtask), then the timer callback.
+    sections: [asynchronous-code]
+
+  - id: js-null-equals-undefined
+    type: mcq_single
+    prompt: What does `null == undefined` evaluate to?
+    options:
+      - { id: a, text: "true" }
+      - { id: b, text: "false" }
+      - { id: c, text: "undefined" }
+      - { id: d, text: It throws a TypeError. }
+    correctOptionIds: [a]
+    explanation: With loose equality, null and undefined equal each other (and nothing else). With === the result is false.
+    sections: [values-and-types]
+
+  - id: js-array-plus-array
+    type: mcq_single
+    prompt: What does `[] + []` evaluate to?
+    options:
+      - { id: a, text: "[]" }
+      - { id: b, text: '"" (the empty string)' }
+      - { id: c, text: "0" }
+      - { id: d, text: "NaN" }
+    correctOptionIds: [b]
+    explanation: Both arrays are converted to strings (empty) and then joined.
+    sections: [values-and-types]
+
+  - id: js-arrow-this
+    type: mcq_single
+    prompt: What is true about the `this` value inside an arrow function?
+    options:
+      - { id: a, text: It is always the global object. }
+      - { id: b, text: It is always undefined. }
+      - {
+          id: c,
+          text: It is taken from the surrounding scope; an arrow function has no `this` of its own.,
+        }
+      - { id: d, text: It is the arrow function itself. }
+    correctOptionIds: [c]
+    sections: [functions]
+
+  - id: js-is-array
+    type: mcq_single
+    prompt: Which expression reliably tests whether `x` is an array?
+    options:
+      - { id: a, text: "typeof x === 'array'" }
+      - { id: b, text: "Array.isArray(x)" }
+      - { id: c, text: "x.type === 'array'" }
+      - { id: d, text: "x instanceof Object" }
+    correctOptionIds: [b]
+    explanation: typeof returns "object" for arrays, and every array is an Object, so neither of those works.
+    sections: [arrays-and-objects]
+
+  - id: js-json-undefined
+    type: mcq_single
+    prompt: "What does `JSON.stringify({ a: undefined, b: 1 })` return?"
+    options:
+      - { id: a, text: '''{"b":1}''' }
+      - { id: b, text: '''{"a":undefined,"b":1}''' }
+      - { id: c, text: '''{"a":null,"b":1}''' }
+      - { id: d, text: It throws an error. }
+    correctOptionIds: [a]
+    explanation: Properties whose value is undefined are left out.
+    sections: [arrays-and-objects]
+
+  - id: js-const-object-mutation
+    type: mcq_single
+    prompt: "Given `const o = {};`, what happens when `o.x = 1;` runs?"
+    options:
+      - { id: a, text: It throws a TypeError because o is const. }
+      - { id: b, text: It works; const prevents reassigning o, not changing the object. }
+      - { id: c, text: It silently does nothing. }
+      - { id: d, text: It creates a new object and assigns it to o. }
+    correctOptionIds: [b]
+    sections: [variables-and-scope]
+
+  - id: js-function-definitions
+    type: mcq_multi
+    prompt: Which of these define a function?
+    options:
+      - { id: a, text: "function f() {}" }
+      - { id: b, text: "const f = function () {};" }
+      - { id: c, text: "const f = () => {};" }
+      - { id: d, text: "def f() {}" }
+      - { id: e, text: "fun f() {}" }
+    correctOptionIds: [a, b, c]
+    sections: [functions]
+
+  - id: js-array-push
+    type: short_answer
+    prompt: Which array method adds an element to the end of an array?
+    accepted: ["push", "push()", "Array.prototype.push"]
+    caseSensitive: true
+    sections: [arrays-and-objects]
+
+  - id: js-await
+    type: short_answer
+    prompt: Which keyword pauses an async function until a promise settles?
+    accepted: ["await"]
+    caseSensitive: false
+    sections: [asynchronous-code]
+
+  - id: js-strict-equality
+    type: short_answer
+    prompt: Which operator compares two values without converting their types?
+    accepted: ["===", "strict equality", "the strict equality operator"]
+    caseSensitive: false
+    sections: [values-and-types]
+
+  - id: js-reduce
+    type: fill_blank
+    prompt: "Complete the call that sums the array: const total = [1, 2, 3].___((sum, n) => sum + n, 0);"
+    blanks: [["reduce"]]
+    sections: [arrays-and-objects]
+
+  - id: js-for-in
+    type: fill_blank
+    prompt: "Complete the loop over the keys of an object: for (const key ___ obj) { }"
+    blanks: [["in"]]
+    sections: [arrays-and-objects]
+
+  - id: js-async-await-syntax
+    type: fill_blank
+    prompt: "Complete the function: ___ function load(url) { const response = ___ fetch(url); return response.json(); }"
+    blanks: [["async"], ["await"]]
+    sections: [asynchronous-code]
+
+  - id: js-typeof-function
+    type: mcq_single
+    prompt: What does `typeof function () {}` return?
+    options:
+      - { id: a, text: '"object"' }
+      - { id: b, text: '"function"' }
+      - { id: c, text: '"callable"' }
+      - { id: d, text: '"undefined"' }
+    correctOptionIds: [b]
+    sections: [functions]
+
+  - id: js-filter
+    type: mcq_single
+    prompt: Which array method returns a new array containing only the elements that pass a test?
+    options:
+      - { id: a, text: map }
+      - { id: b, text: reduce }
+      - { id: c, text: filter }
+      - { id: d, text: forEach }
+    correctOptionIds: [c]
+    sections: [arrays-and-objects]
