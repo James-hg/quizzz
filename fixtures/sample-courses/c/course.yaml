@@ -1,0 +1,372 @@
+# DRAFT sample course (C). Written by an AI assistant at the project owner's request to
+# provide starter content. It has NOT been checked by a person: there is deliberately no
+# `provenance` on any item, so every question loads as "needs review" and is not used in
+# practice until a student approves it. After you have verified a question, add
+#   provenance: { checkedBy: <your name>, checkedAt: YYYY-MM-DD }
+# to mark it as checked. Run `npm run samples:validate` after editing.
+#
+# Questions assume a C99-or-later compiler on a typical desktop platform.
+
+format: 1
+
+course:
+  title: C fundamentals
+  subject: Introductory programming
+  language: c
+
+sections:
+  - id: types-and-operators
+    title: Types and operators
+    text: |
+      Integer division truncates toward zero (C99 and later), so `7 / 2` is 3 and `-7 / 2` is -3.
+      The remainder has the sign of the left operand, so `-7 % 3` is -1.
+
+      A character constant such as `'a'` has type int in C, so `sizeof('a')` equals
+      `sizeof(int)`. Comparison operators produce 0 or 1, so `5 > 3 > 1` is `(5 > 3) > 1`, which is
+      `1 > 1`, which is 0.
+
+      The post-increment `x++` yields the old value and then increases x. `printf` formats
+      values: `%d` for int, `%c` for char, `%zu` for size_t and `%.2f` for a double with two
+      decimals.
+
+  - id: pointers-and-arrays
+    title: Pointers and arrays
+    text: |
+      The address-of operator `&` gives a variable's address and `*` follows a pointer. For an array
+      `arr`, `*(arr + 1)` is the same as `arr[1]`. An array of 5 elements has valid indexes 0 to
+      4. When an array is passed to a function it decays to a pointer to its first element.
+
+      `const int *p` means the int cannot be changed through p. A pointer to a pointer is written
+      `int **pp`; `**pp` is the original int value.
+
+  - id: strings
+    title: Strings
+    text: |
+      A C string is an array of char ending with the null terminator `'\0'`. `strlen` counts the
+      characters before the terminator, while `sizeof` on an array counts every element,
+      including the terminator: for `char s[] = "abc"`, `strlen(s)` is 3 and `sizeof(s)` is 4.
+
+      Compare strings with `strcmp(a, b) == 0`; `==` compares addresses. `fgets` reads a line
+      with a size limit. Several forms define a string: `char s[] = "hi";`, `char *s = "hi";`
+      (a pointer to a string literal) and `char s[3] = {'h', 'i', '\0'};`.
+
+  - id: memory
+    title: Dynamic memory and undefined behavior
+    text: |
+      `malloc` allocates memory and returns NULL on failure. Memory must be released with `free`
+      exactly once. Undefined behavior includes dereferencing a null pointer, using memory after
+      it has been freed, and reading or writing outside an array's bounds. Undefined behavior
+      means the language makes no promises about what happens.
+
+  - id: functions-and-preprocessor
+    title: Functions, scope, and the preprocessor
+    text: |
+      `printf` is declared in `<stdio.h>`. A `static` local variable keeps its value between calls.
+      `typedef` creates a type alias. `switch` jumps to a `case` label, and without `break` execution
+      continues into the following case.
+
+      Macros are textual substitution. `#define SQUARE(x) x*x` expands `SQUARE(1+2)` into
+      `1+2*1+2`, which is 5, not 9. Parenthesizing the parameter and the result avoids this.
+
+questions:
+  - id: c-printf-header
+    type: mcq_single
+    prompt: Which standard header declares `printf`?
+    options:
+      - { id: a, text: "<stdlib.h>" }
+      - { id: b, text: "<stdio.h>" }
+      - { id: c, text: "<string.h>" }
+      - { id: d, text: "<math.h>" }
+    correctOptionIds: [b]
+    sections: [functions-and-preprocessor]
+
+  - id: c-int-division
+    type: mcq_single
+    prompt: What does `printf("%d", 7 / 2);` print?
+    options:
+      - { id: a, text: "3" }
+      - { id: b, text: "3.5" }
+      - { id: c, text: "4" }
+      - { id: d, text: Undefined behavior }
+    correctOptionIds: [a]
+    sections: [types-and-operators]
+
+  - id: c-negative-division
+    type: mcq_single
+    prompt: In C99 or later, what does `printf("%d", -7 / 2);` print?
+    options:
+      - { id: a, text: "-4" }
+      - { id: b, text: "-3" }
+      - { id: c, text: "-3.5" }
+      - { id: d, text: "3" }
+    correctOptionIds: [b]
+    explanation: Integer division truncates toward zero.
+    sections: [types-and-operators]
+
+  - id: c-negative-remainder
+    type: mcq_single
+    prompt: In C99 or later, what does `printf("%d", -7 % 3);` print?
+    options:
+      - { id: a, text: "2" }
+      - { id: b, text: "1" }
+      - { id: c, text: "-1" }
+      - { id: d, text: "-2" }
+    correctOptionIds: [c]
+    sections: [types-and-operators]
+
+  - id: c-char-constant-size
+    type: mcq_single
+    prompt: In C (not C++), what is `sizeof('a')` equal to?
+    options:
+      - { id: a, text: "1, because it is a char" }
+      - { id: b, text: "sizeof(int), because a character constant has type int" }
+      - { id: c, text: "2" }
+      - { id: d, text: "sizeof(char *)" }
+    correctOptionIds: [b]
+    sections: [types-and-operators]
+
+  - id: c-string-terminator
+    type: mcq_single
+    prompt: Which character marks the end of a C string?
+    options:
+      - { id: a, text: "'\\n'" }
+      - { id: b, text: "'\\0'" }
+      - { id: c, text: "' '" }
+      - { id: d, text: "'\\t'" }
+    correctOptionIds: [b]
+    sections: [strings]
+
+  - id: c-pointer-write
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      int a = 5;
+      int *p = &a;
+      *p = 9;
+      printf("%d\n", a);
+    accepted: ["9"]
+    sections: [pointers-and-arrays]
+
+  - id: c-pointer-arithmetic
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      int arr[] = {10, 20, 30};
+      printf("%d\n", *(arr + 1));
+    accepted: ["20"]
+    sections: [pointers-and-arrays]
+
+  - id: c-strlen-sizeof
+    type: output_prediction
+    prompt: What does this program print? (assume string.h is included)
+    codeSnippet: |
+      char s[] = "abc";
+      printf("%zu %zu\n", strlen(s), sizeof(s));
+    accepted: ["3 4"]
+    explanation: strlen stops at the terminator; sizeof counts the whole array, terminator included.
+    sections: [strings]
+
+  - id: c-post-increment
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      int x = 3;
+      printf("%d\n", x++ + 2);
+      printf("%d\n", x);
+    accepted: ["5\n4"]
+    sections: [types-and-operators]
+
+  - id: c-for-loop-output
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      for (int i = 0; i < 3; i++)
+          printf("%d ", i);
+    accepted: ["0 1 2"]
+    explanation: There is a space after each number; the trailing space is ignored when grading.
+    sections: [functions-and-preprocessor]
+
+  - id: c-float-format
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      printf("%.2f\n", 3.14159);
+    accepted: ["3.14"]
+    sections: [types-and-operators]
+
+  - id: c-malloc-failure
+    type: mcq_single
+    prompt: What does `malloc` return when it cannot allocate the memory?
+    options:
+      - { id: a, text: "0 bytes of valid memory" }
+      - { id: b, text: "NULL" }
+      - { id: c, text: "-1" }
+      - { id: d, text: It terminates the program. }
+    correctOptionIds: [b]
+    sections: [memory]
+
+  - id: c-free-function
+    type: mcq_single
+    prompt: Which function releases memory obtained from `malloc`?
+    options:
+      - { id: a, text: delete }
+      - { id: b, text: release }
+      - { id: c, text: free }
+      - { id: d, text: dealloc }
+    correctOptionIds: [c]
+    sections: [memory]
+
+  - id: c-undefined-behavior
+    type: mcq_multi
+    prompt: Which of these cause undefined behavior?
+    options:
+      - { id: a, text: Dereferencing a null pointer }
+      - { id: b, text: Using a pointer after the memory it points to was freed }
+      - { id: c, text: "Reading `a[5]` when `a` has 5 elements" }
+      - { id: d, text: Evaluating `7 / 2` }
+      - { id: e, text: Converting an int to a double }
+    correctOptionIds: [a, b, c]
+    sections: [memory]
+
+  - id: c-address-of
+    type: short_answer
+    prompt: Which operator gives the address of a variable?
+    accepted: ["&", "address-of", "address of", "ampersand"]
+    caseSensitive: false
+    sections: [pointers-and-arrays]
+
+  - id: c-typedef
+    type: short_answer
+    prompt: Which keyword creates an alias for an existing type?
+    accepted: ["typedef"]
+    caseSensitive: false
+    sections: [functions-and-preprocessor]
+
+  - id: c-fgets
+    type: short_answer
+    prompt: Which standard function reads a line from input while limiting the number of characters stored?
+    accepted: ["fgets", "fgets()"]
+    caseSensitive: false
+    sections: [strings]
+
+  - id: c-include-stdio
+    type: fill_blank
+    prompt: "Complete the include that provides printf: #include <___.h>"
+    blanks: [["stdio"]]
+    sections: [functions-and-preprocessor]
+
+  - id: c-free-call
+    type: fill_blank
+    prompt: "Complete the cleanup: int *p = malloc(sizeof *p); /* use p */ ___(p);"
+    blanks: [["free"]]
+    sections: [memory]
+
+  - id: c-switch-case-break
+    type: fill_blank
+    prompt: 'Complete the switch: switch (n) { ___ 1: puts("one"); ___; default: puts("other"); }'
+    blanks: [["case"], ["break"]]
+    sections: [functions-and-preprocessor]
+
+  - id: c-string-compare
+    type: mcq_single
+    prompt: Which expression correctly tests whether the C strings `a` and `b` have equal contents?
+    options:
+      - { id: a, text: "a == b" }
+      - { id: b, text: "strcmp(a, b) == 0" }
+      - { id: c, text: "strcmp(a, b) == 1" }
+      - { id: d, text: "a.equals(b)" }
+    correctOptionIds: [b]
+    explanation: "`==` compares addresses, not contents. `strcmp` returns 0 when the strings are equal."
+    sections: [strings]
+
+  - id: c-array-indexes
+    type: mcq_single
+    prompt: For `int a[5];`, which indexes are valid?
+    options:
+      - { id: a, text: "1 to 5" }
+      - { id: b, text: "0 to 5" }
+      - { id: c, text: "0 to 4" }
+      - { id: d, text: "0 to 6" }
+    correctOptionIds: [c]
+    sections: [pointers-and-arrays]
+
+  - id: c-array-decay
+    type: mcq_single
+    prompt: What is actually passed to a function when you pass an array as an argument?
+    options:
+      - { id: a, text: A full copy of the array }
+      - { id: b, text: A pointer to the first element }
+      - { id: c, text: The length of the array }
+      - { id: d, text: A reference to the whole array object }
+    correctOptionIds: [b]
+    sections: [pointers-and-arrays]
+
+  - id: c-const-pointer
+    type: mcq_single
+    prompt: What does `const int *p` mean?
+    options:
+      - { id: a, text: p cannot be reassigned to point elsewhere. }
+      - { id: b, text: The int that p points to cannot be modified through p. }
+      - { id: c, text: p must be initialized to NULL. }
+      - { id: d, text: p points to a constant address. }
+    correctOptionIds: [b]
+    sections: [pointers-and-arrays]
+
+  - id: c-macro-square
+    type: mcq_single
+    prompt: Given `#define SQUARE(x) x*x`, what is the value of `SQUARE(1+2)`?
+    options:
+      - { id: a, text: "9" }
+      - { id: b, text: "5" }
+      - { id: c, text: "3" }
+      - { id: d, text: "6" }
+    correctOptionIds: [b]
+    explanation: The macro expands to 1+2*1+2, which is 1 + 2 + 2 = 5.
+    sections: [functions-and-preprocessor]
+
+  - id: c-static-local
+    type: mcq_single
+    prompt: What is special about a `static` local variable?
+    options:
+      - { id: a, text: It is visible in every function. }
+      - { id: b, text: It keeps its value between calls to the function. }
+      - { id: c, text: It is stored on the heap and must be freed. }
+      - { id: d, text: It cannot be modified. }
+    correctOptionIds: [b]
+    sections: [functions-and-preprocessor]
+
+  - id: c-chained-comparison
+    type: mcq_single
+    prompt: What is the value of `5 > 3 > 1` in C?
+    options:
+      - { id: a, text: "1 (true)" }
+      - { id: b, text: "0 (false)" }
+      - { id: c, text: It does not compile. }
+      - { id: d, text: Undefined behavior }
+    correctOptionIds: [b]
+    explanation: It parses as (5 > 3) > 1, which is 1 > 1, which is 0.
+    sections: [types-and-operators]
+
+  - id: c-string-definitions
+    type: mcq_multi
+    prompt: Which of these define a C string containing the text "hi"?
+    options:
+      - { id: a, text: 'char s[] = "hi";' }
+      - { id: b, text: 'char *s = "hi";' }
+      - { id: c, text: "char s[3] = {'h', 'i', '\\0'};" }
+      - { id: d, text: 'string s = "hi";' }
+      - { id: e, text: 'char s = "hi";' }
+    correctOptionIds: [a, b, c]
+    explanation: C has no built-in `string` type, and `char s = "hi"` assigns a pointer to a single char.
+    sections: [strings]
+
+  - id: c-double-pointer
+    type: mcq_single
+    prompt: "Given `int x = 10; int *p = &x; int **pp = &p;`, what is the value of `**pp`?"
+    options:
+      - { id: a, text: "10" }
+      - { id: b, text: The address of x }
+      - { id: c, text: The address of p }
+      - { id: d, text: "0" }
+    correctOptionIds: [a]
+    sections: [pointers-and-arrays]
