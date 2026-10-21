@@ -1,0 +1,388 @@
+# DRAFT sample course (Python). Written by an AI assistant at the project owner's request to
+# provide starter content. It has NOT been checked by a person: there is deliberately no
+# `provenance` on any item, so every question loads as "needs review" and is not used in
+# practice until a student approves it. After you have verified a question, add
+#   provenance: { checkedBy: <your name>, checkedAt: YYYY-MM-DD }
+# to mark it as checked. Run `npm run samples:validate` after editing.
+
+format: 1
+
+course:
+  title: Python fundamentals
+  subject: Introductory programming
+  language: python
+
+sections:
+  - id: values-and-operators
+    title: Values, types, and operators
+    text: |
+      Python has built-in types such as int, float, str, bool and NoneType. The `/` operator
+      always produces a float, while `//` is floor division, which rounds toward negative
+      infinity: `7 // 2` is 3 and `-7 // 2` is -4.
+
+      The exponent operator `**` is right-associative, so `2 ** 3 ** 2` means `2 ** (3 ** 2)`.
+      Values that count as false in a condition are called falsy: 0, 0.0, the empty string,
+      empty collections and None. Non-empty strings (even "0") and non-empty lists are truthy.
+
+      The built-in `round` uses round-half-to-even, so `round(2.5)` is 2 and `round(3.5)` is 4.
+
+  - id: control-flow
+    title: Control flow
+    text: |
+      `for` loops iterate over any iterable, for example `for i in range(3)`. `range(start,
+      stop, step)` stops before `stop`. `break` leaves the nearest loop, `continue` skips to the
+      next iteration, and `pass` does nothing.
+
+      Exceptions are handled with `try`, `except` and `finally`. The `finally` block runs whether
+      or not an exception happened. `int("abc")` raises ValueError, `"5" + 3` raises TypeError,
+      and indexing past the end of a list raises IndexError.
+
+  - id: functions
+    title: Functions
+    text: |
+      Functions are defined with `def`. Default argument values are evaluated once, when the
+      function is defined, not on every call. A mutable default such as an empty list is
+      therefore shared between calls, which is a common source of bugs.
+
+      Names can refer to the same object. `is` tests whether two names refer to the same object,
+      while `==` tests whether the values are equal.
+
+  - id: collections
+    title: Lists, tuples, dictionaries, and sets
+    text: |
+      Lists are mutable and ordered. Tuples are immutable. Assigning `y = x` for a list copies
+      the reference, not the list, so changes made through `y` are visible through `x`.
+
+      Dictionary keys must be hashable (for example strings, numbers and tuples of those). The
+      `get` method returns a default when a key is missing. Sets keep unique items only, so
+      `{1, 2, 2, 3}` has three elements.
+
+      List comprehensions build lists compactly: `[x * x for x in range(4)]` is `[0, 1, 4, 9]`.
+      `sorted(items, reverse=True)` returns a new list in descending order.
+
+  - id: strings-and-files
+    title: Strings and files
+    text: |
+      Strings are immutable sequences. Slicing `s[1:4]` takes characters from index 1 up to but not
+      including index 4. `"ab" * 3` repeats the string. `"a,b,c".split(",")` returns a list of
+      the parts.
+
+      The `with` statement manages resources such as files: `with open("data.txt") as f:` closes
+      the file automatically when the block ends.
+
+questions:
+  - id: py-float-division
+    type: mcq_single
+    prompt: What is the type of the value of `3 / 2` in Python 3?
+    options:
+      - { id: a, text: int }
+      - { id: b, text: float }
+      - { id: c, text: double }
+      - { id: d, text: decimal }
+    correctOptionIds: [b]
+    explanation: The `/` operator always returns a float in Python 3 (here 1.5).
+    sections: [values-and-operators]
+
+  - id: py-floor-division
+    type: mcq_single
+    prompt: What does `7 // 2` evaluate to?
+    options:
+      - { id: a, text: "3" }
+      - { id: b, text: "4" }
+      - { id: c, text: "3.5" }
+      - { id: d, text: "3.0" }
+    correctOptionIds: [a]
+    explanation: Floor division of two ints gives an int, rounded down.
+    sections: [values-and-operators]
+
+  - id: py-negative-floor-division
+    type: mcq_single
+    prompt: What does `-7 // 2` evaluate to?
+    options:
+      - { id: a, text: "-3" }
+      - { id: b, text: "-4" }
+      - { id: c, text: "-3.5" }
+      - { id: d, text: "3" }
+    correctOptionIds: [b]
+    explanation: Floor division rounds toward negative infinity, so -3.5 becomes -4.
+    sections: [values-and-operators]
+
+  - id: py-exponent-associativity
+    type: mcq_single
+    prompt: What does `2 ** 3 ** 2` evaluate to?
+    options:
+      - { id: a, text: "64" }
+      - { id: b, text: "512" }
+      - { id: c, text: "36" }
+      - { id: d, text: "128" }
+    correctOptionIds: [b]
+    explanation: "`**` is right-associative: 3 ** 2 is 9, then 2 ** 9 is 512."
+    sections: [values-and-operators]
+
+  - id: py-immutable-type
+    type: mcq_single
+    prompt: Which of these built-in types is immutable?
+    options:
+      - { id: a, text: list }
+      - { id: b, text: dict }
+      - { id: c, text: tuple }
+      - { id: d, text: set }
+    correctOptionIds: [c]
+    explanation: Tuples cannot be changed after they are created.
+    sections: [collections]
+
+  - id: py-falsy-values
+    type: mcq_multi
+    prompt: Which of these values are falsy (treated as False in a condition)?
+    options:
+      - { id: a, text: "0" }
+      - { id: b, text: '""  (the empty string)' }
+      - { id: c, text: '"0"  (a string containing the character 0)' }
+      - { id: d, text: "[]" }
+      - { id: e, text: "[0]" }
+    correctOptionIds: [a, b, d]
+    explanation: Zero and empty collections are falsy. A non-empty string or list is truthy, even if its content looks false.
+    sections: [values-and-operators]
+
+  - id: py-shared-list-reference
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      x = [1, 2, 3]
+      y = x
+      y.append(4)
+      print(x)
+    accepted: ["[1, 2, 3, 4]"]
+    explanation: "`y = x` does not copy the list; both names refer to the same list."
+    sections: [collections]
+
+  - id: py-string-repeat
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      print("a" * 3 + "b")
+    accepted: ["aaab"]
+    sections: [strings-and-files]
+
+  - id: py-range-step
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      print(list(range(2, 10, 3)))
+    accepted: ["[2, 5, 8]"]
+    explanation: range stops before 10, stepping by 3 from 2 (the next value would be 11).
+    sections: [control-flow]
+
+  - id: py-string-slice
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      print("Hello"[1:4])
+    accepted: ["ell"]
+    explanation: The slice includes index 1 and excludes index 4.
+    sections: [strings-and-files]
+
+  - id: py-mutable-default
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      def f(items=[]):
+          items.append(1)
+          return items
+
+      print(f(), f())
+    accepted: ["[1, 1] [1, 1]"]
+    explanation: The default list is created once and shared, so both calls append to the same list, and both results are that one list.
+    sections: [functions]
+
+  - id: py-try-finally
+    type: output_prediction
+    prompt: What does this program print?
+    codeSnippet: |
+      try:
+          int("x")
+      except ValueError:
+          print("bad")
+      finally:
+          print("done")
+    accepted: ["bad\ndone"]
+    explanation: The ValueError is caught, then the finally block runs.
+    sections: [control-flow]
+
+  - id: py-break-keyword
+    type: mcq_single
+    prompt: Which keyword immediately leaves the nearest enclosing loop?
+    options:
+      - { id: a, text: break }
+      - { id: b, text: continue }
+      - { id: c, text: pass }
+      - { id: d, text: exit }
+    correctOptionIds: [a]
+    sections: [control-flow]
+
+  - id: py-len-function
+    type: short_answer
+    prompt: Which built-in function returns the number of items in a list?
+    accepted: ["len", "len()"]
+    caseSensitive: false
+    sections: [collections]
+
+  - id: py-def-keyword
+    type: short_answer
+    prompt: Which keyword starts the definition of a function?
+    accepted: ["def"]
+    caseSensitive: false
+    sections: [functions]
+
+  - id: py-identity-operator
+    type: short_answer
+    prompt: Which operator tests whether two names refer to the very same object (not just equal values)?
+    accepted: ["is"]
+    caseSensitive: false
+    sections: [functions]
+
+  - id: py-for-in
+    type: fill_blank
+    prompt: "Complete the loop header so it runs three times: for i ___ range(3):"
+    blanks: [["in"]]
+    sections: [control-flow]
+
+  - id: py-dict-get
+    type: fill_blank
+    prompt: "Complete the call so it returns 0 when the key 'b' is missing: d.___('b', 0)"
+    blanks: [["get"]]
+    sections: [collections]
+
+  - id: py-with-as
+    type: fill_blank
+    prompt: "Complete the file handling: ___ open('data.txt') ___ f:"
+    blanks: [["with"], ["as"]]
+    sections: [strings-and-files]
+
+  - id: py-list-comprehension
+    type: mcq_single
+    prompt: What does `[x * x for x in range(4)]` produce?
+    options:
+      - { id: a, text: "[0, 1, 4, 9]" }
+      - { id: b, text: "[1, 4, 9, 16]" }
+      - { id: c, text: "[0, 1, 2, 3]" }
+      - { id: d, text: "[0, 2, 4, 6]" }
+    correctOptionIds: [a]
+    sections: [collections]
+
+  - id: py-split
+    type: mcq_single
+    prompt: What does `"a,b,c".split(",")` return?
+    options:
+      - { id: a, text: '"abc"' }
+      - { id: b, text: "('a', 'b', 'c')" }
+      - { id: c, text: "['a', 'b', 'c']" }
+      - { id: d, text: "['a,b,c']" }
+    correctOptionIds: [c]
+    sections: [strings-and-files]
+
+  - id: py-dict-keys
+    type: mcq_single
+    prompt: Which requirement must a dictionary key meet?
+    options:
+      - { id: a, text: It must be a string. }
+      - { id: b, text: It must be hashable. }
+      - { id: c, text: It must be an integer. }
+      - { id: d, text: It must be mutable. }
+    correctOptionIds: [b]
+    explanation: Strings, numbers and tuples of those are hashable; lists are not.
+    sections: [collections]
+
+  - id: py-set-length
+    type: mcq_single
+    prompt: What is `len({1, 2, 2, 3})`?
+    options:
+      - { id: a, text: "2" }
+      - { id: b, text: "3" }
+      - { id: c, text: "4" }
+      - { id: d, text: It raises an error. }
+    correctOptionIds: [b]
+    explanation: A set stores each distinct value once.
+    sections: [collections]
+
+  - id: py-int-conversion-error
+    type: mcq_single
+    prompt: Which exception does `int("abc")` raise?
+    options:
+      - { id: a, text: TypeError }
+      - { id: b, text: ValueError }
+      - { id: c, text: SyntaxError }
+      - { id: d, text: KeyError }
+    correctOptionIds: [b]
+    sections: [control-flow]
+
+  - id: py-index-error
+    type: mcq_single
+    prompt: Which exception does `[1, 2, 3][5]` raise?
+    options:
+      - { id: a, text: KeyError }
+      - { id: b, text: ValueError }
+      - { id: c, text: IndexError }
+      - { id: d, text: None; it evaluates to None. }
+    correctOptionIds: [c]
+    sections: [control-flow]
+
+  - id: py-create-list
+    type: mcq_multi
+    prompt: Which expressions create a list?
+    options:
+      - { id: a, text: "[]" }
+      - { id: b, text: "list()" }
+      - { id: c, text: 'list("ab")' }
+      - { id: d, text: "{}" }
+      - { id: e, text: "(1, 2)" }
+    correctOptionIds: [a, b, c]
+    explanation: "`{}` creates an empty dict and `(1, 2)` is a tuple."
+    sections: [collections]
+
+  - id: py-nonetype
+    type: mcq_single
+    prompt: What does `print(type(None))` display?
+    options:
+      - { id: a, text: "<class 'NoneType'>" }
+      - { id: b, text: "<class 'None'>" }
+      - { id: c, text: "<class 'null'>" }
+      - { id: d, text: "None" }
+    correctOptionIds: [a]
+    sections: [values-and-operators]
+
+  - id: py-str-plus-int
+    type: mcq_single
+    prompt: What happens when `"5" + 3` is evaluated?
+    options:
+      - { id: a, text: It gives "53". }
+      - { id: b, text: It gives 8. }
+      - { id: c, text: It raises a TypeError. }
+      - { id: d, text: It raises a ValueError. }
+    correctOptionIds: [c]
+    explanation: Python does not implicitly convert between str and int when adding.
+    sections: [control-flow]
+
+  - id: py-round-half-even
+    type: mcq_single
+    prompt: What does `round(2.5)` return in Python 3?
+    options:
+      - { id: a, text: "2" }
+      - { id: b, text: "3" }
+      - { id: c, text: "2.5" }
+      - { id: d, text: It raises an error. }
+    correctOptionIds: [a]
+    explanation: Ties are rounded to the nearest even integer, so 2.5 becomes 2.
+    sections: [values-and-operators]
+
+  - id: py-sorted-reverse
+    type: mcq_single
+    prompt: What does `sorted([3, 1, 2], reverse=True)` return?
+    options:
+      - { id: a, text: "[1, 2, 3]" }
+      - { id: b, text: "[3, 2, 1]" }
+      - { id: c, text: "[3, 1, 2]" }
+      - { id: d, text: "None" }
+    correctOptionIds: [b]
+    explanation: "`sorted` returns a new list; it does not modify the original."
+    sections: [collections]
