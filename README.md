@@ -1,187 +1,67 @@
 # Quizzz
 
-A quiz app to revise for exams. The app is being rebuilt as a single Next.js app (see `PROJECT_BRIEF.md`); `backend/` and `frontend/` are legacy and will be removed.
+Quizzz helps students revise for exams. Import your own questions from a Word document (or write them), practise with server-graded sessions you can pause and resume, and optionally get AI help. Every question keeps its history: editing creates a new revision, and past attempts always point at the version you answered.
 
-## Local setup (no Python)
+It is a single [Next.js](https://nextjs.org) app (App Router, TypeScript) with PostgreSQL, Drizzle ORM and Better Auth. There is no Python, no separate API server, and no paid service in the standard setup. AI is optional and off by default.
+
+## Prerequisites
+
+- **Node.js 22.12 or newer** (LTS) and npm
+- **Docker** (easiest way to get PostgreSQL 16), or a local PostgreSQL 16+ you can create databases in
+
+## Quick start
 
 ```sh
-cp .env.example .env.local   # set BETTER_AUTH_SECRET (openssl rand -base64 32)
-docker compose up -d db      # PostgreSQL 16 on localhost:5432
+git clone <this repository> quizzz && cd quizzz
+cp .env.example .env.local        # then set BETTER_AUTH_SECRET (see below)
+docker compose up -d db           # PostgreSQL on localhost:5432 (creates quizzz and quizzz_test)
 npm ci
-npm run db:migrate           # applies versioned SQL migrations in ./drizzle
-npm run dev                  # http://localhost:3000, health: /api/health
+npm run db:migrate                # applies the versioned SQL migrations in ./drizzle
+npm run dev                       # http://localhost:3000
 ```
 
-Or run everything in containers: `docker compose up` (starts Postgres, runs migrations, then the dev server).
+Generate the secret with `openssl rand -base64 32` and paste it after `BETTER_AUTH_SECRET=` in `.env.local`. Open <http://localhost:3000>, create an account, and you are in. Health check: <http://localhost:3000/api/health>.
 
-The database user/password/name in compose are `quizzz`/`quizzz`/`quizzz`, matching `.env.example`.
-
-## Database
-
-- Drizzle ORM with the `postgres` (postgres.js) driver. Schema lives in `src/server/db/schema`.
-- Change the schema, then `npm run db:generate` to create a SQL migration in `drizzle/`, and `npm run db:migrate` to apply it. The app never alters the schema at startup.
-
-## Tests
+**Port 5432 already in use?** Start the database on another port and match `DATABASE_URL`/`TEST_DATABASE_URL`:
 
 ```sh
-npm run test:unit          # no database needed
-createdb quizzz_test       # or create it in your Postgres container
-TEST_DATABASE_URL=postgres://quizzz:quizzz@localhost:5432/quizzz_test npm run test:integration
+DB_PORT=5433 docker compose up -d db
+# .env.local: DATABASE_URL=postgres://quizzz:quizzz@localhost:5433/quizzz
 ```
 
-`npm test` runs both. Integration tests use a dedicated database (`TEST_DATABASE_URL`, never `DATABASE_URL`), and each test runs in a transaction that is rolled back.
+**Upgrading from the old version?** It used a container named `quizzz-db` and a volume `quizzz_db_data`. The new setup does not reuse them (your old data is untouched). If that old container is running and holding port 5432, stop it with `docker stop quizzz-db` or use `DB_PORT` as above.
 
-## Auth
+**No Docker?** Create the databases yourself (`createdb quizzz`, `createdb quizzz_test`) and point `DATABASE_URL` at them.
 
-Better Auth (email + password, database sessions, HTTP-only cookies) is mounted at `/api/auth/*`. No email verification is required locally. Passwords are never trimmed; only length (8-128) is validated.
+**Everything in containers:** `docker compose up` starts PostgreSQL, applies migrations, and runs the dev server on port 3000 (first start installs dependencies, so it takes a minute).
 
-```sh
-# sign up (cookie saved to /tmp/quizzz-jar), read the session, update the profile
-curl -c /tmp/quizzz-jar -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
-  -d '{"email":"a@b.co","password":"correct horse","name":"A"}' localhost:3000/api/auth/sign-up/email
-curl -b /tmp/quizzz-jar localhost:3000/api/me
-curl -b /tmp/quizzz-jar -X PATCH -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
-  -d '{"timezone":"America/Vancouver"}' localhost:3000/api/me
-```
+## Configuration
 
-Other endpoints: `/api/auth/sign-in/email`, `/api/auth/sign-out`, `/api/auth/get-session`, `/api/auth/change-password` (requires the current password).
+Copy `.env.example` to `.env.local`. Next.js, `npm run db:migrate`, `npm run samples:load` and `npm run test:integration` all read it; variables already set in your shell win. Nothing here is a secret by default, and **secrets are never exposed to the browser** (no `NEXT_PUBLIC_` variables are used).
 
-## Content API
+| Variable | Required | Meaning |
+| --- | --- | --- |
+| `DATABASE_URL` | yes | PostgreSQL connection string for the app. |
+| `BETTER_AUTH_SECRET` | yes | Signs sessions. At least 32 characters; keep it private. |
+| `BETTER_AUTH_URL` | yes | Public URL of the app, for example `http://localhost:3000`. |
+| `STORAGE_DIR` | yes | Private folder for uploaded documents (default `./storage`). Never web-served. |
+| `AI_PROVIDER` | no | `disabled` (default) or `gemini`. |
+| `GEMINI_API_KEY` | no | Server-only key for Gemini. Without it, `gemini` behaves as `disabled`. |
+| `GEMINI_MODEL` | no | Model id. Defaults to a free-tier model, see [docs/ai-model.md](docs/ai-model.md). |
+| `AI_REQUESTS_PER_HOUR` | no | Per-user cap on AI calls (default 30). |
+| `MAX_UPLOAD_BYTES` | no | Upload size limit (default 10 MB). |
+| `AUTH_RATE_LIMIT_MAX` | no | Sign-in/sign-up attempts per minute per client (default 10). |
+| `DB_POOL_MAX` | no | Database pool size (default 5). |
+| `SAMPLES_DIR` | no | Sample course folder (default `fixtures/sample-courses`). |
+| `TEST_DATABASE_URL` | for tests | Dedicated database for integration tests; never `DATABASE_URL`. |
 
-All routes need a session cookie and return `404` for other users' ids. Errors look like `{ "error": { "code", "message" } }`.
+### AI: disabled vs Gemini
 
-| Route | Methods |
-| --- | --- |
-| `/api/courses` | `GET`, `POST` |
-| `/api/courses/:courseId` | `GET`, `PATCH`, `DELETE` |
-| `/api/courses/:courseId/question-sets` | `GET`, `POST` |
-| `/api/question-sets/:setId` | `GET`, `PATCH` (rename), `DELETE` |
-| `/api/question-sets/:setId/questions` | `GET`, `POST` |
-| `/api/question-sets/:setId/questions/order` | `PUT` `{ questionIds }` |
-| `/api/questions/:questionId` | `GET`, `PATCH` (creates a new revision), `DELETE` |
-| `/api/questions/:questionId/revisions` | `GET` |
-| `/api/questions/:questionId/exclude`, `/restore`, `/shuffle-options` | `POST` |
+- **Disabled (default).** The AI panel says AI is off and everything else works, including import, editing and practice. AI routes answer `503 ai_unavailable`.
+- **Gemini.** Set `AI_PROVIDER=gemini` and `GEMINI_API_KEY` (a free-tier key from Google AI Studio is enough). Calls are made by the server only, are rate limited per user, and their output is only ever a *proposal*: generated questions are saved excluded and unreviewed until you approve them. If the free quota runs out, AI routes return `429 ai_quota_exceeded` and practice keeps working; the app never switches to a paid model by itself.
+- **Data use.** With the Gemini free tier, content you send (question text, the context of your question set) is processed by Google and, under Google's free-tier terms, may be used to improve their products. Do not enable AI for material you are not allowed to share. Disabled mode sends nothing anywhere.
 
-Editing never rewrites history: `PATCH` appends revision N+1, and attempts keep pointing at the revision they answered. Courses, sets and questions with attempts cannot be deleted (`409 has_history`); exclude a question instead. These owner endpoints include answer keys; the play endpoints (A9) will not.
-
-```sh
-curl -b /tmp/quizzz-jar -H 'Content-Type: application/json' -d '{"title":"CS 101","subject":"Intro","language":"python"}' localhost:3000/api/courses
-curl -b /tmp/quizzz-jar -H 'Content-Type: application/json' -d '{"title":"Week 1"}' localhost:3000/api/courses/<courseId>/question-sets
-curl -b /tmp/quizzz-jar -H 'Content-Type: application/json' -d '{"type":"mcq_single","prompt":"2+2?","options":[{"id":"a","text":"3"},{"id":"b","text":"4"}],"correctOptionIds":["b"],"approve":true}' localhost:3000/api/question-sets/<setId>/questions
-curl -b /tmp/quizzz-jar -X PATCH -H 'Content-Type: application/json' -d '{"prompt":"What is 2+2?"}' localhost:3000/api/questions/<questionId>
-curl -b /tmp/quizzz-jar localhost:3000/api/questions/<questionId>/revisions
-```
-
-## Uploads and extraction
-
-Uploaded documents are untrusted data. `src/server/extract/` validates size and magic bytes (not just the extension), inspects ZIP containers without inflating them (entry count, declared and actual expanded size, path traversal), and runs extractors under a timeout. Extractors register with `registerExtractor`; the DOCX extractor arrives in A7. Original files are kept by `src/server/storage/` under `STORAGE_DIR` (default `./storage`) with random keys, outside the web root and never served over HTTP. `MAX_UPLOAD_BYTES` raises or lowers the size cap.
-
-## DOCX import (extraction layer)
-
-`registerDefaultExtractors()` (`src/server/extract/defaults.ts`) registers the DOCX extractor; `runExtraction()` validates the upload (size, magic bytes, ZIP limits) and runs it under a timeout. The import API that uses it arrives in A8.
-
-- `src/server/extract/docx.ts` reads the OOXML directly (text, run-level bold including style-inherited bold, list levels, headings, images). It never fetches linked images, never runs macros, and rejects XML with a DTD or entities.
-- `src/server/import/mcq-detect.ts` turns blocks into a draft of multiple-choice questions. A correct answer is proposed only when exactly one option is fully bold and none is partly bold. Otherwise the question gets `answerStatus` `ambiguous`, `unresolved`, or `multi_proposed` plus a warning, and the owner must decide.
-- Fixtures live in `fixtures/docx/` and are generated by `npm run fixtures:docx` (original content, no copyrighted material).
-
-```sh
-npx vitest run src/server/extract src/server/import
-
-## Import API
-
-Upload a document, review the detected questions, then publish them into a question set. All routes need a session cookie and return `404` for other users' resources.
-
-| Route | Purpose |
-| --- | --- |
-| `GET /api/import/formats` | Supported formats and the upload size limit |
-| `POST /api/courses/:courseId/imports` | Multipart upload (`file` field) -> draft with items, warnings, source excerpts |
-| `GET /api/imports/:importId` | Read a draft (also shows failed imports and their error) |
-| `PATCH /api/imports/:importId/items/:itemId` | `{ decision: "accepted"\|"excluded"\|"pending", edit: {...} }` |
-| `POST /api/imports/:importId/publish` | `{ title }` (new set) or `{ questionSetId }`; safe to retry |
-
-Questions with no marked answer are never guessed. They publish with an `unresolved` answer key, `evidence_status=unresolved` and `status=excluded`, so they cannot be played or scheduled until the owner sets an answer (`PATCH /api/questions/:id` with `correctOptionIds`, then `POST /api/questions/:id/restore`). Unsupported types return `415` with `error.details.supportedFormats`.
-
-```sh
-curl -b /tmp/quizzz-jar localhost:3000/api/import/formats
-curl -b /tmp/quizzz-jar -F file=@fixtures/docx/<fixture>.docx localhost:3000/api/courses/<courseId>/imports
-curl -b /tmp/quizzz-jar localhost:3000/api/imports/<importId>
-curl -b /tmp/quizzz-jar -X PATCH -H 'Content-Type: application/json' -d '{"decision":"accepted"}' localhost:3000/api/imports/<importId>/items/<itemId>
-curl -b /tmp/quizzz-jar -X POST -H 'Content-Type: application/json' -d '{"title":"Week 1"}' localhost:3000/api/imports/<importId>/publish
-```
-
-## Play API (quiz sessions)
-
-The server grades; answer keys, explanations and correctness never reach the browser before submission.
-
-| Route | Purpose |
-| --- | --- |
-| `POST /api/sessions` `{ questionSetId, mode: "quiz" }` | Resume the live session for the set (200) or create one (201). Excluded questions are skipped; unresolved ones are practiced. |
-| `GET /api/sessions/:id` | State, elapsed time, progress, the current question (no key or explanation), and results for answered items. |
-| `POST /api/sessions/:id/answers` `{ questionId, response, idempotencyKey }` | Grade and store one answer. The same key returns the stored result (`replayed: true`) with no second attempt. 409 when the session is completed or paused. |
-| `PATCH /api/sessions/:id` `{ action: "pause" \| "resume" }` | Elapsed time only counts while active. |
-| `POST /api/sessions/:id/complete` | End the session (also with unanswered items); returns a summary. |
-| `GET /api/question-sets/:id/history` | Completed sessions with `answered` / `correct` / `totalItems`, from one aggregate query. |
-
-A session pins the revision of every question when it starts, so editing a question mid-session does not change what that session shows or how it grades; the edit applies to the next session. Questions removed from the set mid-session appear as `removed` and are skipped.
-
-```sh
-# after signing up (see Auth) and creating a course, set, and question (see Content API):
-curl -b jar -H 'Content-Type: application/json' -d '{"questionSetId":"<setId>"}' localhost:3000/api/sessions
-curl -b jar localhost:3000/api/sessions/<sessionId>
-curl -b jar -H 'Content-Type: application/json' \
-  -d '{"questionId":"<questionId>","response":{"kind":"options","selectedOptionIds":["b"]},"idempotencyKey":"try-0001"}' \
-  localhost:3000/api/sessions/<sessionId>/answers      # run it twice: second reply has "replayed": true
-curl -b jar -X PATCH -H 'Content-Type: application/json' -d '{"action":"pause"}' localhost:3000/api/sessions/<sessionId>
-curl -b jar -X POST localhost:3000/api/sessions/<sessionId>/complete
-curl -b jar localhost:3000/api/question-sets/<setId>/history
-```
-
-Response shapes: `{"kind":"options","selectedOptionIds":[...]}`, `{"kind":"text","text":"..."}`, `{"kind":"blanks","values":[...]}`.
-
-## AI (optional)
-
-AI is off by default (`AI_PROVIDER=disabled`); practice never needs it. To enable Gemini, set `AI_PROVIDER=gemini` and a server-only `GEMINI_API_KEY` (optionally `GEMINI_MODEL`, see `docs/ai-model.md`). Keys never reach the browser: `npm run build && npm run check:bundle` fails if a secret appears in client output.
-
-| Route | Purpose |
-| --- | --- |
-| `POST /api/ai/chat` | `{ message, history?, courseId?, questionSetId? }` -> short reply |
-| `POST /api/ai/question-sets/:id/generate-questions` | `{ count?, topic? }` -> validated proposals, nothing saved |
-| `POST /api/ai/question-sets/:id/save-proposals` | `{ proposals }` -> stored as excluded, `ai_proposed`, `generated_unreviewed` |
-| `POST /api/ai/question-sets/:id/suggest-title` | -> `{ title }` |
-
-AI routes return `503 ai_unavailable` when AI is off. Saved proposals stay out of practice until you approve them (`PATCH /api/questions/:id` with `{"approve": true}`) and restore them (`POST /api/questions/:id/restore`); restore returns `409 needs_review` until then.
-
-```sh
-curl -b /tmp/quizzz-jar -X POST -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
-  -d '{"message":"What is a list comprehension?"}' localhost:3000/api/ai/chat
-curl -b /tmp/quizzz-jar -X POST -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
-  -d '{"count":3,"topic":"loops"}' localhost:3000/api/ai/question-sets/<setId>/generate-questions
-```
-
-## Sample courses
-
-Ready-made courses (one per language) that a student can copy into their account. The project owner supplies the checked content; see `fixtures/sample-courses/README.md` for the format, the template, and how to add one. With none present, the app shows none.
-
-| Route | Purpose |
-| --- | --- |
-| `GET /api/samples` | Available samples (`language`, `title`, counts); empty when there are none |
-| `POST /api/samples/:language/load` | Copy a sample into your account: `201` the first time, `200` with the same copy afterwards |
-
-```sh
-npm run samples:validate                                   # also runs in CI
-npm run samples:load -- python --email you@example.com     # copy into an account from the CLI
-curl -b /tmp/quizzz-jar localhost:3000/api/samples
-curl -b /tmp/quizzz-jar -X POST -H 'Origin: http://localhost:3000' localhost:3000/api/samples/python/load
-```
 ## Using the app
-
-```sh
-docker compose up -d db
-cp .env.example .env.local        # set BETTER_AUTH_SECRET; AI_PROVIDER=disabled works fine
-npm ci && npm run db:migrate && npm run dev
-```
-
-Open <http://localhost:3000>, create an account, then:
 
 | Page | What it does |
 | --- | --- |
@@ -197,3 +77,34 @@ Open <http://localhost:3000>, create an account, then:
 With `AI_PROVIDER=disabled` the AI panel says so and everything else works. The play screen never receives answer keys before you submit an answer.
 
 Component and state tests: `npx vitest run src/components`. The main flow (sign up, import, fix, publish, practise, finish) is also covered at handler level in `src/app/journey.integration.test.ts`.
+
+## Scripts
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` / `build` / `start` | Run, build, and serve the app |
+| `npm run db:migrate` | Apply SQL migrations (idempotent; the app never changes the schema at startup) |
+| `npm run db:generate` | Create a migration after editing `src/server/db/schema` |
+| `npm run db:studio` | Browse the database |
+| `npm run typecheck`, `npm run lint`, `npm run format:check` | Static checks |
+| `npm run test:unit` | Unit and component tests, no database needed |
+| `npm run test:integration` | Integration tests against `TEST_DATABASE_URL` (each test is rolled back) |
+| `npm test` | Both |
+| `npm run samples:validate` | Validate sample course fixtures (also runs in CI) |
+| `npm run samples:load -- <language> --email <email>` | Copy a sample course into an account |
+| `npm run check:bundle` | After `npm run build`, fail if a secret appears in browser-visible output |
+
+## Sample courses
+
+Ready-made courses (one per language) a student can copy into their account. The content is written and checked by the project owner; see [fixtures/sample-courses/README.md](fixtures/sample-courses/README.md) for the format and how to add one. With none present, the app shows none.
+
+## Project layout
+
+- `src/app/**` pages and Route Handlers (kept thin)
+- `src/server/**` server-only services: grading, sessions, import, extraction, AI adapter, storage
+- `src/lib/**` code shared by browser and server (Zod schemas, pure helpers)
+- `src/server/db/schema` and `drizzle/` schema and SQL migrations
+- `fixtures/` sample documents and sample courses, `docs/` reference docs
+- [docs/api.md](docs/api.md) the HTTP API with curl examples; [AGENTS.md](AGENTS.md) engineering rules; [PROJECT_BRIEF.md](PROJECT_BRIEF.md) product scope
+
+Before opening a pull request run `npm run typecheck && npm run lint && npm test`.

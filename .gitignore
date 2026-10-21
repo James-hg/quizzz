@@ -20,13 +20,5 @@ test-results/
 .idea/
 .vscode/
 
-# Legacy backend (remove with the cleanup issue)
-backend/.venv/
-__pycache__/
-*.py[cod]
-.quizzz.env
-.venv/
-frontend/dist/
-
 # curl cookie jars
 jar

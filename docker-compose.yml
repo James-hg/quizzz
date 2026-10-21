@@ -1,17 +1,18 @@
 services:
   db:
     image: postgres:16
-    container_name: quizzz-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: quizzz
       POSTGRES_USER: quizzz
       POSTGRES_PASSWORD: quizzz
     ports:
-      - "5432:5432"
+      # Set DB_PORT if 5432 is already used by a local Postgres.
+      - "${DB_PORT:-5432}:5432"
     volumes:
-      # New volume name on purpose: never reuse the legacy `db_data` volume by accident.
       - quizzz_pg_data:/var/lib/postgresql/data
+      # Creates the quizzz_test database on first start.
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U quizzz -d quizzz"]
       interval: 5s
@@ -20,15 +21,15 @@ services:
 
   app:
     image: node:22-alpine
-    container_name: quizzz-app
     working_dir: /app
     command: sh -c "npm ci && npm run db:migrate && npm run dev -- --hostname 0.0.0.0"
     ports:
-      - "3000:3000"
+      # Set APP_PORT if port 3000 is taken.
+      - "${APP_PORT:-3000}:3000"
     environment:
       DATABASE_URL: postgres://quizzz:quizzz@db:5432/quizzz
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-dev-only-secret-change-me-dev-only-secret}
-      BETTER_AUTH_URL: http://localhost:3000
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:${APP_PORT:-3000}}
       AI_PROVIDER: ${AI_PROVIDER:-disabled}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-}

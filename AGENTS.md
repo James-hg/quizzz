@@ -1,6 +1,6 @@
 # Agent guide for Quizzz
 
-This repo is being rebuilt from a FastAPI + Vite app into a single Next.js app. Read `PROJECT_BRIEF.md` for product scope. GitHub issues (milestones "Phase A" to "Phase E") describe the work. Work one issue per branch/PR and follow its acceptance criteria.
+This repo is a single Next.js app (it replaced an earlier two-service version, which lives only in git history). Read `PROJECT_BRIEF.md` for product scope. GitHub issues (milestones "Phase A" to "Phase E") describe the work. Work one issue per branch/PR and follow its acceptance criteria.
 
 ## Stack
 - Next.js App Router + TypeScript (strict) at the repo root. Route Handlers run on the Node.js runtime (`export const runtime = "nodejs"`).
@@ -18,7 +18,7 @@ This repo is being rebuilt from a FastAPI + Vite app into a single Next.js app. 
 - `src/server/db/schema/**` and `drizzle/`: schema and migrations.
 - `src/lib/**`: code shared between client and server (Zod schemas, pure helpers).
 - `fixtures/`: sample documents and sample-course content.
-- `backend/` and `frontend/` are legacy. Port what's useful, then delete them (see the cleanup issue). Don't add features to them.
+- `docs/`: reference docs (`api.md`, `ai-model.md`).
 
 ## Non-negotiable rules
 - Secrets stay server-side. Never use `NEXT_PUBLIC_` for keys. Model calls go only through authenticated server endpoints.
