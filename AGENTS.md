@@ -31,6 +31,11 @@ This repo is a single Next.js app (it replaced an earlier two-service version, w
 - Store timestamps as `timestamptz` in UTC. Use the user's timezone for "today".
 - Don't ship placeholders, mock responses, or static screens in production code paths.
 
+## Branching
+- `dev` is the default and working branch. Branch from the latest `dev` (`git switch -c <issue-branch> origin/dev`), and open every PR with base `dev`.
+- Never open a PR into `main` and never push to it. The owner merges `dev` into `main` after each phase.
+- Before opening a PR, merge the latest `origin/dev` into your branch and re-run the checks below.
+
 ## Commits and PRs
 Do not add Claude/AI attribution (no `Co-Authored-By` trailer, no "Generated with Claude Code" line) to commits or PR descriptions.
 
