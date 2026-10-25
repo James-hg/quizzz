@@ -3,6 +3,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { assertOwnsQuestionSet, assertOwnsSession } from "@/server/auth/ownership";
 import type { Database } from "@/server/db";
 import { attempts, studySessions } from "@/server/db/schema";
+import { playabilityForSet } from "@/server/content/playability";
 import { listPlayableItems } from "@/server/content/questions";
 import { conflict, notFound } from "@/server/http/errors";
 import { buildSessionView, elapsedSecondsAt, type SessionRow } from "./view";
@@ -43,9 +44,12 @@ export async function startOrResumeSession(
 
   const items = await listPlayableItems(db, setId);
   if (items.length === 0) {
+    // The counts let the client explain why, instead of guessing.
+    const counts = await playabilityForSet(db, setId);
     throw conflict(
       "This question set has no questions that can be practiced.",
       "no_playable_questions",
+      { ...counts },
     );
   }
 

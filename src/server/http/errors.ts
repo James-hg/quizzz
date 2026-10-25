@@ -19,7 +19,8 @@ export const unauthorized = (message = "Authentication required") =>
 export const notFound = (message = "Not found") => new ApiError(404, "not_found", message);
 export const badRequest = (message: string, code = "bad_request") =>
   new ApiError(400, code, message);
-export const conflict = (message: string, code = "conflict") => new ApiError(409, code, message);
+export const conflict = (message: string, code = "conflict", details?: Record<string, unknown>) =>
+  new ApiError(409, code, message, details);
 
 export function errorResponse(error: unknown): NextResponse {
   if (error instanceof ApiError) {
