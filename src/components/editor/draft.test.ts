@@ -101,6 +101,27 @@ describe("draft mapping", () => {
     expect(validateDraft(draft).ok).toBe(true);
   });
 
+  it("starts the review tick unticked for questions that did not come from the owner", () => {
+    const base = {
+      id: "q",
+      questionSetId: "s",
+      position: 0,
+      status: "active" as const,
+      revisionId: "r",
+      revisionNumber: 1,
+      type: "short_answer" as const,
+      prompt: "Name it",
+      codeSnippet: null,
+      options: [],
+      answerKey: { kind: "text" as const, accepted: ["tuple"], caseSensitive: false },
+      explanation: null,
+      evidenceStatus: "human_reviewed",
+    };
+    expect(draftFromQuestion({ ...base, origin: "original" }).approve).toBe(true);
+    expect(draftFromQuestion({ ...base, origin: "sample" }).approve).toBe(false);
+    expect(draftFromQuestion({ ...base, origin: "ai_proposed" }).approve).toBe(false);
+  });
+
   it("starts an unresolved question with no correct option selected", () => {
     const draft = draftFromQuestion({
       id: "q",

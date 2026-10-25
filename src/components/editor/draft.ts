@@ -57,7 +57,8 @@ export function draftFromQuestion(q: OwnerQuestionView): QuestionDraft {
     codeSnippet: q.codeSnippet ?? "",
     explanation: q.explanation ?? "",
     options: q.options.length > 0 ? q.options : base.options,
-    approve: q.evidenceStatus === "human_reviewed",
+    // Your own questions count as reviewed. Others start unticked, so approving is a choice.
+    approve: q.origin === "original",
   };
   const key = q.answerKey;
   if (key.kind === "options") draft.correctOptionIds = key.correctOptionIds;

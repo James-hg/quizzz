@@ -89,4 +89,31 @@ describe("QuestionForm validation", () => {
     await user.type(screen.getByLabelText("Question"), "Still here");
     expect(screen.getByLabelText("Question")).toHaveValue("Still here");
   });
+
+  it("shows no review tick for questions the owner wrote", async () => {
+    setup({ showApprove: false });
+    expect(screen.queryByLabelText(/I have reviewed this question/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/did not come from you/)).not.toBeInTheDocument();
+  });
+
+  it("asks for an explicit review tick on AI and sample questions, and sends it", async () => {
+    const { onSubmit, user } = setup({
+      initial: {
+        ...emptyDraft(),
+        prompt: "Pick b",
+        approve: false,
+        options: [
+          { id: "o1", text: "A" },
+          { id: "o2", text: "B" },
+        ],
+        correctOptionIds: ["o2"],
+      },
+    });
+    const tick = screen.getByLabelText("I have reviewed this question and its answer");
+    expect(tick).not.toBeChecked();
+    expect(screen.getByText(/stays out of practice until you tick this/)).toBeInTheDocument();
+    await user.click(tick);
+    await user.click(screen.getByRole("button", { name: "Save question" }));
+    expect(onSubmit.mock.calls[0]![0]).toMatchObject({ approve: true });
+  });
 });

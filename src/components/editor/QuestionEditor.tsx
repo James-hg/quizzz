@@ -12,8 +12,8 @@ import { TYPE_LABELS, draftFromQuestion, emptyDraft } from "./draft";
 import { QuestionForm } from "./QuestionForm";
 
 const EVIDENCE_LABEL: Record<string, { label: string; tone: string }> = {
-  human_reviewed: { label: "Checked by you", tone: "badge-ok" },
-  unresolved: { label: "Not checked", tone: "badge-warn" },
+  human_reviewed: { label: "Reviewed", tone: "badge-ok" },
+  unresolved: { label: "Answer missing", tone: "badge-warn" },
   generated_unreviewed: { label: "AI-proposed, not reviewed", tone: "badge-warn" },
   needs_review: { label: "Needs review", tone: "badge-bad" },
   rejected: { label: "Rejected", tone: "badge-bad" },
@@ -241,6 +241,7 @@ export function QuestionEditor({ questionSetId, questions, filter = "all" }: Pro
                     <QuestionForm
                       initial={draftFromQuestion(q)}
                       submitLabel="Save as new revision"
+                      showApprove={q.origin !== "original"}
                       busy={busy}
                       serverError={formError}
                       onSubmit={(input) => save(q.id, input)}
@@ -339,6 +340,7 @@ export function QuestionEditor({ questionSetId, questions, filter = "all" }: Pro
           <QuestionForm
             initial={emptyDraft()}
             submitLabel="Add question"
+            showApprove={false}
             busy={busyId === "new"}
             serverError={formError}
             onSubmit={(input) => save(null, input)}
