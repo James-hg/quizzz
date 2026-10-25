@@ -67,7 +67,7 @@ export default async function EditSetPage({
         />
       </div>
 
-      <PracticeBlockedNotice questionSetId={set.id} counts={counts} />
+      <PracticeBlockedNotice questionSetId={set.id} counts={counts} inEditor />
 
       <QuestionEditor questionSetId={set.id} questions={initial} filter={filter} />
 

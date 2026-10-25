@@ -36,6 +36,18 @@ describe("PracticeBlockedNotice", () => {
     );
   });
 
+  it("omits the link on the editor page itself", () => {
+    render(
+      <PracticeBlockedNotice
+        questionSetId="s"
+        counts={counts({ total: 4, needsReview: 4 })}
+        inEditor
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("All 4 questions need review");
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
   it("invites adding questions to an empty set", () => {
     render(<PracticeBlockedNotice questionSetId="s" counts={counts({})} />);
     expect(screen.getByText(/no questions yet/i)).toBeInTheDocument();

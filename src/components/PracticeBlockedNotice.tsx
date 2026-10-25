@@ -7,16 +7,22 @@ import {
 } from "@/lib/playability";
 import { Alert } from "./ui/Alert";
 
-type Props = { questionSetId: string; counts: PlayabilityCounts };
+type Props = {
+  questionSetId: string;
+  counts: PlayabilityCounts;
+  /** True on the editor page itself, where a link back to it would be pointless. */
+  inEditor?: boolean;
+};
 
 /** Says why nothing can be practised yet, from server counts, and links to the fix. */
-export function PracticeBlockedNotice({ questionSetId, counts }: Props) {
+export function PracticeBlockedNotice({ questionSetId, counts, inEditor }: Props) {
   const message = explainNotPlayable(counts);
   if (!message) return null;
   return (
     <Alert tone="warning">
-      {message}{" "}
-      {counts.total > 0 ? (
+      {message}
+      {inEditor ? null : " "}
+      {inEditor ? null : counts.total > 0 ? (
         <Link href={editorHref(questionSetId, filterToFix(counts))}>Review them in the editor</Link>
       ) : (
         <Link href={editorHref(questionSetId, "all")}>Add questions in the editor</Link>
