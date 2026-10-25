@@ -112,9 +112,9 @@ describe("starting and resuming", () => {
     expect(first.body.session.progress).toEqual({ total: 2, answered: 0, removed: 0 });
   });
 
-  it("practices unresolved questions but skips excluded and rejected ones", async () => {
+  it("practices owner-written questions without any approval, but skips excluded ones", async () => {
     const { set, q1, q2 } = await makeSet({ approve: false });
-    expect(q1.evidenceStatus).toBe("unresolved");
+    expect(q1.evidenceStatus).toBe("human_reviewed");
     await setQuestionStatus(db, alice.id, q2.id, "excluded");
     const res = await start(set.id);
     expect(res.status).toBe(201);
