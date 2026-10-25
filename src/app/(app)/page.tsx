@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CreateCourseForm } from "@/components/CourseForms";
+import { SampleCourses } from "@/components/SampleCourses";
 import { formatDate, LANGUAGE_LABELS } from "@/lib/labels";
 import { requirePageUser } from "@/server/auth/page";
 import { listCourses } from "@/server/content/courses";
 import { listLiveSessions, listRecentQuestionSets } from "@/server/content/overview";
 import { getDb } from "@/server/db";
+import { listLoadedSamples } from "@/server/samples/loader";
+import { listAvailableSamples } from "@/server/samples/service";
 
 export const metadata: Metadata = { title: "Home · Quizzz" };
 export const dynamic = "force-dynamic";
@@ -13,10 +16,12 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const user = await requirePageUser();
   const db = getDb();
-  const [courses, live, recent] = await Promise.all([
+  const [courses, live, recent, samples, loadedSamples] = await Promise.all([
     listCourses(db, user.id),
     listLiveSessions(db, user.id),
     listRecentQuestionSets(db, user.id),
+    listAvailableSamples(),
+    listLoadedSamples(db, user.id),
   ]);
 
   return (
@@ -89,6 +94,8 @@ export default async function HomePage() {
           </ul>
         </section>
       ) : null}
+
+      <SampleCourses samples={samples} loaded={loadedSamples} />
 
       <CreateCourseForm />
     </div>

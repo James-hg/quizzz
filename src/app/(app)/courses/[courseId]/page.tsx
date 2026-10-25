@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CreateSetForm, EditCourseForm } from "@/components/CourseForms";
+import { NeedsReviewNote, PracticeBlockedNotice } from "@/components/PracticeBlockedNotice";
 import { StartPracticeButton } from "@/components/StartPracticeButton";
 import { formatDate, LANGUAGE_LABELS } from "@/lib/labels";
 import { idParam, orNotFound, requirePageUser } from "@/server/auth/page";
@@ -59,24 +60,45 @@ export default async function CoursePage({ params }: { params: Promise<{ courseI
           </p>
         ) : (
           <ul className="list">
-            {sets.map((s) => (
-              <li key={s.id} className="row row-between">
-                <span>
-                  <strong>{s.title}</strong>
-                  <br />
-                  <span className="small muted">
-                    {s.questionCount} {s.questionCount === 1 ? "question" : "questions"}
-                    {s.playableCount !== s.questionCount
-                      ? ` · ${s.questionCount - s.playableCount} excluded`
-                      : ""}
-                  </span>
-                </span>
-                <span className="row">
-                  <Link href={`/question-sets/${s.id}/edit`}>Edit</Link>
-                  <StartPracticeButton questionSetId={s.id} disabled={s.playableCount === 0} />
-                </span>
-              </li>
-            ))}
+            {sets.map((s) => {
+              const counts = {
+                total: s.questionCount,
+                playable: s.playableCount,
+                needsReview: s.needsReviewCount,
+                noAnswer: s.noAnswerCount,
+                excluded: s.excludedCount,
+              };
+              const hidden = s.questionCount - s.playableCount;
+              return (
+                <li key={s.id} className="stack-sm">
+                  <div className="row row-between">
+                    <span>
+                      <strong>{s.title}</strong>
+                      {s.origin === "sample" ? (
+                        <span className="badge badge-warn">Sample</span>
+                      ) : null}
+                      <br />
+                      <span className="small muted">
+                        {s.questionCount} {s.questionCount === 1 ? "question" : "questions"}
+                        {hidden > 0 ? ` · ${s.playableCount} ready to practise` : ""}
+                      </span>
+                    </span>
+                    <span className="row">
+                      <Link href={`/question-sets/${s.id}/edit`}>Edit</Link>
+                      <StartPracticeButton questionSetId={s.id} disabled={s.playableCount === 0} />
+                    </span>
+                  </div>
+                  <PracticeBlockedNotice questionSetId={s.id} counts={counts} />
+                  <NeedsReviewNote questionSetId={s.id} counts={counts} />
+                  {s.origin === "sample" && s.needsReviewCount > 0 ? (
+                    <p className="small muted">
+                      This sample content is a draft and has not been checked. Review each question
+                      and tick &ldquo;approve&rdquo; when you are happy with it.
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         )}
         <hr />

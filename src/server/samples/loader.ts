@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { contentToRevision } from "@/lib/schemas";
 import type { Database } from "@/server/db";
 import { addRevision } from "@/server/db/repositories/questions";
@@ -11,6 +11,7 @@ import {
   sourceDocuments,
   sourceSegments,
 } from "@/server/db/schema";
+import { playabilityForSet } from "@/server/content/playability";
 import { sha256 } from "@/server/import/sources";
 import type { StorageAdapter } from "@/server/storage/types";
 import type { SampleEntry } from "./directory";
@@ -26,6 +27,31 @@ export type LoadResult = {
 };
 
 const sampleFilename = (language: string) => `${language}-sample-course.yaml`;
+
+/** Which sample languages this user has already copied, and where the copy lives. */
+export async function listLoadedSamples(
+  db: Database,
+  userId: string,
+): Promise<Record<string, { courseId: string; questionSetId: string }>> {
+  const rows = await db
+    .select({
+      filename: sourceDocuments.filename,
+      courseId: courses.id,
+      questionSetId: questionSets.id,
+    })
+    .from(sourceDocuments)
+    .innerJoin(courses, eq(courses.id, sourceDocuments.courseId))
+    .innerJoin(questionSets, eq(questionSets.sourceDocumentId, sourceDocuments.id))
+    .where(and(eq(courses.ownerId, userId), eq(sourceDocuments.mimeType, SAMPLE_MIME)))
+    .orderBy(asc(courses.createdAt));
+  const loaded: Record<string, { courseId: string; questionSetId: string }> = {};
+  for (const row of rows) {
+    const language = row.filename.replace(/-sample-course\.yaml$/, "");
+    // The oldest copy is the one "Open" goes to, matching the loader's idempotent behavior.
+    loaded[language] ??= { courseId: row.courseId, questionSetId: row.questionSetId };
+  }
+  return loaded;
+}
 
 async function findExisting(db: Database, userId: string, language: string) {
   const [row] = await db
@@ -68,7 +94,7 @@ export async function loadSample(
       questionSetId: existing.questionSetId,
       alreadyLoaded: true,
       questionCount: existing.questionCount,
-      needsReviewCount: 0,
+      needsReviewCount: (await playabilityForSet(db, existing.questionSetId)).needsReview,
     };
   }
 
@@ -86,7 +112,7 @@ export async function loadSample(
           questionSetId: raced.questionSetId,
           alreadyLoaded: true,
           questionCount: raced.questionCount,
-          needsReviewCount: 0,
+          needsReviewCount: (await playabilityForSet(database, raced.questionSetId)).needsReview,
         };
       }
 

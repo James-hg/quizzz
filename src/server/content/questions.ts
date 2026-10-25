@@ -15,6 +15,7 @@ import { addRevision, parseRevisionJson } from "@/server/db/repositories/questio
 import { attempts, questionRevisions, questionSourceLinks, questions } from "@/server/db/schema";
 import { badRequest, conflict, notFound } from "@/server/http/errors";
 import { hasHistoryError } from "./history";
+import { PLAY_BLOCKING_EVIDENCE } from "@/lib/playability";
 
 type QuestionRow = typeof questions.$inferSelect;
 type RevisionRow = typeof questionRevisions.$inferSelect;
@@ -262,8 +263,8 @@ export async function shuffleOptions(
 /**
  * Questions a new session may draw from, with the revision to pin. Excluded questions are
  * skipped, and so are revisions known to be bad (rejected or needing review) or AI-generated
- * and not yet approved. Unresolved
- * questions are practiceable.
+ * and not yet approved (see `src/lib/playability.ts`, which defines this once for the server
+ * and the browser).
  */
 export async function listPlayableItems(db: Database, setId: string) {
   const rows = await db
@@ -274,11 +275,7 @@ export async function listPlayableItems(db: Database, setId: string) {
       and(
         eq(questions.questionSetId, setId),
         eq(questions.status, "active"),
-        notInArray(questionRevisions.evidenceStatus, [
-          "rejected",
-          "needs_review",
-          "generated_unreviewed",
-        ]),
+        notInArray(questionRevisions.evidenceStatus, [...PLAY_BLOCKING_EVIDENCE]),
       ),
     )
     .orderBy(asc(questions.position));

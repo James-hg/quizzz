@@ -88,7 +88,7 @@ The server grades; answer keys, explanations and correctness never reach the bro
 
 | Route | Purpose |
 | --- | --- |
-| `POST /api/sessions` `{ questionSetId, mode: "quiz" }` | Resume the live session for the set (200) or create one (201). Excluded questions are skipped; unresolved ones are practiced. |
+| `POST /api/sessions` `{ questionSetId, mode: "quiz" }` | Resume the live session for the set (200) or create one (201). Excluded questions and questions that need review (sample, AI-proposed) are skipped. When nothing can be practised: `409 no_playable_questions` with `error.details` `{ total, playable, needsReview, noAnswer, excluded }`, so a client can say why. |
 | `GET /api/sessions/:id` | State, elapsed time, progress, the current question (no key or explanation), and results for answered items. |
 | `POST /api/sessions/:id/answers` `{ questionId, response, idempotencyKey }` | Grade and store one answer. The same key returns the stored result (`replayed: true`) with no second attempt. 409 when the session is completed or paused. |
 | `PATCH /api/sessions/:id` `{ action: "pause" \| "resume" }` | Elapsed time only counts while active. |
