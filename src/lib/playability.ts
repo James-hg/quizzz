@@ -120,3 +120,18 @@ export function filterToFix(counts: PlayabilityCounts): QuestionFilter {
 export function editorHref(questionSetId: string, filter: QuestionFilter): string {
   return `/question-sets/${questionSetId}/edit${filter === "all" ? "" : `?filter=${filter}`}`;
 }
+
+/** Reads the counts the server attaches to a `no_playable_questions` error, or null. */
+export function countsFromDetails(details: unknown): PlayabilityCounts | null {
+  if (typeof details !== "object" || details === null) return null;
+  const d = details as Record<string, unknown>;
+  const keys = ["total", "playable", "needsReview", "noAnswer", "excluded"] as const;
+  if (!keys.every((k) => typeof d[k] === "number" && Number.isFinite(d[k]))) return null;
+  return {
+    total: d.total as number,
+    playable: d.playable as number,
+    needsReview: d.needsReview as number,
+    noAnswer: d.noAnswer as number,
+    excluded: d.excluded as number,
+  };
+}
