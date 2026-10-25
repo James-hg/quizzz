@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM script without types
-import { scan } from "./check-bundle.mjs";
+import { browserRoots, countFiles, emptyRequiredRoots, scan } from "./check-bundle.mjs";
 
 const dirs: string[] = [];
 function bundle(files: Record<string, string>) {
@@ -36,5 +36,100 @@ describe("bundle scan", () => {
       "b.js": "VITE_GEMINI_API_KEY",
     });
     expect(scan({ roots: [root], secrets: [], patterns })).toHaveLength(2);
+  });
+});
+
+const KEY = "ci-leak-sentinel-0123456789";
+const real = { secrets: [KEY], patterns };
+
+/** A project-shaped temp dir: `.next/static` and `.next/server/app` with the given files. */
+function project(files: Record<string, string>) {
+  return bundle(
+    Object.fromEntries(
+      Object.entries(files).map(([name, content]) => [path.join(".next", name), content]),
+    ),
+  );
+}
+
+const CLEAN = {
+  "static/chunks/app.js": "console.log('hello')",
+  "server/app/_not-found.html": "<html>Not found</html>",
+};
+
+describe("bundle scan of the real roots", () => {
+  it("passes a clean build", () => {
+    const base = project(CLEAN);
+    expect(emptyRequiredRoots(browserRoots(base))).toEqual([]);
+    expect(scan({ roots: browserRoots(base), ...real })).toEqual([]);
+  });
+
+  it.each([
+    "server/app/_not-found.html",
+    "server/app/(app)/page.rsc",
+    "server/app/_not-found.segments/_not-found/__PAGE__.segment.rsc",
+    "server/app/api/static-route.body",
+    "server/app/_not-found.meta",
+  ])("fails when the key is in prerendered %s", (file) => {
+    const base = project({ ...CLEAN, [file]: `<p>${KEY}</p>` });
+    const problems = scan({ roots: browserRoots(base), ...real });
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain(file.split("/").pop()!);
+  });
+
+  it("fails on a client-exposed key variable in a prerendered page", () => {
+    const base = project({ ...CLEAN, "server/app/index.html": "NEXT_PUBLIC_GEMINI_API_KEY" });
+    expect(scan({ roots: browserRoots(base), ...real })).toHaveLength(1);
+  });
+
+  it.each([
+    "server/app/(app)/page.js",
+    "server/app/(app)/page_client-reference-manifest.js",
+    "server/app/(app)/page.js.nft.json",
+    "server/app/(app)/page.js.map",
+    "server/chunks/ssr/lib.js",
+  ])("ignores server-only file %s", (file) => {
+    const base = project({ ...CLEAN, [file]: `process.env.X = "${KEY}"` });
+    expect(scan({ roots: browserRoots(base), ...real })).toEqual([]);
+  });
+
+  it("still fails when the key is in a static chunk", () => {
+    const base = project({ ...CLEAN, "static/chunks/leak.js": `k="${KEY}"` });
+    expect(scan({ roots: browserRoots(base), ...real })).toHaveLength(1);
+  });
+
+  it("reports every leaking file, across both roots", () => {
+    const base = project({
+      ...CLEAN,
+      "static/chunks/leak.js": KEY,
+      "server/app/a.html": KEY,
+      "server/app/b.rsc": KEY,
+    });
+    expect(scan({ roots: browserRoots(base), ...real })).toHaveLength(3);
+  });
+});
+
+describe("empty roots", () => {
+  it("flags a build with no prerendered output", () => {
+    const base = project({ "static/chunks/app.js": "x" });
+    expect(
+      emptyRequiredRoots(browserRoots(base)).map((r: { dir: string }) => path.basename(r.dir)),
+    ).toEqual(["app"]);
+  });
+
+  it("flags a missing .next folder entirely", () => {
+    const base = bundle({ "README.md": "no build here" });
+    expect(emptyRequiredRoots(browserRoots(base))).toHaveLength(2);
+  });
+
+  it("does not count server-only files as something scanned", () => {
+    const base = project({ "static/a.js": "x", "server/app/page.js": "x" });
+    const counts = countFiles(browserRoots(base));
+    expect(counts.find((c: { dir: string }) => c.dir.endsWith("app"))?.count).toBe(0);
+    expect(emptyRequiredRoots(browserRoots(base))).toHaveLength(1);
+  });
+
+  it("does not require roots passed as plain folders", () => {
+    const root = bundle({ "a.js": "x" });
+    expect(emptyRequiredRoots([root, path.join(root, "missing")])).toEqual([]);
   });
 });
