@@ -43,6 +43,13 @@
       "when": 1792393597961,
       "tag": "0005_ai_usage",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792896106713,
+      "tag": "0006_owner_questions_reviewed",
+      "breakpoints": true
     }
   ]
 }
