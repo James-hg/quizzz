@@ -87,3 +87,36 @@ export function explainNotPlayable(counts: PlayabilityCounts): string | null {
   ].filter(Boolean);
   return `None of the ${total} questions can be practised yet: ${parts.join(", ")}.`;
 }
+
+/** Editor filter, as used in the `?filter=` URL parameter. */
+export const QUESTION_FILTERS = ["all", "needs-review", "no-answer", "excluded"] as const;
+export type QuestionFilter = (typeof QUESTION_FILTERS)[number];
+
+export function parseFilter(value: string | string[] | undefined): QuestionFilter {
+  const first = Array.isArray(value) ? value[0] : value;
+  return (QUESTION_FILTERS as readonly string[]).includes(first ?? "")
+    ? (first as QuestionFilter)
+    : "all";
+}
+
+const FILTER_CLASS: Record<Exclude<QuestionFilter, "all">, Playability> = {
+  "needs-review": "needs_review",
+  "no-answer": "no_answer",
+  excluded: "excluded",
+};
+
+export function matchesFilter(filter: QuestionFilter, q: PlayabilityInput): boolean {
+  return filter === "all" || classifyQuestion(q) === FILTER_CLASS[filter];
+}
+
+/** The most useful filter to open when nothing can be practised. */
+export function filterToFix(counts: PlayabilityCounts): QuestionFilter {
+  if (counts.needsReview > 0) return "needs-review";
+  if (counts.noAnswer > 0) return "no-answer";
+  if (counts.excluded > 0) return "excluded";
+  return "all";
+}
+
+export function editorHref(questionSetId: string, filter: QuestionFilter): string {
+  return `/question-sets/${questionSetId}/edit${filter === "all" ? "" : `?filter=${filter}`}`;
+}
