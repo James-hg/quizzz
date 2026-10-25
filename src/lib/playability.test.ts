@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   classifyQuestion,
   countPlayability,
+  countsFromDetails,
+  editorHref,
   explainNotPlayable,
+  filterToFix,
+  matchesFilter,
+  parseFilter,
   type PlayabilityInput,
 } from "./playability";
 
@@ -95,5 +100,42 @@ describe("explainNotPlayable", () => {
     expect(explainNotPlayable(counts({ total: 5, needsReview: 3, noAnswer: 2 }))).toBe(
       "None of the 5 questions can be practised yet: 3 need review, 2 have no answer yet.",
     );
+  });
+});
+
+describe("filters and links", () => {
+  it("parses the filter parameter, defaulting to all", () => {
+    expect(parseFilter("needs-review")).toBe("needs-review");
+    expect(parseFilter(["no-answer", "excluded"])).toBe("no-answer");
+    expect(parseFilter("nonsense")).toBe("all");
+    expect(parseFilter(undefined)).toBe("all");
+  });
+
+  it("matches a question to a filter using the same classes as the counts", () => {
+    const review = q("active", "needs_review");
+    expect(matchesFilter("all", review)).toBe(true);
+    expect(matchesFilter("needs-review", review)).toBe(true);
+    expect(matchesFilter("excluded", review)).toBe(false);
+    expect(matchesFilter("no-answer", q("excluded", "unresolved", "unresolved"))).toBe(true);
+    expect(matchesFilter("needs-review", q("active", "human_reviewed"))).toBe(false);
+  });
+
+  it("opens the most useful filter first and builds editor links", () => {
+    const base = { total: 3, playable: 0, needsReview: 0, noAnswer: 0, excluded: 0 };
+    expect(filterToFix({ ...base, needsReview: 1, noAnswer: 2 })).toBe("needs-review");
+    expect(filterToFix({ ...base, noAnswer: 2 })).toBe("no-answer");
+    expect(filterToFix({ ...base, excluded: 3 })).toBe("excluded");
+    expect(filterToFix(base)).toBe("all");
+    expect(editorHref("abc", "needs-review")).toBe("/question-sets/abc/edit?filter=needs-review");
+    expect(editorHref("abc", "all")).toBe("/question-sets/abc/edit");
+  });
+
+  it("reads counts from error details and rejects anything else", () => {
+    expect(
+      countsFromDetails({ total: 3, playable: 0, needsReview: 2, noAnswer: 1, excluded: 0 }),
+    ).toEqual({ total: 3, playable: 0, needsReview: 2, noAnswer: 1, excluded: 0 });
+    expect(countsFromDetails({ total: "3" })).toBeNull();
+    expect(countsFromDetails(null)).toBeNull();
+    expect(countsFromDetails(undefined)).toBeNull();
   });
 });
