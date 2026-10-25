@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { apiFetch, errorMessage } from "@/lib/client/api";
 import type { OwnerQuestionView } from "@/lib/client/types";
+import { editorHref, matchesFilter, type QuestionFilter } from "@/lib/playability";
 import { Alert } from "../ui/Alert";
 import { ConfirmButton } from "../ConfirmButton";
 import { TYPE_LABELS, draftFromQuestion, emptyDraft } from "./draft";
@@ -64,15 +66,41 @@ function AnswerSummary({ q }: { q: OwnerQuestionView }) {
   );
 }
 
-type Props = { questionSetId: string; questions: OwnerQuestionView[] };
+const FILTER_LABEL: Record<QuestionFilter, string> = {
+  all: "All",
+  "needs-review": "Needs review",
+  "no-answer": "No answer",
+  excluded: "Excluded",
+};
 
-export function QuestionEditor({ questionSetId, questions }: Props) {
+const FILTER_ORDER: QuestionFilter[] = ["all", "needs-review", "no-answer", "excluded"];
+
+type Props = {
+  questionSetId: string;
+  questions: OwnerQuestionView[];
+  /** From the `?filter=` URL parameter, so links such as "Review them" open the right view. */
+  filter?: QuestionFilter;
+};
+
+export function QuestionEditor({ questionSetId, questions, filter = "all" }: Props) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const toInput = (q: OwnerQuestionView) => ({
+    status: q.status,
+    evidenceStatus: q.evidenceStatus,
+    answerKind: q.answerKey.kind,
+  });
+  const filterCount = (f: QuestionFilter) =>
+    questions.filter((q) => matchesFilter(f, toInput(q))).length;
+  const visible = questions
+    .map((q, index) => ({ q, index }))
+    .filter(({ q }) => matchesFilter(filter, toInput(q)));
+  const filtered = filter !== "all";
 
   async function run(id: string, action: () => Promise<unknown>): Promise<boolean> {
     setError(null);
@@ -131,8 +159,31 @@ export function QuestionEditor({ questionSetId, questions }: Props) {
         </div>
       ) : null}
 
+      {questions.length > 0 ? (
+        <nav aria-label="Filter questions" className="row">
+          {FILTER_ORDER.map((f) => (
+            <Link
+              key={f}
+              href={editorHref(questionSetId, f)}
+              className={`btn btn-small ${f === filter ? "btn-primary" : "btn-quiet"}`}
+              aria-current={f === filter ? "page" : undefined}
+              scroll={false}
+            >
+              {FILTER_LABEL[f]} ({filterCount(f)})
+            </Link>
+          ))}
+        </nav>
+      ) : null}
+
+      {questions.length > 0 && visible.length === 0 ? (
+        <div className="card empty">
+          <p>No questions match this filter.</p>
+          <Link href={editorHref(questionSetId, "all")}>Show all questions</Link>
+        </div>
+      ) : null}
+
       <ol className="list" aria-label="Questions">
-        {questions.map((q, index) => {
+        {visible.map(({ q, index }) => {
           const evidence = EVIDENCE_LABEL[q.evidenceStatus];
           const isEditing = editingId === q.id;
           const busy = busyId === q.id;
@@ -160,24 +211,28 @@ export function QuestionEditor({ questionSetId, questions }: Props) {
                     <span className="small muted">revision {q.revisionNumber}</span>
                   </span>
                   <span className="row">
-                    <button
-                      type="button"
-                      className="btn btn-small btn-quiet"
-                      onClick={() => move(index, -1)}
-                      disabled={index === 0 || busyId !== null}
-                      aria-label={`Move question ${index + 1} up`}
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-small btn-quiet"
-                      onClick={() => move(index, 1)}
-                      disabled={index === questions.length - 1 || busyId !== null}
-                      aria-label={`Move question ${index + 1} down`}
-                    >
-                      ↓
-                    </button>
+                    {filtered ? null : (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-small btn-quiet"
+                          onClick={() => move(index, -1)}
+                          disabled={index === 0 || busyId !== null}
+                          aria-label={`Move question ${index + 1} up`}
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-small btn-quiet"
+                          onClick={() => move(index, 1)}
+                          disabled={index === questions.length - 1 || busyId !== null}
+                          aria-label={`Move question ${index + 1} down`}
+                        >
+                          ↓
+                        </button>
+                      </>
+                    )}
                   </span>
                 </div>
 
