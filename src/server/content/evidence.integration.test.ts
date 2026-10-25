@@ -8,7 +8,14 @@ import { startOrResumeSession } from "@/server/sessions/service";
 import { deleteUsers, signUpUser, type TestUser } from "@/test/users";
 import { createCourse } from "./courses";
 import { createQuestionSet } from "./question-sets";
-import { createQuestion, getQuestion, setQuestionStatus, updateQuestion } from "./questions";
+import { playabilityForSet } from "./playability";
+import {
+  createQuestion,
+  getQuestion,
+  listPlayableItems,
+  setQuestionStatus,
+  updateQuestion,
+} from "./questions";
 
 process.env.AUTH_RATE_LIMIT_MAX = "1000";
 const db = getDb();
@@ -148,6 +155,40 @@ describe("review state of questions that did not come from the owner", () => {
     expect(row).toMatchObject({ e: "needs_review", n: 1 });
     const latest = await getQuestion(db, alice.id, id);
     expect(latest).toMatchObject({ revisionNumber: 2, evidenceStatus: "needs_review" });
+  });
+});
+
+describe("questions without an answer", () => {
+  it("are not playable and not restorable, however they are labelled", async () => {
+    const set = await freshSet("No answer");
+    const [question] = await db
+      .insert(questions)
+      .values({ questionSetId: set.id, position: 0, status: "active" })
+      .returning();
+    await addRevision(db, question!.id, {
+      ...contentToRevision(mcq("No key yet")),
+      answerKey: { kind: "unresolved" },
+      origin: "original",
+      evidenceStatus: "unresolved",
+      createdBy: alice.id,
+    });
+    expect(await listPlayableItems(db, set.id)).toEqual([]);
+    expect(await playabilityForSet(db, set.id)).toMatchObject({
+      total: 1,
+      playable: 0,
+      noAnswer: 1,
+    });
+    await expect(startOrResumeSession(db, alice.id, set.id)).rejects.toMatchObject({
+      code: "no_playable_questions",
+    });
+    await expect(setQuestionStatus(db, alice.id, question!.id, "active")).rejects.toMatchObject({
+      code: "unresolved_answer",
+    });
+
+    // Setting the answer through the editor makes it reviewed and playable.
+    await updateQuestion(db, alice.id, question!.id, { correctOptionIds: ["b"] });
+    const [playable] = await listPlayableItems(db, set.id);
+    expect(playable?.questionId).toBe(question!.id);
   });
 });
 

@@ -42,6 +42,16 @@ describe("classifyQuestion", () => {
     expect(classifyQuestion(q("active", "rejected"))).toBe("excluded");
   });
 
+  it("never plays a question whose answer is missing, even when it is active and not blocked", () => {
+    for (const evidence of ["unresolved", "human_reviewed", "source_linked"]) {
+      expect(classifyQuestion(q("active", evidence, "unresolved"))).toBe("no_answer");
+    }
+  });
+
+  it("keeps playing a question that has an answer but still carries the old unresolved label", () => {
+    expect(classifyQuestion(q("active", "unresolved", "options"))).toBe("playable");
+  });
+
   it("needs_review wins over no_answer", () => {
     expect(classifyQuestion(q("excluded", "needs_review", "unresolved"))).toBe("needs_review");
   });

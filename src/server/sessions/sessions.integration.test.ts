@@ -279,28 +279,36 @@ describe("grading and idempotency", () => {
 });
 
 describe("questions without a resolved answer", () => {
-  it("are practiced but graded uncertain, never incorrect", async () => {
-    const { set, q1 } = await makeSet();
-    await addRevision(db, q1.id, {
-      type: "mcq_single",
-      prompt: "Imported, answer unknown",
-      options: [
-        { id: "a", text: "A" },
-        { id: "b", text: "B" },
-      ],
-      answerKey: { kind: "unresolved" },
-      origin: "original",
-      evidenceStatus: "unresolved",
-    });
-    const sessionId = (await start(set.id)).body.session.id as string;
-    const res = await answer(sessionId, q1.id, choose("a"), key());
+  const noAnswer = {
+    type: "mcq_single" as const,
+    prompt: "Imported, answer unknown",
+    options: [
+      { id: "a", text: "A" },
+      { id: "b", text: "B" },
+    ],
+    answerKey: { kind: "unresolved" as const },
+    origin: "original" as const,
+    evidenceStatus: "unresolved" as const,
+  };
+
+  it("are left out of practice instead of being graded", async () => {
+    const { set, q1, q2 } = await makeSet();
+    await addRevision(db, q1.id, noAnswer);
+    const res = await start(set.id);
     expect(res.status).toBe(201);
-    expect(res.body.result).toMatchObject({ outcome: "uncertain", isCorrect: null });
-    const done = await call(completePost, "/api/x", alice, {
-      method: "POST",
-      params: { sessionId },
-    });
-    expect(done.body.summary).toMatchObject({ uncertain: 1, incorrect: 0, correct: 0 });
+    expect(res.body.session.items.map((i: { questionId: string }) => i.questionId)).toEqual([
+      q2.id,
+    ]);
+  });
+
+  it("explain themselves when nothing else can be practised", async () => {
+    const { set, q1, q2 } = await makeSet();
+    await addRevision(db, q1.id, noAnswer);
+    await addRevision(db, q2.id, { ...noAnswer, type: "short_answer", options: [] });
+    const res = await start(set.id);
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("no_playable_questions");
+    expect(res.body.error.details).toMatchObject({ total: 2, playable: 0, noAnswer: 2 });
   });
 });
 

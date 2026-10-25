@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, max, notInArray } from "drizzle-orm";
+import { and, asc, eq, max, notInArray, sql } from "drizzle-orm";
 import type { z } from "zod";
 import {
   contentToRevision,
@@ -16,7 +16,7 @@ import { attempts, questionRevisions, questionSourceLinks, questions } from "@/s
 import { badRequest, conflict, notFound } from "@/server/http/errors";
 import { hasHistoryError } from "./history";
 import { evidenceFor } from "@/lib/evidence";
-import { PLAY_BLOCKING_EVIDENCE } from "@/lib/playability";
+import { NO_ANSWER_KIND, PLAY_BLOCKING_EVIDENCE } from "@/lib/playability";
 
 type QuestionRow = typeof questions.$inferSelect;
 type RevisionRow = typeof questionRevisions.$inferSelect;
@@ -272,9 +272,9 @@ export async function shuffleOptions(
 
 /**
  * Questions a new session may draw from, with the revision to pin. Excluded questions are
- * skipped, and so are revisions known to be bad (rejected or needing review) or AI-generated
- * and not yet approved (see `src/lib/playability.ts`, which defines this once for the server
- * and the browser).
+ * skipped, and so are revisions known to be bad (rejected or needing review), AI-generated
+ * and not yet approved, or without an answer (see `src/lib/playability.ts`, which defines this
+ * once for the server and the browser).
  */
 export async function listPlayableItems(db: Database, setId: string) {
   const rows = await db
@@ -286,6 +286,8 @@ export async function listPlayableItems(db: Database, setId: string) {
         eq(questions.questionSetId, setId),
         eq(questions.status, "active"),
         notInArray(questionRevisions.evidenceStatus, [...PLAY_BLOCKING_EVIDENCE]),
+        // A question with no answer cannot be graded, so it is not practised.
+        sql`${questionRevisions.answerKey}->>'kind' <> ${NO_ANSWER_KIND}`,
       ),
     )
     .orderBy(asc(questions.position));
