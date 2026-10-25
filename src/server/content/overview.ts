@@ -2,33 +2,47 @@ import "server-only";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { assertOwnsCourse } from "@/server/auth/ownership";
 import type { Database } from "@/server/db";
+import { playabilityBySet } from "./playability";
 import {
   attempts,
   courses,
   importDrafts,
   questionSets,
-  questions,
   sourceDocuments,
   studySessions,
 } from "@/server/db/schema";
 
-/** Question sets with how many questions they hold and how many can be practiced. */
+/**
+ * Question sets with how many questions they hold, how many can be practised right now, and
+ * why the rest cannot (needs review, no answer, excluded).
+ */
 export async function listQuestionSetsWithCounts(db: Database, userId: string, courseId: string) {
   await assertOwnsCourse(db, userId, courseId);
-  return db
+  const sets = await db
     .select({
       id: questionSets.id,
       title: questionSets.title,
       origin: questionSets.origin,
       updatedAt: questionSets.updatedAt,
-      questionCount: sql<number>`count(${questions.id})::int`,
-      playableCount: sql<number>`(count(*) filter (where ${questions.status} = 'active'))::int`,
     })
     .from(questionSets)
-    .leftJoin(questions, eq(questions.questionSetId, questionSets.id))
     .where(and(eq(questionSets.courseId, courseId), eq(questionSets.ownerId, userId)))
-    .groupBy(questionSets.id)
     .orderBy(asc(questionSets.createdAt));
+  const counts = await playabilityBySet(
+    db,
+    sets.map((s) => s.id),
+  );
+  return sets.map((set) => {
+    const c = counts.get(set.id)!;
+    return {
+      ...set,
+      questionCount: c.total,
+      playableCount: c.playable,
+      needsReviewCount: c.needsReview,
+      noAnswerCount: c.noAnswer,
+      excludedCount: c.excluded,
+    };
+  });
 }
 
 export async function listRecentQuestionSets(db: Database, userId: string, limit = 5) {
