@@ -35,12 +35,14 @@ All routes need a session cookie and return `404` for other users' ids. Errors l
 | `/api/questions/:questionId/revisions` | `GET` |
 | `/api/questions/:questionId/exclude`, `/restore`, `/shuffle-options` | `POST` |
 
+**Review state.** A question you write or edit yourself (origin `original`) with an answer is `human_reviewed` straight away, so it can be practised; `approve` is ignored for it. `evidence_status = unresolved` now means only that the answer is missing (`answerKey.kind = "unresolved"`), and such a question is never practised or graded (restoring it returns `409 unresolved_answer`). Questions that did not come from you (AI-proposed, AI-variant, sample) stay `generated_unreviewed` / `needs_review` / `rejected` when edited without `{"approve": true}`, and become `human_reviewed` once you approve them. A checked sample question edited without approval goes back to `needs_review`. `POST /api/questions/:id/restore` returns `409 needs_review` for any of those states until they are approved. Migration `0006` relabelled existing owner questions that had been saved as `unresolved` despite having an answer.
+
 Editing never rewrites history: `PATCH` appends revision N+1, and attempts keep pointing at the revision they answered. Courses, sets and questions with attempts cannot be deleted (`409 has_history`); exclude a question instead. These owner endpoints include answer keys; the play endpoints (A9) will not.
 
 ```sh
 curl -b /tmp/quizzz-jar -H 'Content-Type: application/json' -d '{"title":"CS 101","subject":"Intro","language":"python"}' localhost:3000/api/courses
 curl -b /tmp/quizzz-jar -H 'Content-Type: application/json' -d '{"title":"Week 1"}' localhost:3000/api/courses/<courseId>/question-sets
-curl -b /tmp/quizzz-jar -H 'Content-Type: application/json' -d '{"type":"mcq_single","prompt":"2+2?","options":[{"id":"a","text":"3"},{"id":"b","text":"4"}],"correctOptionIds":["b"],"approve":true}' localhost:3000/api/question-sets/<setId>/questions
+curl -b /tmp/quizzz-jar -H 'Content-Type: application/json' -d '{"type":"mcq_single","prompt":"2+2?","options":[{"id":"a","text":"3"},{"id":"b","text":"4"}],"correctOptionIds":["b"]}' localhost:3000/api/question-sets/<setId>/questions
 curl -b /tmp/quizzz-jar -X PATCH -H 'Content-Type: application/json' -d '{"prompt":"What is 2+2?"}' localhost:3000/api/questions/<questionId>
 curl -b /tmp/quizzz-jar localhost:3000/api/questions/<questionId>/revisions
 ```

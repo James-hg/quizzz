@@ -1,8 +1,16 @@
 /**
  * The single definition of "can this question be practised, and if not, why". Used by the
  * server (counts, session start) and the browser (editor filter), so they cannot disagree.
- * `listPlayableItems` filters in SQL with `PLAY_BLOCKING_EVIDENCE`; a test keeps both in step.
+ * `listPlayableItems` filters in SQL with `PLAY_BLOCKING_EVIDENCE` and the answer kind; a test
+ * keeps both in step.
+ *
+ * "Unresolved" means the answer is missing (`answerKey.kind === "unresolved"`). The evidence
+ * label `unresolved` is not what blocks practice: a question the owner wrote with an answer is
+ * reviewed, and one stored with the old label still plays.
  */
+
+/** `answerKey.kind` of a question that has no usable answer yet. */
+export const NO_ANSWER_KIND = "unresolved";
 
 /** Evidence states that keep a question out of practice. */
 export const REVIEW_BLOCKING_EVIDENCE = ["needs_review", "generated_unreviewed"] as const;
@@ -23,11 +31,11 @@ export type PlayabilityInput = {
  */
 export function classifyQuestion(q: PlayabilityInput): Playability {
   const blocked = (PLAY_BLOCKING_EVIDENCE as readonly string[]).includes(q.evidenceStatus);
-  if (q.status === "active" && !blocked) return "playable";
+  if (q.status === "active" && !blocked && q.answerKind !== NO_ANSWER_KIND) return "playable";
   if ((REVIEW_BLOCKING_EVIDENCE as readonly string[]).includes(q.evidenceStatus)) {
     return "needs_review";
   }
-  if (q.answerKind === "unresolved") return "no_answer";
+  if (q.answerKind === NO_ANSWER_KIND) return "no_answer";
   return "excluded";
 }
 

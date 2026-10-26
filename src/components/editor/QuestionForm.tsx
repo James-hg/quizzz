@@ -20,6 +20,11 @@ type Props = {
   serverError?: string | null;
   onSubmit: (input: Record<string, unknown>) => void | Promise<void>;
   onCancel?: () => void;
+  /**
+   * Show the "I have reviewed this" tick. Questions the owner wrote count as reviewed already, so
+   * it only appears for AI-proposed and sample questions, which need an explicit approval.
+   */
+  showApprove?: boolean;
 };
 
 function FieldError({ id, message }: { id: string; message?: string }) {
@@ -37,6 +42,7 @@ export function QuestionForm({
   serverError,
   onSubmit,
   onCancel,
+  showApprove = true,
 }: Props) {
   const uid = useId();
   const [draft, setDraft] = useState(initial);
@@ -293,14 +299,21 @@ export function QuestionForm({
         />
       </div>
 
-      <label className="row">
-        <input
-          type="checkbox"
-          checked={draft.approve}
-          onChange={(e) => set({ approve: e.target.checked })}
-        />
-        I have checked that the answer is correct
-      </label>
+      {showApprove ? (
+        <div className="field">
+          <label className="row">
+            <input
+              type="checkbox"
+              checked={draft.approve}
+              onChange={(e) => set({ approve: e.target.checked })}
+            />
+            I have reviewed this question and its answer
+          </label>
+          <p className="hint">
+            This question did not come from you, so it stays out of practice until you tick this.
+          </p>
+        </div>
+      ) : null}
 
       <div className="row">
         <button type="submit" className="btn btn-primary" disabled={busy}>

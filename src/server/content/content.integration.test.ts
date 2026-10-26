@@ -223,15 +223,16 @@ describe("questions", () => {
     });
   });
 
-  it("marks human_reviewed only when the owner approves", async () => {
+  it("marks an owner-written question with an answer as reviewed, ticked or not", async () => {
     const set = await makeSet((await makeCourse()).id);
     const plain = await call(questionsPost, "/api/x", { body: mcq(), params: { setId: set.id } });
-    expect(plain.body.question.evidenceStatus).toBe("unresolved");
-    const approved = await call(questionsPost, "/api/x", {
+    expect(plain.body.question.evidenceStatus).toBe("human_reviewed");
+    expect(plain.body.question.origin).toBe("original");
+    const ticked = await call(questionsPost, "/api/x", {
       body: mcq({ approve: true }),
       params: { setId: set.id },
     });
-    expect(approved.body.question.evidenceStatus).toBe("human_reviewed");
+    expect(ticked.body.question.evidenceStatus).toBe("human_reviewed");
   });
 
   it("rejects MCQ with 0 or 2+ correct options and duplicate option ids", async () => {

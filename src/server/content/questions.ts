@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, max, notInArray } from "drizzle-orm";
+import { and, asc, eq, max, notInArray, sql } from "drizzle-orm";
 import type { z } from "zod";
 import {
   contentToRevision,
@@ -15,7 +15,8 @@ import { addRevision, parseRevisionJson } from "@/server/db/repositories/questio
 import { attempts, questionRevisions, questionSourceLinks, questions } from "@/server/db/schema";
 import { badRequest, conflict, notFound } from "@/server/http/errors";
 import { hasHistoryError } from "./history";
-import { PLAY_BLOCKING_EVIDENCE } from "@/lib/playability";
+import { evidenceFor } from "@/lib/evidence";
+import { NO_ANSWER_KIND, PLAY_BLOCKING_EVIDENCE } from "@/lib/playability";
 
 type QuestionRow = typeof questions.$inferSelect;
 type RevisionRow = typeof questionRevisions.$inferSelect;
@@ -51,10 +52,6 @@ async function currentRevision(db: Database, question: QuestionRow): Promise<Rev
   return parseRevisionJson(row);
 }
 
-function statusFor(approve: boolean) {
-  return approve ? ("human_reviewed" as const) : ("unresolved" as const);
-}
-
 export async function createQuestion(
   db: Database,
   userId: string,
@@ -76,7 +73,13 @@ export async function createQuestion(
     const revision = await addRevision(database, question!.id, {
       ...contentToRevision(content),
       origin: "original",
-      evidenceStatus: statusFor(approve),
+      // The owner wrote it and it has an answer, so it counts as reviewed. `approve` only
+      // matters for questions that did not originate with the owner.
+      evidenceStatus: evidenceFor({
+        origin: "original",
+        answerKind: contentToRevision(content).answerKey.kind,
+        approve,
+      }),
       createdBy: userId,
     });
     return toOwnerView({ ...question!, currentRevisionId: revision.id }, revision);
@@ -128,13 +131,15 @@ export async function updateQuestion(
   });
   const revision = await addRevision(db, questionId, {
     ...contentToRevision(merged),
-    // Editing never launders provenance: AI-proposed stays AI-proposed, and an unreviewed
-    // revision stays unreviewed until the owner explicitly approves it.
+    // Editing never launders provenance: the origin is kept, and a revision that came from AI
+    // or a sample stays unreviewed until the owner explicitly approves it.
     origin: current.origin,
-    evidenceStatus:
-      approve || current.evidenceStatus !== "generated_unreviewed"
-        ? statusFor(approve)
-        : "generated_unreviewed",
+    evidenceStatus: evidenceFor({
+      origin: current.origin,
+      answerKind: contentToRevision(merged).answerKey.kind,
+      approve,
+      previous: current.evidenceStatus,
+    }),
     createdBy: userId,
   });
   return toOwnerView({ ...question, currentRevisionId: revision.id }, revision);
@@ -155,8 +160,13 @@ export async function setQuestionStatus(
     if (revision.answerKey.kind === "unresolved") {
       throw conflict("Set the correct answer before restoring this question", "unresolved_answer");
     }
-    if (revision.evidenceStatus === "generated_unreviewed") {
-      throw conflict("Review and approve this AI-proposed question first", "needs_review");
+    if ((PLAY_BLOCKING_EVIDENCE as readonly string[]).includes(revision.evidenceStatus)) {
+      throw conflict(
+        revision.evidenceStatus === "rejected"
+          ? "This question was rejected. Edit and approve it before including it in practice."
+          : "Review and approve this question first",
+        "needs_review",
+      );
     }
   }
   const [row] = await db
@@ -262,9 +272,9 @@ export async function shuffleOptions(
 
 /**
  * Questions a new session may draw from, with the revision to pin. Excluded questions are
- * skipped, and so are revisions known to be bad (rejected or needing review) or AI-generated
- * and not yet approved (see `src/lib/playability.ts`, which defines this once for the server
- * and the browser).
+ * skipped, and so are revisions known to be bad (rejected or needing review), AI-generated
+ * and not yet approved, or without an answer (see `src/lib/playability.ts`, which defines this
+ * once for the server and the browser).
  */
 export async function listPlayableItems(db: Database, setId: string) {
   const rows = await db
@@ -276,6 +286,8 @@ export async function listPlayableItems(db: Database, setId: string) {
         eq(questions.questionSetId, setId),
         eq(questions.status, "active"),
         notInArray(questionRevisions.evidenceStatus, [...PLAY_BLOCKING_EVIDENCE]),
+        // A question with no answer cannot be graded, so it is not practised.
+        sql`${questionRevisions.answerKey}->>'kind' <> ${NO_ANSWER_KIND}`,
       ),
     )
     .orderBy(asc(questions.position));
