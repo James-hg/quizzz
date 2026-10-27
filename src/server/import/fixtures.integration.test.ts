@@ -72,6 +72,15 @@ const EXPECTED: Record<
     items: [{ type: "mcq_single", correct: [], warnings: ["partial_bold", "answer_unresolved"] }],
     draftWarnings: [],
   },
+  "typed-numbers.docx": {
+    items: [
+      { type: "mcq_single", correct: ["b"], warnings: [] },
+      { type: "mcq_single", correct: ["a"], warnings: [] },
+      { type: "mcq_single", correct: ["b"], warnings: [] },
+      { type: "mcq_single", correct: ["b"], warnings: [] },
+    ],
+    draftWarnings: [],
+  },
   "wrapped-option.docx": {
     items: [{ type: "mcq_single", correct: ["b"], warnings: [] }],
     draftWarnings: [],
@@ -190,6 +199,26 @@ describe("A7 fixtures through the import pipeline", () => {
     );
     expect(rows[0]?.r.answerKey).toEqual({ kind: "unresolved" });
     expect(rows[0]?.q.status).toBe("excluded");
+  });
+
+  it("removes typed question numbers on import, remembers the originals, and keeps numeric content", async () => {
+    const { status, body } = await uploadFixture("typed-numbers.docx");
+    expect(status).toBe(201);
+    const prompts = body.import.items.map(
+      (i: { payload: { prompt: string; originalPrompt?: string } }) => [
+        i.payload.prompt,
+        i.payload.originalPrompt ?? null,
+      ],
+    );
+    expect(prompts).toEqual([
+      ["What does len([1, 2]) return?", "1. What does len([1, 2]) return?"],
+      [
+        "Which keyword defines a function in Python?",
+        "Question 2: Which keyword defines a function in Python?",
+      ],
+      ["Which loop always runs at least once?", "3. Which loop always runs at least once?"],
+      ["2 + 2 = ?", null],
+    ]);
   });
 
   it("reports DOCX as the only supported format", async () => {

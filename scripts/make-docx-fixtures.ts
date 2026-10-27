@@ -133,6 +133,24 @@ const fixtures: Record<string, Paragraph[]> = {
     option("A stack", true),
     option("A queue"),
   ],
+  // Numbers typed into the text, which a student would see twice or out of order once shuffled.
+  "typed-numbers": [
+    question("1. What does len([1, 2]) return?"),
+    option("1"),
+    option("2", true),
+    option("3"),
+    question("Question 2: Which keyword defines a function in Python?"),
+    option("def", true),
+    option("func"),
+    plain("3. Which loop always runs at least once?"),
+    plain("A. for"),
+    new Paragraph({ children: [new TextRun({ text: "B. do-while", bold: true })] }),
+    plain("C. while"),
+    // Starts with a number but the number is the content, not numbering.
+    question("2 + 2 = ?"),
+    option("3"),
+    option("4", true),
+  ],
   "edge-cases": [
     option("An option with no question above it"),
     question("A question with a single option?"),

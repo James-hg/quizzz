@@ -82,4 +82,32 @@ describe("buildDraftItems", () => {
     const { items } = buildDraftItems(result, [q({ blockIds: undefined, anchor: anchor(2) })]);
     expect(items[0]?.sourceRefs).toEqual([{ ordinal: 2 }]);
   });
+
+  describe("question numbers", () => {
+    it("removes a number still in the prompt and keeps the original", () => {
+      const { items } = buildDraftItems(result, [q({ prompt: "1. What is X?" })]);
+      expect(items[0]?.payload).toMatchObject({
+        prompt: "What is X?",
+        originalPrompt: "1. What is X?",
+      });
+    });
+
+    it("keeps the original the detector remembered and does not strip twice", () => {
+      const { items } = buildDraftItems(result, [
+        q({ prompt: "2. What is X?", originalPrompt: "1. 2. What is X?" }),
+      ]);
+      expect(items[0]?.payload).toMatchObject({
+        prompt: "2. What is X?",
+        originalPrompt: "1. 2. What is X?",
+      });
+    });
+
+    it("leaves content that merely starts with a number alone, with no original", () => {
+      for (const prompt of ["2 + 2 = ?", "5 - 3 = ?", "3 apples cost 6. What is one?"]) {
+        const { items } = buildDraftItems(result, [q({ prompt })]);
+        expect(items[0]?.payload).toMatchObject({ prompt });
+        expect(items[0]?.payload).not.toHaveProperty("originalPrompt");
+      }
+    });
+  });
 });
