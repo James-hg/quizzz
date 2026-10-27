@@ -30,7 +30,12 @@ export type PlayAction =
   | { type: "text"; value: string }
   | { type: "blank"; index: number; value: string }
   | { type: "submit_start"; key: string }
-  | { type: "submit_ok"; result: AnswerResult }
+  | {
+      type: "submit_ok";
+      result: AnswerResult;
+      progress: { answered: number; total: number };
+      requeued: boolean;
+    }
   | { type: "submit_fail"; error: string }
   | { type: "busy" }
   | { type: "session"; session: PlaySession }
@@ -65,17 +70,30 @@ export function initialState(session: PlaySession): PlayState {
   };
 }
 
-/** Counts from the results the server already returned for answered items. */
+/** Counts from the results the server already returned, for a session that has ended. */
 export function summarize(session: PlaySession): SessionSummary {
-  const results = session.items.flatMap((i) => (i.status === "answered" ? [i.result] : []));
-  const removed = session.items.filter((i) => i.status === "removed").length;
+  const answered = session.items.flatMap((i) => (i.status === "answered" ? [i] : []));
+  const first = answered.filter((i) => i.pass === 1).map((i) => i.result);
+  const retry = answered.filter((i) => i.pass === 2).map((i) => i.result);
+  const count = (list: AnswerResult[], outcome: string) =>
+    list.filter((r) => r.outcome === outcome).length;
+  const firstPassItems = session.items.filter((i) => i.pass === 1);
+  const removed = firstPassItems.filter((i) => i.status === "removed").length;
   return {
-    totalItems: session.progress.total,
-    answered: results.length,
-    correct: results.filter((r) => r.outcome === "correct").length,
-    incorrect: results.filter((r) => r.outcome === "incorrect").length,
-    uncertain: results.filter((r) => r.outcome === "uncertain").length,
-    unanswered: session.progress.total - removed - results.length,
+    totalItems: firstPassItems.length,
+    answered: first.length,
+    correct: count(first, "correct"),
+    incorrect: count(first, "incorrect"),
+    uncertain: count(first, "uncertain"),
+    unanswered: firstPassItems.length - removed - first.length,
+    retry: {
+      total: session.progress.retries,
+      answered: retry.length,
+      correct: count(retry, "correct"),
+      incorrect: count(retry, "incorrect"),
+      uncertain: count(retry, "uncertain"),
+    },
+    revealMode: session.revealMode,
     elapsedSeconds: session.elapsedSeconds,
   };
 }
@@ -111,14 +129,19 @@ export function playReducer(state: PlayState, action: PlayAction): PlayState {
       };
     case "submit_ok": {
       if (state.phase !== "submitting") return state;
-      const answered = state.session.progress.answered + (isNewAnswer(state) ? 1 : 0);
       return {
         ...state,
         phase: "feedback",
         feedback: action.result,
+        // The server's counts are authoritative: a wrong answer in requeue mode adds a retry.
         session: {
           ...state.session,
-          progress: { ...state.session.progress, answered },
+          progress: {
+            ...state.session.progress,
+            answered: action.progress.answered,
+            total: action.progress.total,
+            retries: state.session.progress.retries + (action.requeued ? 1 : 0),
+          },
         },
       };
     }
@@ -149,14 +172,6 @@ export function playReducer(state: PlayState, action: PlayAction): PlayState {
     case "fail":
       return { ...state, busy: false, error: action.error };
   }
-}
-
-/** The current question is not yet counted as answered in `progress` until feedback arrives. */
-function isNewAnswer(state: PlayState): boolean {
-  const current = state.session.current;
-  if (!current) return false;
-  const item = state.session.items.find((i) => i.questionId === current.questionId);
-  return item?.status === "pending";
 }
 
 /** What to send for the current question, or null while the answer is still incomplete. */

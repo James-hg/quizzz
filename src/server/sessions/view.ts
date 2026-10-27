@@ -78,6 +78,8 @@ export type SessionItem =
       pass: Pass;
       status: "answered";
       result: ReturnType<typeof resultOf>;
+      /** The question as asked, included once the session has ended so results can be reviewed. */
+      question?: ReturnType<typeof questionForPlay>;
     };
 
 /** The questions a session asks, in order: every question once, then the retries (requeue). */
@@ -130,6 +132,7 @@ export async function buildSessionView(db: Database, session: SessionRow, now: D
         pass,
         status: "answered",
         result: resultOf(attempt, revision, disclosure),
+        ...(ended ? { question: questionForPlay(revision, questionId) } : {}),
       };
     }
     if (!revision) return { questionId, position, pass, status: "removed" };

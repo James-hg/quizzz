@@ -44,10 +44,10 @@ afterEach(() => {
 });
 
 const second: PlaySession = session({
-  progress: { total: 2, answered: 1, removed: 0 },
+  progress: { total: 2, answered: 1, removed: 0, retries: 0 },
   items: [
-    { questionId: "q1", position: 0, status: "answered", result: result("correct") },
-    { questionId: "q2", position: 1, status: "pending" },
+    { questionId: "q1", position: 0, pass: 1, status: "answered", result: result("correct") },
+    { questionId: "q2", position: 1, pass: 1, status: "pending" },
   ],
   current: { ...session().current!, questionId: "q2", prompt: "Second question" },
 });
@@ -155,10 +155,10 @@ describe("PlayScreen", () => {
       state: "completed",
       current: null,
       elapsedSeconds: 65,
-      progress: { total: 2, answered: 1, removed: 0 },
+      progress: { total: 2, answered: 1, removed: 0, retries: 0 },
       items: [
-        { questionId: "q1", position: 0, status: "answered", result: result("correct") },
-        { questionId: "q2", position: 1, status: "pending" },
+        { questionId: "q1", position: 0, pass: 1, status: "answered", result: result("correct") },
+        { questionId: "q2", position: 1, pass: 1, status: "pending" },
       ],
     });
     handlers.push((c) =>
@@ -172,6 +172,8 @@ describe("PlayScreen", () => {
               incorrect: 0,
               uncertain: 0,
               unanswered: 1,
+              retry: { total: 0, answered: 0, correct: 0, incorrect: 0, uncertain: 0 },
+              revealMode: "each",
               elapsedSeconds: 65,
             },
           })
@@ -196,7 +198,7 @@ describe("PlayScreen", () => {
         state: "completed",
         current: null,
         items: [],
-        progress: { total: 0, answered: 0, removed: 0 },
+        progress: { total: 0, answered: 0, removed: 0, retries: 0 },
       }),
     );
     expect(screen.getByRole("heading", { name: "Session complete" })).toBeInTheDocument();

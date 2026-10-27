@@ -20,7 +20,12 @@ describe("playReducer", () => {
     state = playReducer(state, { type: "select", optionId: "b", multiple: false });
     state = playReducer(state, { type: "submit_start", key: "key-1" });
     expect(state.phase).toBe("submitting");
-    state = playReducer(state, { type: "submit_ok", result: result("correct") });
+    state = playReducer(state, {
+      type: "submit_ok",
+      result: result("correct"),
+      progress: { answered: 1, total: 2 },
+      requeued: false,
+    });
     expect(state.phase).toBe("feedback");
     expect(state.feedback?.outcome).toBe("correct");
     expect(state.session.progress.answered).toBe(1);
@@ -51,11 +56,16 @@ describe("playReducer", () => {
     let state = initialState(session());
     state = playReducer(state, { type: "select", optionId: "a", multiple: false });
     state = playReducer(state, { type: "submit_start", key: "k" });
-    state = playReducer(state, { type: "submit_ok", result: result("incorrect") });
+    state = playReducer(state, {
+      type: "submit_ok",
+      result: result("incorrect"),
+      progress: { answered: 1, total: 2 },
+      requeued: false,
+    });
     state = playReducer(state, {
       type: "session",
       session: session({
-        progress: { total: 2, answered: 1, removed: 0 },
+        progress: { total: 2, answered: 1, removed: 0, retries: 0 },
         current: { ...session().current!, questionId: "q2", prompt: "Second" },
       }),
     });
@@ -105,11 +115,11 @@ describe("summarize", () => {
     const s = session({
       state: "completed",
       current: null,
-      progress: { total: 3, answered: 3, removed: 0 },
+      progress: { total: 3, answered: 3, removed: 0, retries: 0 },
       items: [
-        { questionId: "q1", position: 0, status: "answered", result: result("correct") },
-        { questionId: "q2", position: 1, status: "answered", result: result("incorrect") },
-        { questionId: "q3", position: 2, status: "answered", result: result("uncertain") },
+        { questionId: "q1", position: 0, pass: 1, status: "answered", result: result("correct") },
+        { questionId: "q2", position: 1, pass: 1, status: "answered", result: result("incorrect") },
+        { questionId: "q3", position: 2, pass: 1, status: "answered", result: result("uncertain") },
       ],
     });
     expect(summarize(s)).toMatchObject({ correct: 1, incorrect: 1, uncertain: 1, unanswered: 0 });
