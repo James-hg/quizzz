@@ -42,4 +42,11 @@ describe("parseEnv", () => {
   it("rejects a short auth secret", () => {
     expect(() => parseEnv({ ...valid, BETTER_AUTH_SECRET: "short" })).toThrow(/BETTER_AUTH_SECRET/);
   });
+
+  it("defaults the image limit to 2 MB and accepts an override", () => {
+    expect(parseEnv(valid).MAX_IMAGE_BYTES).toBe(2 * 1024 * 1024);
+    expect(parseEnv({ ...valid, MAX_IMAGE_BYTES: "" }).MAX_IMAGE_BYTES).toBe(2 * 1024 * 1024);
+    expect(parseEnv({ ...valid, MAX_IMAGE_BYTES: "500000" }).MAX_IMAGE_BYTES).toBe(500000);
+    expect(() => parseEnv({ ...valid, MAX_IMAGE_BYTES: "0" })).toThrow(/MAX_IMAGE_BYTES/);
+  });
 });

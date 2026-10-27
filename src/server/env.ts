@@ -21,6 +21,14 @@ export const envSchema = z.object({
     (value) => (value === "" ? undefined : value),
     z.coerce.number().int().positive().default(30),
   ),
+  MAX_IMAGE_BYTES: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(2 * 1024 * 1024),
+  ),
   MAX_UPLOAD_BYTES: z.preprocess(
     (value) => (value === "" ? undefined : value),
     z.coerce
