@@ -4,6 +4,7 @@ import {
   index,
   integer,
   jsonb,
+  smallint,
   pgTable,
   text,
   timestamp,
@@ -14,7 +15,7 @@ import {
 import type { QuestionResponse } from "@/lib/schemas";
 import { user } from "./auth";
 import { courses } from "./courses";
-import { activityRole, gradingOutcome, sessionMode, sessionState } from "./enums";
+import { activityRole, gradingOutcome, revealMode, sessionMode, sessionState } from "./enums";
 import { questionRevisions, questionSets, questions } from "./questions";
 
 export const studySessions = pgTable(
@@ -40,6 +41,11 @@ export const studySessions = pgTable(
     // questionId -> revisionId, fixed when the session is created so later edits cannot
     // change what this session shows or how it grades.
     revisionIds: jsonb("revision_ids").$type<Record<string, string>>().notNull().default({}),
+    // When the student sees results: after each answer, only at the end, or with wrong answers
+    // retried once. Fixed at creation so a resumed session keeps its mode.
+    revealMode: revealMode("reveal_mode").notNull().default("each"),
+    // Questions appended for a second pass (requeue mode), each at most once, in order.
+    retryOrder: jsonb("retry_order").$type<string[]>().notNull().default([]),
     policyVersion: text("policy_version").notNull().default("v1"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -74,12 +80,16 @@ export const attempts = pgTable(
     isCorrect: boolean("is_correct"),
     gradingOutcome: gradingOutcome("grading_outcome").notNull(),
     activityRole: activityRole("activity_role").notNull().default("scored"),
+    // 1 for the first answer to a question in a session, 2 for its single retry.
+    pass: smallint("pass").notNull().default(1),
     idempotencyKey: text("idempotency_key").notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     unique("attempts_user_idempotency_uq").on(t.userId, t.idempotencyKey),
+    // One answer per question per pass: the database refuses a duplicate or a second retry.
+    unique("attempts_session_question_pass_uq").on(t.sessionId, t.questionId, t.pass),
     index("attempts_session_id_idx").on(t.sessionId),
     index("attempts_question_id_idx").on(t.questionId),
     index("attempts_question_revision_id_idx").on(t.questionRevisionId),
