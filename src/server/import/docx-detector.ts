@@ -28,6 +28,7 @@ export function detectDocxQuestions(result: ExtractResult): Detection {
       .map((block) => block.id);
     return {
       prompt: question.prompt,
+      originalPrompt: question.originalPrompt,
       options: question.options.map((o) => ({ text: o.text, isCorrect: o.isCorrect })),
       anchor: question.anchor,
       blockIds,

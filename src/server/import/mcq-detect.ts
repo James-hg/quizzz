@@ -24,6 +24,8 @@ export type DraftOption = { text: string; isCorrect: boolean; anchor: ExtractAnc
 
 export type DraftQuestion = {
   prompt: string;
+  /** The stem as written, when a leading number was removed from `prompt`. */
+  originalPrompt?: string;
   options: DraftOption[];
   suggestedType: "mcq_single" | "mcq_multi";
   answerStatus: AnswerStatus;
@@ -113,6 +115,8 @@ type OpenOption = { styled: Styled; anchor: ExtractAnchor; index: number };
 type OpenQuestion = {
   stem: Styled;
   stemRaw: string;
+  /** The stem exactly as typed (before a leading number was stripped), wrapped lines included. */
+  original: string;
   anchor: ExtractAnchor;
   firstIndex: number;
   options: OpenOption[];
@@ -155,6 +159,7 @@ export function detectMcqs(extract: ExtractResult): McqDraft {
       current = {
         stem: styled,
         stemRaw: styled.text,
+        original: trimStyled(styledFrom(block)).text,
         anchor: block.anchor,
         firstIndex: anchorIndex(block.anchor) ?? 0,
         options: [],
@@ -184,7 +189,10 @@ export function detectMcqs(extract: ExtractResult): McqDraft {
       // A line that starts neither a question nor an option wraps the previous item.
       const lastOption = current.options[current.options.length - 1];
       if (last === "option" && lastOption) lastOption.styled = append(lastOption.styled, styled);
-      else current.stem = append(current.stem, styled);
+      else {
+        current.stem = append(current.stem, styled);
+        current.original = `${current.original} ${styled.text}`;
+      }
     }
   }
 
@@ -250,6 +258,7 @@ export function detectMcqs(extract: ExtractResult): McqDraft {
     const confident = answerStatus === "resolved" || answerStatus === "multi_proposed";
     return {
       prompt: q.stem.text,
+      ...(q.original !== q.stem.text ? { originalPrompt: q.original } : {}),
       options: q.options.map((o, j) => ({
         text: o.styled.text,
         isCorrect: confident && coverage[j] === "full",

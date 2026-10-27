@@ -192,4 +192,25 @@ describe("detectMcqs", () => {
     expect(a.preamble.map((x) => x.text)).toEqual(["Week 1"]);
     expect(a.questions[0]!.prompt).toBe("Q?");
   });
+
+  it("remembers the stem as typed when it strips a number, wrapped lines included", () => {
+    counter = 0;
+    const draft = detectMcqs(
+      extract([
+        block("1. Which is"),
+        block("true?"),
+        block("a", { level: 1 }),
+        block("b", { level: 1 }),
+        block("Is this unnumbered?", { level: 0 }),
+        block("c", { level: 1 }),
+        block("d", { level: 1 }),
+      ]),
+    );
+    expect(draft.questions[0]).toMatchObject({
+      prompt: "Which is true?",
+      originalPrompt: "1. Which is true?",
+    });
+    // Nothing was stripped, so there is nothing to remember.
+    expect(draft.questions[1]).not.toHaveProperty("originalPrompt");
+  });
 });

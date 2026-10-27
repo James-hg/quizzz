@@ -15,6 +15,11 @@ export const draftQuestionPayloadSchema = z
     kind: z.literal("question"),
     type: z.enum(["mcq_single", "mcq_multi"]),
     prompt: z.string().trim().min(1).max(10_000),
+    /**
+     * The prompt as written in the document, kept when a leading question number was removed so
+     * the review page can put it back. Publishing ignores it.
+     */
+    originalPrompt: z.string().max(10_000).nullish(),
     codeSnippet: z.string().max(20_000).nullish(),
     explanation: z.string().max(10_000).nullish(),
     options: z.array(optionSchema).min(2).max(10),
@@ -73,6 +78,7 @@ export const patchImportItemSchema = z
       .object({
         type: z.enum(["mcq_single", "mcq_multi"]),
         prompt: z.string(),
+        originalPrompt: z.string().max(10_000).nullable(),
         codeSnippet: z.string().nullable(),
         explanation: z.string().nullable(),
         options: z.array(optionSchema),

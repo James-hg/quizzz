@@ -6,6 +6,8 @@ import type { ExtractAnchor, ExtractResult, Warning } from "@/lib/schemas";
  */
 export type DetectedQuestion = {
   prompt: string;
+  /** The prompt as written, when the detector already removed a leading question number. */
+  originalPrompt?: string;
   options: { text: string; isCorrect: boolean }[];
   anchor: ExtractAnchor;
   /** Ids of the extractor blocks that make up the question (stem and options). */

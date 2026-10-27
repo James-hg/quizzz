@@ -6,6 +6,7 @@ import {
   type ImportWarning,
   type SourceRefs,
 } from "@/lib/schemas";
+import { stripQuestionNumber } from "@/lib/question-number";
 import { assertOwnsCourse } from "@/server/auth/ownership";
 import type { Database } from "@/server/db";
 import {
@@ -67,10 +68,24 @@ export function buildDraftItems(result: ExtractResult, detected: DetectedQuestio
       .slice(0, options.length)
       .flatMap((option, index) => (option.isCorrect ? [OPTION_IDS[index]!] : []));
 
+    // A number the detector already removed is remembered; one that is still in the text (for
+    // example typed into a Word list item) is removed here. Either way the original is kept so
+    // the review page can restore it.
+    let prompt = question.prompt;
+    let originalPrompt = question.originalPrompt;
+    if (!originalPrompt) {
+      const stripped = stripQuestionNumber(prompt);
+      if (stripped.removed) {
+        originalPrompt = prompt;
+        prompt = stripped.text;
+      }
+    }
+
     const payload = {
       kind: "question" as const,
       type: correctOptionIds.length > 1 ? ("mcq_multi" as const) : ("mcq_single" as const),
-      prompt: question.prompt,
+      prompt,
+      ...(originalPrompt ? { originalPrompt } : {}),
       options,
       correctOptionIds,
     };
