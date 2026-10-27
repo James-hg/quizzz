@@ -368,10 +368,90 @@ describe("update a question", () => {
     );
   });
 
-  it("warns that a multiple-answer question keeps only the chosen answer", () => {
-    const c = ctx({ questions: [q("q1", "Pick", ["a", "b", "c"], 0, "mcq_multi")] });
-    const result = step(START, "update question 1 correct answer is 2", c);
-    expect(text(result)).toContain("multiple-answer");
+  describe("multiple-answer questions", () => {
+    const multi = (correct: number[]) => ({
+      ...q("m1", "Pick all primes", ["2", "3", "4", "5"], 0, "mcq_multi"),
+      options: ["2", "3", "4", "5"].map((t, i) => ({
+        id: `m1-${i}`,
+        text: t,
+        correct: correct.includes(i),
+      })),
+    });
+    const withMulti = (correct = [0, 1, 3]) => ctx({ questions: [multi(correct)] });
+
+    it("keeps every correct answer when a distractor is replaced", () => {
+      const results = talk(["update question 1", "skip", "2 | 3 | 6 | 5"], withMulti());
+      expect(results[2]!.state).toMatchObject({
+        kind: "confirm",
+        effect: {
+          type: "update_question",
+          patch: {
+            options: [
+              { id: "a", text: "2" },
+              { id: "b", text: "3" },
+              { id: "c", text: "6" },
+              { id: "d", text: "5" },
+            ],
+            correctOptionIds: ["a", "b", "d"],
+          },
+        },
+      });
+      expect(text(results[2]!)).not.toContain("only the option");
+    });
+
+    it("keeps all correct answers when only the options are reordered or one is added", () => {
+      const result = step(START, "update question 1 options: 5 | 4 | 3 | 2 | 7", withMulti());
+      const effect = (result.state as Extract<Pending, { kind: "confirm" }>).effect as Extract<
+        Effect,
+        { type: "update_question" }
+      >;
+      // 2, 3 and 5 stay correct, wherever they moved to in the new list.
+      expect([...effect.patch.correctOptionIds!].sort()).toEqual(["a", "c", "d"]);
+    });
+
+    it("previews every kept correct answer", () => {
+      const result = step(START, "update question 1 options: 2 | 3 | 6 | 5", withMulti());
+      const preview = (result.state as Extract<Pending, { kind: "confirm" }>).preview;
+      expect(preview.filter((line) => line.includes("[correct]"))).toHaveLength(3);
+    });
+
+    it("refuses to guess when a correct answer is removed", () => {
+      const result = step(START, "update question 1 options: 2 | 3 | 4 | 9", withMulti());
+      expect(result.state).toEqual(START);
+      expect(result.run).toBeUndefined();
+      expect(text(result)).toContain("more than one correct answer");
+      expect(text(result)).toContain("Edit button");
+    });
+
+    it("sends changing the correct answers to the Edit form instead of dropping the rest", () => {
+      const result = step(START, "update question 1 correct answer is 2", withMulti());
+      expect(result.state).toEqual(START);
+      expect(result.run).toBeUndefined();
+      expect(text(result)).toContain("more than one correct answer");
+    });
+
+    it("still allows changing only the text", () => {
+      const result = step(START, 'update question 1 text to "Pick every prime"', withMulti());
+      expect(result.state).toMatchObject({
+        kind: "confirm",
+        effect: { patch: { prompt: "Pick every prime" } },
+      });
+      expect(
+        (result.state as { effect: { patch: { correctOptionIds?: unknown } } }).effect.patch
+          .correctOptionIds,
+      ).toBeUndefined();
+    });
+
+    it("does not ask which option is correct in the step-by-step flow", () => {
+      const results = talk(["update question 1", "skip", "skip"], withMulti());
+      expect(results[2]!.state.kind).toBe("none");
+      expect(text(results[2]!)).toContain("Nothing to change");
+    });
+  });
+
+  it("asks for the answer again for a single-answer question whose correct choice is gone", () => {
+    const result = step(START, "update question 1 options: x | y | z", ctx());
+    expect(result.state.kind).toBe("update_correct");
   });
 
   it("never updates an unresolved target", () => {

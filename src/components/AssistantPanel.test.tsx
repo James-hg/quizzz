@@ -452,6 +452,50 @@ describe("update a question", () => {
   });
 });
 
+describe("update a multiple-answer question", () => {
+  const multi = question("m1", "Which are small primes?", {
+    type: "mcq_multi",
+    options: [
+      { id: "a", text: "2" },
+      { id: "b", text: "3" },
+      { id: "c", text: "4" },
+    ],
+    answerKey: { kind: "options", correctOptionIds: ["a", "b"] },
+  });
+
+  it("keeps every correct answer when only a distractor changes", async () => {
+    stubApi({ "PATCH /api/questions/m1": {} });
+    const user = setup({ questions: [multi] });
+    await send(user, "update question 1 options: 2 | 3 | 6");
+    expect(awaiting()).toHaveTextContent("1. 2 [correct]");
+    expect(awaiting()).toHaveTextContent("2. 3 [correct]");
+    await confirm(user);
+    expect(calls).toEqual([
+      {
+        method: "PATCH",
+        url: "/api/questions/m1",
+        body: {
+          options: [
+            { id: "a", text: "2" },
+            { id: "b", text: "3" },
+            { id: "c", text: "6" },
+          ],
+          correctOptionIds: ["a", "b"],
+        },
+      },
+    ]);
+  });
+
+  it("does not drop correct answers when one is removed; it points to the Edit form", async () => {
+    stubApi();
+    const user = setup({ questions: [multi] });
+    await send(user, "update question 1 options: 2 | 5 | 6");
+    expect(conversation()).toHaveTextContent("more than one correct answer");
+    expect(awaiting()).toBeNull();
+    expect(calls).toEqual([]);
+  });
+});
+
 describe("rewrite a question", () => {
   it("explains that AI rewriting is not available yet, even with AI on", async () => {
     stubApi();

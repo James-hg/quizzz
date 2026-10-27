@@ -142,9 +142,10 @@ function confirmState(effect: Effect, preview: string[], intro: string): FlowRes
 
 const CONFIRM_HINT = "Confirm to apply it, or cancel to leave things as they are.";
 
-function optionPreview(options: string[], correctIndex: number | undefined) {
+function optionPreview(options: string[], correct: number | number[] | undefined) {
+  const marked = new Set(Array.isArray(correct) ? correct : correct === undefined ? [] : [correct]);
   return options.map(
-    (text, i) => `${i + 1}. ${shorten(text, 64)}${i === correctIndex ? "  [correct]" : ""}`,
+    (text, i) => `${i + 1}. ${shorten(text, 64)}${marked.has(i) ? "  [correct]" : ""}`,
   );
 }
 
@@ -228,14 +229,23 @@ function startRemove(ctx: FlowContext, target: TextTarget): FlowResult {
   );
 }
 
+const sameText = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/** Returned instead of a patch when the change would alter a multiple-answer question's key. */
+const MULTI_ANSWER = "multi_answer";
+
 function updatePatch(
   target: TextTarget,
   changes: UpdateChanges,
 ):
   | { patch: Extract<Effect, { type: "update_question" }>["patch"]; preview: string[] }
   | "need_correct"
-  | string {
+  | "no_match"
+  | "nothing"
+  | typeof MULTI_ANSWER
+  | { problem: string } {
   const { question } = target;
+  const multi = question.type === "mcq_multi";
   const patch: Extract<Effect, { type: "update_question" }>["patch"] = {};
   const preview: string[] = [];
 
@@ -244,38 +254,44 @@ function updatePatch(
     preview.push(`Question: ${shorten(changes.text, 120)}`);
   }
 
+  // Which answers are correct can only be changed here for single-answer questions.
+  if (multi && changes.correct !== undefined) return MULTI_ANSWER;
+
   let optionTexts = question.options.map((o) => o.text);
-  let correctIndex = question.options.findIndex((o) => o.correct);
+  let correct = question.options.flatMap((o, i) => (o.correct ? [i] : []));
   let optionsChanged = false;
+  let correctLost = false;
 
   if (changes.options) {
     const problem = checkOptionCount(changes.options);
-    if (problem) return problem;
+    if (problem) return { problem };
     optionsChanged = true;
     optionTexts = changes.options;
-    // Keep the current answer if its wording survives in the new list.
-    const wanted = question.options
-      .find((o) => o.correct)
-      ?.text.trim()
-      .toLowerCase();
-    correctIndex = optionTexts.findIndex((t) => t.trim().toLowerCase() === wanted);
+    // Keep every current correct answer whose wording survives in the new list. If one has
+    // gone, the key would change, so the owner has to choose instead of us guessing.
+    const kept = question.options
+      .filter((o) => o.correct)
+      .map((o) => optionTexts.findIndex((t) => sameText(t, o.text)));
+    correctLost = kept.some((i) => i < 0);
+    correct = kept;
   }
 
   if (changes.correct !== undefined) {
     const found = parseCorrectAnswer(String(changes.correct), optionTexts);
     if (found === null) return "no_match";
-    correctIndex = found;
+    correct = [found];
+    correctLost = false;
   }
 
-  if (optionsChanged && correctIndex < 0) return "need_correct";
+  if (correctLost) return multi ? MULTI_ANSWER : "need_correct";
 
   if (optionsChanged || changes.correct !== undefined) {
     const ids = optionsChanged
       ? optionTexts.map((text, i) => ({ id: OPTION_IDS[i]!, text }))
       : question.options.map((o) => ({ id: o.id, text: o.text }));
     if (optionsChanged) patch.options = ids;
-    patch.correctOptionIds = [ids[correctIndex]!.id];
-    preview.push(...optionPreview(optionTexts, correctIndex));
+    patch.correctOptionIds = correct.map((i) => ids[i]!.id);
+    preview.push(...optionPreview(optionTexts, correct));
   }
 
   if (Object.keys(patch).length === 0) return "nothing";
@@ -297,19 +313,21 @@ function finishUpdate(target: TextTarget, changes: UpdateChanges): FlowResult {
       "I could not match that answer. Reply with the choice number or the exact option text.",
     );
   }
+  if (built === MULTI_ANSWER) {
+    return say(
+      START,
+      `${capitalize(label(index, question))} has more than one correct answer. I cannot safely change which answers are correct from chat, because that would change how it is graded. Use its Edit button to choose them. Changing only the question text, or choices that keep every correct answer, works here.`,
+    );
+  }
   if (built === "nothing") {
     return say(START, `Nothing to change on ${label(index, question)}.`);
   }
-  if (typeof built === "string") {
+  if ("problem" in built) {
     return say(
       { kind: "update_options", target, changes: { ...changes, options: undefined } },
-      `${built} Send the full list again, or type skip.`,
+      `${built.problem} Send the full list again, or type skip.`,
     );
   }
-  const multi =
-    question.type === "mcq_multi" && built.patch.correctOptionIds
-      ? " This is a multiple-answer question: only the option you chose will stay correct."
-      : "";
   return confirmState(
     {
       type: "update_question",
@@ -318,7 +336,7 @@ function finishUpdate(target: TextTarget, changes: UpdateChanges): FlowResult {
       patch: built.patch,
     },
     built.preview,
-    `I prepared the update for ${label(index, question)}.${multi} It is saved as a new revision.${
+    `I prepared the update for ${label(index, question)}. It is saved as a new revision.${
       question.needsReview
         ? " It still needs your approval before it can be practised: tick the approve box when you edit it."
         : ""
@@ -555,6 +573,8 @@ function answer(
     case "update_options": {
       if (isSkip(text)) {
         const changes = { ...state.changes, options: undefined };
+        // A multiple-answer question's correct answers cannot be changed from chat.
+        if (state.target.question.type === "mcq_multi") return finishUpdate(state.target, changes);
         return say(
           { kind: "update_correct", target: state.target, changes },
           "Which option should be correct? Reply with the choice number or the exact text, or type skip to keep the current answer.",
