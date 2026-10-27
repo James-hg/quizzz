@@ -18,7 +18,11 @@ import {
  * the app's own API after the user confirms, so every change is an ordinary, revisioned edit.
  */
 
-export type CommandQuestion = EditableQuestion & { type: string };
+export type CommandQuestion = EditableQuestion & {
+  type: string;
+  /** True for sample or AI-proposed questions the owner has not approved yet. */
+  needsReview?: boolean;
+};
 
 export type FlowContext = {
   questions: CommandQuestion[];
@@ -29,6 +33,9 @@ export type FlowContext = {
 const MIN_OPTIONS = 2;
 const MAX_OPTIONS = 10;
 const OPTION_IDS = "abcdefghij";
+
+/** The id given to the nth option of a question created or rewritten by a command. */
+export const optionId = (index: number) => OPTION_IDS[index]!;
 
 export type Effect =
   | { type: "rename_set"; title: string }
@@ -311,7 +318,11 @@ function finishUpdate(target: TextTarget, changes: UpdateChanges): FlowResult {
       patch: built.patch,
     },
     built.preview,
-    `I prepared the update for ${label(index, question)}.${multi} It is saved as a new revision. ${CONFIRM_HINT}`,
+    `I prepared the update for ${label(index, question)}.${multi} It is saved as a new revision.${
+      question.needsReview
+        ? " It still needs your approval before it can be practised: tick the approve box when you edit it."
+        : ""
+    } ${CONFIRM_HINT}`,
   );
 }
 
