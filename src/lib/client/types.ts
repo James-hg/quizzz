@@ -16,6 +16,8 @@ export type ImportQuestionPayload = {
   kind: "question";
   type: "mcq_single" | "mcq_multi";
   prompt: string;
+  /** The prompt as written, set when a leading question number was removed. */
+  originalPrompt?: string | null;
   codeSnippet?: string | null;
   explanation?: string | null;
   options: ImportOption[];

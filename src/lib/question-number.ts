@@ -43,3 +43,41 @@ export function stripQuestionNumber(prompt: string): StrippedPrompt {
 export function hasQuestionNumber(prompt: string): boolean {
   return stripQuestionNumber(prompt).removed;
 }
+
+export type NumberToggle = {
+  /** True when the number has already been removed from the prompt. */
+  applied: boolean;
+  /** The prompt with its number. */
+  original: string;
+  /** The prompt without its number. */
+  stripped: string;
+  /** The edit that flips the toggle: the new prompt, and the original to keep (or null). */
+  next: { prompt: string; originalPrompt: string | null };
+};
+
+/**
+ * What the review page's "Remove question number" toggle should show for an imported prompt, or
+ * null when the prompt has no number to remove. `originalPrompt` is set once a number has been
+ * removed, which is what lets the toggle put it back.
+ */
+export function numberToggleFor(
+  prompt: string,
+  originalPrompt?: string | null,
+): NumberToggle | null {
+  if (originalPrompt) {
+    return {
+      applied: true,
+      original: originalPrompt,
+      stripped: prompt,
+      next: { prompt: originalPrompt, originalPrompt: null },
+    };
+  }
+  const stripped = stripQuestionNumber(prompt);
+  if (!stripped.removed) return null;
+  return {
+    applied: false,
+    original: prompt,
+    stripped: stripped.text,
+    next: { prompt: stripped.text, originalPrompt: prompt },
+  };
+}

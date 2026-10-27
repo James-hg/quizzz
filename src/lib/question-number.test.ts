@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { QUESTION_PREFIX } from "@/server/import/mcq-detect";
-import { hasQuestionNumber, stripQuestionNumber } from "./question-number";
+import { hasQuestionNumber, numberToggleFor, stripQuestionNumber } from "./question-number";
 
 describe("stripQuestionNumber: numbering that is removed", () => {
   it.each([
@@ -107,5 +107,40 @@ describe("stripQuestionNumber: properties", () => {
   it("hasQuestionNumber matches stripQuestionNumber", () => {
     expect(hasQuestionNumber("1. What")).toBe(true);
     expect(hasQuestionNumber("2 + 2 = ?")).toBe(false);
+  });
+});
+
+describe("numberToggleFor", () => {
+  it("offers to remove a number that is still in the prompt", () => {
+    expect(numberToggleFor("1. What is X?")).toEqual({
+      applied: false,
+      original: "1. What is X?",
+      stripped: "What is X?",
+      next: { prompt: "What is X?", originalPrompt: "1. What is X?" },
+    });
+  });
+
+  it("offers to put the number back once it has been removed", () => {
+    expect(numberToggleFor("What is X?", "1. What is X?")).toEqual({
+      applied: true,
+      original: "1. What is X?",
+      stripped: "What is X?",
+      next: { prompt: "1. What is X?", originalPrompt: null },
+    });
+  });
+
+  it("offers nothing for prompts without a number, or after the original was cleared", () => {
+    expect(numberToggleFor("2 + 2 = ?")).toBeNull();
+    expect(numberToggleFor("What is X?", null)).toBeNull();
+  });
+
+  it("round-trips: removing then restoring gives back exactly the original", () => {
+    const first = numberToggleFor("Question 3: What is X?")!;
+    const removed = numberToggleFor(first.next.prompt, first.next.originalPrompt)!;
+    expect(removed.applied).toBe(true);
+    expect(removed.next.prompt).toBe("Question 3: What is X?");
+    expect(numberToggleFor(removed.next.prompt, removed.next.originalPrompt)?.next.prompt).toBe(
+      "What is X?",
+    );
   });
 });

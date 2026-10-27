@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { apiFetch, errorMessage } from "@/lib/client/api";
+import { numberToggleFor } from "@/lib/question-number";
 import {
   describeAnchor,
   type ImportItemView,
@@ -134,6 +135,14 @@ export function ImportReview({ initial, existingSets, defaultTitle }: Props) {
                 busy={busy === item.id}
                 onDecision={(decision) => patch(item.id, { decision })}
                 onSaveEdit={(edit) => patch(item.id, { edit, decision: "accepted" })}
+                onNumberToggle={(edit) =>
+                  // Toggling the number must never accept or exclude the item by itself, so it
+                  // sends the decision the item already has ("edited" is re-sent as accepted).
+                  patch(item.id, {
+                    edit,
+                    decision: item.decision === "edited" ? "accepted" : item.decision,
+                  })
+                }
               />
             </li>
           ))}
@@ -177,12 +186,14 @@ function ImportItemCard({
   busy,
   onDecision,
   onSaveEdit,
+  onNumberToggle,
 }: {
   item: ImportItemView;
   locked: boolean;
   busy: boolean;
   onDecision: (decision: "pending" | "accepted" | "excluded") => Promise<boolean>;
   onSaveEdit: (edit: Record<string, unknown>) => Promise<boolean>;
+  onNumberToggle: (edit: { prompt: string; originalPrompt: string | null }) => Promise<boolean>;
 }) {
   const [editing, setEditing] = useState(false);
 
@@ -201,6 +212,7 @@ function ImportItemCard({
 
   const payload = item.payload;
   const unresolved = payload.correctOptionIds.length === 0;
+  const numberToggle = numberToggleFor(payload.prompt, payload.originalPrompt);
   const tone =
     item.decision === "excluded"
       ? "badge-bad"
@@ -239,6 +251,23 @@ function ImportItemCard({
       ) : (
         <>
           <p className="question-prompt">{payload.prompt}</p>
+          {numberToggle && !locked ? (
+            <div className="field" style={{ marginBottom: "0.5rem" }}>
+              <label className="row">
+                <input
+                  type="checkbox"
+                  checked={numberToggle.applied}
+                  disabled={busy}
+                  onChange={() => void onNumberToggle(numberToggle.next)}
+                />
+                Remove question number
+              </label>
+              <p className="hint">
+                {numberToggle.applied ? "Original: " : "Would become: "}
+                &ldquo;{numberToggle.applied ? numberToggle.original : numberToggle.stripped}&rdquo;
+              </p>
+            </div>
+          ) : null}
           {payload.codeSnippet ? <pre className="code">{payload.codeSnippet}</pre> : null}
           <ul className="options">
             {payload.options.map((o) => {
@@ -349,6 +378,8 @@ function ItemEditor({
     onSave({
       type,
       prompt: prompt.trim(),
+      // Typing your own wording ends the toggle: it must never put an old original back over it.
+      ...(prompt.trim() !== payload.prompt ? { originalPrompt: null } : {}),
       options: options.map((o) => ({ ...o, text: o.text.trim() })),
       correctOptionIds: type === "mcq_single" ? correct.slice(0, 1) : correct,
     });
