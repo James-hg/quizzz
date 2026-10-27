@@ -76,6 +76,7 @@ export default async function EditSetPage({
         questionSetId={set.id}
         courseId={course.id}
         setTitle={set.title}
+        questions={initial}
       />
 
       {history.length > 0 ? (
