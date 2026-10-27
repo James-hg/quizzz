@@ -8,7 +8,8 @@ import { attempts, questionRevisions, studySessions } from "@/server/db/schema";
 import { badRequest, conflict, notFound } from "@/server/http/errors";
 import { gradeResponse } from "@/server/grading";
 import { lockSession } from "./service";
-import { firstPendingIndex, resultOf } from "./view";
+import { disclosureFor, isEnded, shouldRequeue, type Pass } from "./reveal";
+import { firstPendingIndex, resultOf, sessionSlots, type SessionRow } from "./view";
 
 type RevisionRow = typeof questionRevisions.$inferSelect;
 
@@ -71,7 +72,7 @@ async function replay(
   db: Database,
   attempt: typeof attempts.$inferSelect,
   input: SubmitAnswerInput,
-  total: number,
+  session: SessionRow,
 ) {
   if (attempt.questionId !== input.questionId) {
     throw conflict(
@@ -83,10 +84,30 @@ async function replay(
     .select()
     .from(questionRevisions)
     .where(eq(questionRevisions.id, attempt.questionRevisionId));
+  const [retry] = await db
+    .select({ id: attempts.id })
+    .from(attempts)
+    .where(
+      and(
+        eq(attempts.sessionId, session.id),
+        eq(attempts.questionId, attempt.questionId),
+        eq(attempts.pass, 2),
+      ),
+    );
+  // Disclosed exactly as a fresh submission would be now: a replay never reveals more than the
+  // session's mode allows at this moment, and shows everything once the session has ended.
+  const disclosure = disclosureFor({
+    mode: session.revealMode,
+    sessionEnded: isEnded(session.state),
+    pass: attempt.pass as Pass,
+    outcome: attempt.gradingOutcome,
+    retryAnswered: Boolean(retry),
+  });
   return {
     replayed: true,
-    result: resultOf(attempt, parseRevisionJson(revision!)),
-    progress: await progressOf(db, attempt.sessionId, total),
+    result: resultOf(attempt, parseRevisionJson(revision!), disclosure),
+    requeued: attempt.pass === 1 && session.retryOrder.includes(attempt.questionId),
+    progress: await progressOf(db, attempt.sessionId, sessionSlots(session).length),
   };
 }
 
@@ -116,7 +137,7 @@ export async function submitAnswer(
             "idempotency_key_reused",
           );
         }
-        return replay(database, existing, input, session.itemOrder.length);
+        return replay(database, existing, input, session);
       }
 
       if (session.state === "completed" || session.state === "abandoned") {
@@ -130,12 +151,22 @@ export async function submitAnswer(
         throw notFound("Question not in this session");
 
       const sessionAttempts = await database
-        .select({ questionId: attempts.questionId })
+        .select({ questionId: attempts.questionId, pass: attempts.pass })
         .from(attempts)
         .where(eq(attempts.sessionId, sessionId));
-      if (sessionAttempts.some((a) => a.questionId === input.questionId)) {
+      const answeredFirst = sessionAttempts.some(
+        (a) => a.questionId === input.questionId && a.pass === 1,
+      );
+      const answeredRetry = sessionAttempts.some(
+        (a) => a.questionId === input.questionId && a.pass === 2,
+      );
+      // The first answer is pass 1. Only a question queued for a retry can be answered again,
+      // once; anything else has already had its turn.
+      let pass: Pass;
+      if (!answeredFirst) pass = 1;
+      else if (session.retryOrder.includes(input.questionId) && !answeredRetry) pass = 2;
+      else
         throw conflict("This question was already answered in this session.", "already_answered");
-      }
 
       const revisionId = session.revisionIds[input.questionId];
       const [row] = revisionId
@@ -158,27 +189,55 @@ export async function submitAnswer(
         response: input.response,
         isCorrect: outcome === "uncertain" ? null : outcome === "correct",
         gradingOutcome: outcome,
-        activityRole: "scored",
+        // A retry follows a verdict the student has already seen, so it is practice, not an
+        // independent (scored) answer.
+        activityRole: pass === 2 ? "practice" : "scored",
+        pass,
         idempotencyKey: input.idempotencyKey,
         startedAt: now,
         submittedAt: now,
       });
 
-      const answered = new Set([...sessionAttempts.map((a) => a.questionId), input.questionId]);
+      // A wrong first answer in requeue mode is asked once more, at the end.
+      const retryOrder =
+        shouldRequeue(session.revealMode, pass, outcome) &&
+        !session.retryOrder.includes(input.questionId)
+          ? [...session.retryOrder, input.questionId]
+          : session.retryOrder;
+
+      const answered = new Set([
+        ...sessionAttempts.map((a) => `${a.questionId}:${a.pass}`),
+        `${input.questionId}:${pass}`,
+      ]);
+      const slots = sessionSlots({ itemOrder: session.itemOrder, retryOrder });
       const nextIndex = firstPendingIndex(
-        session.itemOrder.map((id) => ({
-          status: answered.has(id) || !session.revisionIds[id] ? "done" : "pending",
+        slots.map((slot) => ({
+          status:
+            answered.has(`${slot.questionId}:${slot.pass}`) || !session.revisionIds[slot.questionId]
+              ? "done"
+              : "pending",
         })),
       );
       await database
         .update(studySessions)
-        .set({ currentIndex: nextIndex })
+        .set({ currentIndex: nextIndex, retryOrder })
         .where(eq(studySessions.id, sessionId));
 
       return {
         replayed: false,
-        result: resultOf(attempt, revision),
-        progress: { answered: answered.size, total: session.itemOrder.length },
+        result: resultOf(
+          attempt,
+          revision,
+          disclosureFor({
+            mode: session.revealMode,
+            sessionEnded: false,
+            pass,
+            outcome,
+            retryAnswered: pass === 2,
+          }),
+        ),
+        requeued: retryOrder.length > session.retryOrder.length,
+        progress: { answered: answered.size, total: slots.length },
       };
     });
   } catch (error) {
@@ -189,6 +248,7 @@ export async function submitAnswer(
       throw conflict("That idempotency key was already used elsewhere.", "idempotency_key_reused");
     }
     const [session] = await db.select().from(studySessions).where(eq(studySessions.id, sessionId));
-    return replay(db, stored, input, session?.itemOrder.length ?? 0);
+    if (!session) throw error;
+    return replay(db, stored, input, session);
   }
 }

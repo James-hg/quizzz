@@ -4,6 +4,8 @@ import { responseSchema } from "./response";
 export const createSessionSchema = z.object({
   questionSetId: z.uuid(),
   mode: z.literal("quiz").default("quiz"),
+  /** When the student sees results. Ignored when resuming a session that is already running. */
+  revealMode: z.enum(["each", "end", "requeue"]).default("each"),
 });
 
 /** Client-chosen key that makes retries of one submission safe. */

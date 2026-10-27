@@ -1,6 +1,7 @@
 import "server-only";
 import { eq, inArray } from "drizzle-orm";
 import { revealAnswer } from "@/server/grading";
+import { disclosureFor, isEnded, type Disclosure, type Pass } from "./reveal";
 import type { Database } from "@/server/db";
 import { parseRevisionJson } from "@/server/db/repositories/questions";
 import { attempts, questionRevisions, studySessions } from "@/server/db/schema";
@@ -18,17 +19,36 @@ export function elapsedSecondsAt(session: SessionRow, now: Date): number {
   return session.elapsedSeconds;
 }
 
-/** The result shown to the student after they have submitted. Built only from an attempt. */
-export function resultOf(attempt: AttemptRow, revision: RevisionRow) {
-  return {
+type AnswerOutcome = "correct" | "incorrect" | "uncertain";
+
+/**
+ * The result shown to the student after they have submitted, limited to what `disclosure`
+ * allows. Built only from an attempt; the answer key is read only for a `full` disclosure.
+ */
+export function resultOf(
+  attempt: AttemptRow,
+  revision: RevisionRow,
+  disclosure: Disclosure = "full",
+) {
+  const base = {
     attemptId: attempt.id,
-    outcome: attempt.gradingOutcome,
-    isCorrect: attempt.isCorrect,
+    pass: attempt.pass as Pass,
     response: attempt.response,
-    correctAnswer: revealAnswer(revision.answerKey),
-    explanation: revision.explanation,
     submittedAt: attempt.submittedAt,
   };
+  if (disclosure === "none") return { ...base, disclosure } as const;
+  const verdict = {
+    ...base,
+    outcome: attempt.gradingOutcome as AnswerOutcome,
+    isCorrect: attempt.isCorrect,
+  };
+  if (disclosure === "verdict") return { ...verdict, disclosure } as const;
+  return {
+    ...verdict,
+    correctAnswer: revealAnswer(revision.answerKey),
+    explanation: revision.explanation,
+    disclosure,
+  } as const;
 }
 
 /**
@@ -50,14 +70,23 @@ function questionForPlay(revision: RevisionRow, questionId: string) {
 }
 
 export type SessionItem =
-  | { questionId: string; position: number; status: "pending" }
-  | { questionId: string; position: number; status: "removed" }
+  | { questionId: string; position: number; pass: Pass; status: "pending" }
+  | { questionId: string; position: number; pass: Pass; status: "removed" }
   | {
       questionId: string;
       position: number;
+      pass: Pass;
       status: "answered";
       result: ReturnType<typeof resultOf>;
     };
+
+/** The questions a session asks, in order: every question once, then the retries (requeue). */
+export function sessionSlots(session: Pick<SessionRow, "itemOrder" | "retryOrder">) {
+  return [
+    ...session.itemOrder.map((questionId) => ({ questionId, pass: 1 as Pass })),
+    ...session.retryOrder.map((questionId) => ({ questionId, pass: 2 as Pass })),
+  ];
+}
 
 export async function loadAttempts(db: Database, sessionId: string) {
   return db.select().from(attempts).where(eq(attempts.sessionId, sessionId));
@@ -81,16 +110,30 @@ export async function buildSessionView(db: Database, session: SessionRow, now: D
     loadAttempts(db, session.id),
     loadPinnedRevisions(db, session),
   ]);
-  const attemptByQuestion = new Map(sessionAttempts.map((a) => [a.questionId, a]));
+  const attemptAt = new Map(sessionAttempts.map((a) => [`${a.questionId}:${a.pass}`, a]));
+  const ended = isEnded(session.state);
 
-  const items: SessionItem[] = session.itemOrder.map((questionId, position) => {
-    const attempt = attemptByQuestion.get(questionId);
+  const items: SessionItem[] = sessionSlots(session).map(({ questionId, pass }, position) => {
+    const attempt = attemptAt.get(`${questionId}:${pass}`);
     const revision = revisions.get(session.revisionIds[questionId] ?? "");
     if (attempt && revision) {
-      return { questionId, position, status: "answered", result: resultOf(attempt, revision) };
+      const disclosure = disclosureFor({
+        mode: session.revealMode,
+        sessionEnded: ended,
+        pass,
+        outcome: attempt.gradingOutcome,
+        retryAnswered: attemptAt.has(`${questionId}:2`),
+      });
+      return {
+        questionId,
+        position,
+        pass,
+        status: "answered",
+        result: resultOf(attempt, revision, disclosure),
+      };
     }
-    if (!revision) return { questionId, position, status: "removed" };
-    return { questionId, position, status: "pending" };
+    if (!revision) return { questionId, position, pass, status: "removed" };
+    return { questionId, position, pass, status: "pending" };
   });
 
   const currentIndex = firstPendingIndex(items);
@@ -105,6 +148,7 @@ export async function buildSessionView(db: Database, session: SessionRow, now: D
     questionSetId: session.questionSetId,
     courseId: session.courseId,
     mode: session.mode,
+    revealMode: session.revealMode,
     state: session.state,
     startedAt: session.startedAt,
     completedAt: session.completedAt,
@@ -114,10 +158,13 @@ export async function buildSessionView(db: Database, session: SessionRow, now: D
       total: items.length,
       answered: items.filter((i) => i.status === "answered").length,
       removed: items.filter((i) => i.status === "removed").length,
+      retries: session.retryOrder.length,
     },
     items,
     current:
-      pending && currentRevision ? questionForPlay(currentRevision, pending.questionId) : null,
+      pending && currentRevision
+        ? { ...questionForPlay(currentRevision, pending.questionId), pass: pending.pass }
+        : null,
   };
 }
 
