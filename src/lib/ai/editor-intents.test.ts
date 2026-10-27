@@ -169,6 +169,30 @@ describe("option and answer parsing", () => {
     expect(parseOptionList("   ")).toEqual([]);
   });
 
+  it("keeps numeric choices and only strips real list markers", () => {
+    expect(parseOptionList("3\n4\n5")).toEqual(["3", "4", "5"]);
+    expect(parseOptionList("3.5 | 4.5")).toEqual(["3.5", "4.5"]);
+    expect(parseOptionList("2 apples | 3 pears")).toEqual(["2 apples", "3 pears"]);
+    expect(parseOptionList("1. red\n2. green")).toEqual(["red", "green"]);
+    expect(parseOptionList("1) red\n2) green")).toEqual(["red", "green"]);
+    expect(parseOptionList("1 - red | 2 - green")).toEqual(["red", "green"]);
+  });
+
+  it("prefers a choice's exact text over a choice number", () => {
+    expect(parseCorrectAnswer("4", ["3", "4", "5"])).toBe(1);
+    expect(parseCorrectAnswer("2", ["3", "4", "5"])).toBe(1);
+    expect(parseCorrectAnswer("3.5", ["3.5", "4"])).toBe(0);
+  });
+
+  it("does not treat filler words as a topic", () => {
+    expect(parseEditorIntent("generate some questions").topic).toBeUndefined();
+    expect(parseEditorIntent("add a few questions").topic).toBeUndefined();
+    expect(parseEditorIntent("generate 5 more questions about loops")).toMatchObject({
+      count: 5,
+      topic: "loops",
+    });
+  });
+
   it("finds the correct answer by number, exact text, or partial text", () => {
     const options = ["red", "green", "dark blue"];
     expect(parseCorrectAnswer("2", options)).toBe(1);

@@ -220,6 +220,14 @@ export function resolveQuestionTarget(
   return { status: "missing" };
 }
 
+/**
+ * Removes a leading "1)", "1." or "1 -" list marker. A bare number ("3"), a decimal ("3.5"), or
+ * a number that starts the text ("2 apples") is the choice itself and is kept.
+ */
+function stripListMarker(entry: string): string {
+  return entry.replace(/^\d+\)\s*(?=\S)/, "").replace(/^\d+(?:\.|\s+-)\s+(?=\S)/, "");
+}
+
 export function parseOptionList(input: string): string[] {
   const cleaned = input.trim();
   if (!cleaned) {
@@ -237,7 +245,7 @@ export function parseOptionList(input: string): string[] {
 
   return withoutPrefix
     .split(delimiter)
-    .map((entry) => entry.replace(/^\d+[\).\s-]*/, "").trim())
+    .map((entry) => stripListMarker(entry.trim()))
     .filter(Boolean);
 }
 
@@ -245,6 +253,12 @@ export function parseCorrectAnswer(input: string, options: string[]): number | n
   const text = input.trim();
   if (!text) {
     return null;
+  }
+
+  // Choices can be numbers themselves ("3", "4"), so exact wording wins over a choice number.
+  const exact = options.findIndex((option) => normalizeText(option) === normalizeText(text));
+  if (exact >= 0) {
+    return exact;
   }
 
   const numeric = text.match(/\b(\d+)\b/);
@@ -367,6 +381,7 @@ function extractStandaloneTopic(input: string): string | undefined {
     .replace(/\bquestions?\b/gi, "")
     .replace(/\b(?:about|on|for)\b/gi, "")
     .replace(/^[\s:,-]+/, "")
+    .replace(/^(?:some|several|a few|few|more|any|new|another)\b[\s:,-]*/i, "")
     .trim();
 
   return stripped || undefined;

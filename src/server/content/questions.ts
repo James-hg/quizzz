@@ -263,7 +263,8 @@ export async function shuffleOptions(
     explanation: current.explanation,
     options: shuffled(current.options, random),
     answerKey: current.answerKey,
-    origin: "original",
+    // Shuffling changes order only: it must not change where the question came from.
+    origin: current.origin,
     evidenceStatus: current.evidenceStatus,
     createdBy: userId,
   });
