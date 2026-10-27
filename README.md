@@ -92,7 +92,7 @@ Component and state tests: `npx vitest run src/components`. The main flow (sign 
 | `npm test` | Both |
 | `npm run samples:validate` | Validate sample course fixtures (also runs in CI) |
 | `npm run samples:load -- <language> --email <email>` | Copy a sample course into an account |
-| `npm run check:bundle` | After `npm run build`, fail if a secret appears in browser-visible output |
+| `npm run check:bundle` | After `npm run build`, fail if a secret appears in browser-visible output: `.next/static` and the prerendered pages (`.html`, `.rsc`, `.body`, `.meta`) under `.next/server/app`. Also fails if there is nothing to scan |
 
 ## Sample courses
 
