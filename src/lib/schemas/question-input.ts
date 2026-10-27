@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { questionImageInputSchema } from "@/lib/images";
 import { optionSchema } from "./options";
 
 const base = {
@@ -100,7 +101,11 @@ export type QuestionContent = z.infer<typeof questionContentSchema>;
 /** Create: content plus an explicit owner approval, which is what marks it human-reviewed. */
 export const createQuestionSchema = z.intersection(
   questionContentSchema,
-  z.object({ approve: z.boolean().default(false) }),
+  z.object({
+    approve: z.boolean().default(false),
+    /** An image already uploaded through `POST /api/question-sets/:id/images`. */
+    image: questionImageInputSchema.optional(),
+  }),
 );
 
 export type RevisionColumns = {
@@ -187,6 +192,8 @@ export const patchQuestionSchema = z
     blanks: z.array(z.array(z.string())),
     caseSensitive: z.boolean(),
     approve: z.boolean(),
+    /** An image object replaces the image, `null` removes it, leaving it out keeps it. */
+    image: questionImageInputSchema.nullable(),
   })
   .partial()
   .refine((body) => Object.keys(body).length > 0, "at least one field is required");

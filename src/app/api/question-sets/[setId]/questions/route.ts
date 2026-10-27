@@ -21,7 +21,7 @@ export const GET = handleRoute(async (request: Request, { params }: Ctx) => {
 export const POST = handleRoute(async (request: Request, { params }: Ctx) => {
   const user = await requireUser(request);
   const id = parseId((await params).setId, "Question set");
-  const { approve, ...content } = await readJson(request, createQuestionSchema);
-  const question = await createQuestion(getDb(), user.id, id, content, approve);
+  const { approve, image, ...content } = await readJson(request, createQuestionSchema);
+  const question = await createQuestion(getDb(), user.id, id, content, approve, image);
   return NextResponse.json({ question }, { status: 201 });
 });

@@ -14,15 +14,27 @@ import type { Database } from "@/server/db";
 import { addRevision, parseRevisionJson } from "@/server/db/repositories/questions";
 import { attempts, questionRevisions, questionSourceLinks, questions } from "@/server/db/schema";
 import { badRequest, conflict, notFound } from "@/server/http/errors";
+import {
+  deleteUnlinkedImages,
+  getOwnedImage,
+  imageIdsOfRevisions,
+  loadImagesForRevisions,
+} from "@/server/images/service";
+import { getStorage } from "@/server/storage";
 import { hasHistoryError } from "./history";
 import { evidenceFor } from "@/lib/evidence";
+import type { QuestionImageInput, QuestionImageView } from "@/lib/images";
 import { NO_ANSWER_KIND, PLAY_BLOCKING_EVIDENCE } from "@/lib/playability";
 
 type QuestionRow = typeof questions.$inferSelect;
 type RevisionRow = typeof questionRevisions.$inferSelect;
 
 /** Owner-facing shape: includes the answer key because the editor needs it. */
-export function toOwnerView(question: QuestionRow, revision: RevisionRow) {
+export function toOwnerView(
+  question: QuestionRow,
+  revision: RevisionRow,
+  image: QuestionImageView | null = null,
+) {
   return {
     id: question.id,
     questionSetId: question.questionSetId,
@@ -38,6 +50,7 @@ export function toOwnerView(question: QuestionRow, revision: RevisionRow) {
     explanation: revision.explanation,
     origin: revision.origin,
     evidenceStatus: revision.evidenceStatus,
+    image,
     createdAt: revision.createdAt,
   };
 }
@@ -58,8 +71,10 @@ export async function createQuestion(
   setId: string,
   content: QuestionContent,
   approve: boolean,
+  image?: QuestionImageInput,
 ) {
   await assertOwnsQuestionSet(db, userId, setId);
+  if (image) await getOwnedImage(db, userId, image.imageId);
   return db.transaction(async (tx) => {
     const database = tx as unknown as Database;
     const [last] = await database
@@ -70,19 +85,29 @@ export async function createQuestion(
       .insert(questions)
       .values({ questionSetId: setId, position: (last?.p ?? -1) + 1 })
       .returning();
-    const revision = await addRevision(database, question!.id, {
-      ...contentToRevision(content),
-      origin: "original",
-      // The owner wrote it and it has an answer, so it counts as reviewed. `approve` only
-      // matters for questions that did not originate with the owner.
-      evidenceStatus: evidenceFor({
+    const revision = await addRevision(
+      database,
+      question!.id,
+      {
+        ...contentToRevision(content),
         origin: "original",
-        answerKind: contentToRevision(content).answerKey.kind,
-        approve,
-      }),
-      createdBy: userId,
-    });
-    return toOwnerView({ ...question!, currentRevisionId: revision.id }, revision);
+        // The owner wrote it and it has an answer, so it counts as reviewed. `approve` only
+        // matters for questions that did not originate with the owner.
+        evidenceStatus: evidenceFor({
+          origin: "original",
+          answerKind: contentToRevision(content).answerKey.kind,
+          approve,
+        }),
+        createdBy: userId,
+      },
+      { image },
+    );
+    const images = await loadImagesForRevisions(database, [revision.id]);
+    return toOwnerView(
+      { ...question!, currentRevisionId: revision.id },
+      revision,
+      images.get(revision.id),
+    );
   });
 }
 
@@ -94,12 +119,20 @@ export async function listQuestions(db: Database, userId: string, setId: string)
     .innerJoin(questionRevisions, eq(questions.currentRevisionId, questionRevisions.id))
     .where(eq(questions.questionSetId, setId))
     .orderBy(asc(questions.position));
-  return rows.map((r) => toOwnerView(r.question, parseRevisionJson(r.revision)));
+  const images = await loadImagesForRevisions(
+    db,
+    rows.map((r) => r.revision.id),
+  );
+  return rows.map((r) =>
+    toOwnerView(r.question, parseRevisionJson(r.revision), images.get(r.revision.id)),
+  );
 }
 
 export async function getQuestion(db: Database, userId: string, questionId: string) {
   const question = await assertOwnsQuestion(db, userId, questionId);
-  return toOwnerView(question, await currentRevision(db, question));
+  const revision = await currentRevision(db, question);
+  const images = await loadImagesForRevisions(db, [revision.id]);
+  return toOwnerView(question, revision, images.get(revision.id));
 }
 
 export async function listRevisions(db: Database, userId: string, questionId: string) {
@@ -124,25 +157,36 @@ export async function updateQuestion(
 ) {
   const question = await assertOwnsQuestion(db, userId, questionId);
   const current = await currentRevision(db, question);
-  const { approve = false, ...fields } = patch;
+  const { approve = false, image, ...fields } = patch;
+  if (image) await getOwnedImage(db, userId, image.imageId);
   const merged = questionContentSchema.parse({
     ...revisionToContentInput(current as unknown as RevisionColumns),
     ...fields,
   });
-  const revision = await addRevision(db, questionId, {
-    ...contentToRevision(merged),
-    // Editing never launders provenance: the origin is kept, and a revision that came from AI
-    // or a sample stays unreviewed until the owner explicitly approves it.
-    origin: current.origin,
-    evidenceStatus: evidenceFor({
+  const revision = await addRevision(
+    db,
+    questionId,
+    {
+      ...contentToRevision(merged),
+      // Editing never launders provenance: the origin is kept, and a revision that came from AI
+      // or a sample stays unreviewed until the owner explicitly approves it.
       origin: current.origin,
-      answerKind: contentToRevision(merged).answerKey.kind,
-      approve,
-      previous: current.evidenceStatus,
-    }),
-    createdBy: userId,
-  });
-  return toOwnerView({ ...question, currentRevisionId: revision.id }, revision);
+      evidenceStatus: evidenceFor({
+        origin: current.origin,
+        answerKind: contentToRevision(merged).answerKey.kind,
+        approve,
+        previous: current.evidenceStatus,
+      }),
+      createdBy: userId,
+    },
+    { image },
+  );
+  const images = await loadImagesForRevisions(db, [revision.id]);
+  return toOwnerView(
+    { ...question, currentRevisionId: revision.id },
+    revision,
+    images.get(revision.id),
+  );
 }
 
 export async function setQuestionStatus(
@@ -174,7 +218,9 @@ export async function setQuestionStatus(
     .set({ status })
     .where(eq(questions.id, questionId))
     .returning();
-  return toOwnerView(row!, await currentRevision(db, row!));
+  const revision = await currentRevision(db, row!);
+  const images = await loadImagesForRevisions(db, [revision.id]);
+  return toOwnerView(row!, revision, images.get(revision.id));
 }
 
 /** Hard delete only for never-attempted questions; otherwise 409 has_history. */
@@ -186,12 +232,17 @@ export async function deleteQuestion(db: Database, userId: string, questionId: s
     .where(eq(attempts.questionId, questionId))
     .limit(1);
   if (attempted) throw hasHistoryError();
+  let imageIds: string[] = [];
   await db.transaction(async (tx) => {
     const database = tx as unknown as Database;
     const revisions = await database
       .select({ id: questionRevisions.id })
       .from(questionRevisions)
       .where(eq(questionRevisions.questionId, questionId));
+    imageIds = await imageIdsOfRevisions(
+      database,
+      revisions.map((r) => r.id),
+    );
     await database
       .update(questions)
       .set({ currentRevisionId: null })
@@ -204,6 +255,8 @@ export async function deleteQuestion(db: Database, userId: string, questionId: s
     await database.delete(questionRevisions).where(eq(questionRevisions.questionId, questionId));
     await database.delete(questions).where(eq(questions.id, questionId));
   });
+  // The question's images go with it, unless another question still shows them.
+  await deleteUnlinkedImages(db, getStorage(), imageIds);
 }
 
 /** `questionIds` must be exactly the set's questions; positions become 0..n-1 in that order. */
@@ -268,7 +321,12 @@ export async function shuffleOptions(
     evidenceStatus: current.evidenceStatus,
     createdBy: userId,
   });
-  return toOwnerView({ ...question, currentRevisionId: revision.id }, revision);
+  const images = await loadImagesForRevisions(db, [revision.id]);
+  return toOwnerView(
+    { ...question, currentRevisionId: revision.id },
+    revision,
+    images.get(revision.id),
+  );
 }
 
 /**

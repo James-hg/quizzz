@@ -10,6 +10,9 @@ import { detectImage } from "./validate";
 
 type ImageRow = typeof questionImages.$inferSelect;
 
+/** How many uploaded-but-unattached images one user may hold at a time. */
+export const MAX_STAGED_IMAGES = 50;
+
 /**
  * Validates the bytes and stores them privately. The image is staged: nothing shows it until a
  * question revision links to it.
@@ -123,4 +126,33 @@ export async function purgeOrphanImages(
     storage,
     stale.map((s) => s.id),
   );
+}
+
+/** Ids of the images linked from these revisions (used before deleting them). */
+export async function imageIdsOfRevisions(db: Database, revisionIds: string[]): Promise<string[]> {
+  if (revisionIds.length === 0) return [];
+  const rows = await db
+    .select({ id: questionRevisionImages.imageId })
+    .from(questionRevisionImages)
+    .where(inArray(questionRevisionImages.questionRevisionId, revisionIds));
+  return [...new Set(rows.map((r) => r.id))];
+}
+
+/** Images the user uploaded that no saved question shows yet. */
+export async function countStagedImages(db: Database, userId: string): Promise<number> {
+  const rows = await db
+    .select({ id: questionImages.id })
+    .from(questionImages)
+    .where(
+      and(
+        eq(questionImages.ownerId, userId),
+        notExists(
+          db
+            .select({ one: questionRevisionImages.imageId })
+            .from(questionRevisionImages)
+            .where(eq(questionRevisionImages.imageId, questionImages.id)),
+        ),
+      ),
+    );
+  return rows.length;
 }
