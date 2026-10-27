@@ -69,7 +69,7 @@ Copy `.env.example` to `.env.local`. Next.js, `npm run db:migrate`, `npm run sam
 | `/` | Your courses, recent question sets, any practice session you can resume, and "Explore a sample course" (hidden when no samples exist). |
 | `/courses/:id` | Course details, question sets (with counts), imported materials, import entry. |
 | `/courses/:id/import` | Upload a document. The picker lists exactly the formats the server supports. |
-| `/imports/:id` | Review detected questions: fix flagged items, accept or exclude, then publish. Unresolved answers are marked; those questions are added excluded until you set an answer. |
+| `/imports/:id` | Review detected questions: fix flagged items, accept or exclude, then publish. Typed question numbers are removed (with a "Remove question number" toggle to put them back). Unresolved answers are marked; those questions are added excluded until you set an answer. |
 | `/question-sets/:id/edit` | Question editor (every save creates a new revision), AI panel, past sessions. Filter with `?filter=needs-review`, `no-answer` or `excluded`. |
 | `/question-sets/:id/play/:sessionId` | Practice. Reloading resumes where you were. |
 | `/settings` | Display name, email, timezone, password. |

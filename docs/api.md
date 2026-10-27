@@ -74,6 +74,8 @@ Upload a document, review the detected questions, then publish them into a quest
 | `PATCH /api/imports/:importId/items/:itemId` | `{ decision: "accepted"\|"excluded"\|"pending", edit: {...} }` |
 | `POST /api/imports/:importId/publish` | `{ title }` (new set) or `{ questionSetId }`; safe to retry |
 
+**Question numbers.** Numbers typed into a prompt (`1.`, `1)`, `(1)`, `Question 3:`, `Q3.`) are removed at import, and the wording as written is kept in the item's `payload.originalPrompt` so it can be put back. Only clear numbering is touched: `2 + 2 = ?`, `5 - 3 = ?`, `3 apples cost 6. ...`, `1.2 mg ...` and four-digit years are left alone, and Word's automatic numbering is not part of the text at all. The review page's "Remove question number" toggle uses `PATCH .../items/:itemId` with `{ "edit": { "prompt": "...", "originalPrompt": "..." | null } }` and the item's current `decision`, so toggling never accepts or excludes an item. Editing the prompt yourself should send `originalPrompt: null`. Publishing stores `payload.prompt` exactly as shown and ignores `originalPrompt`.
+
 Questions with no marked answer are never guessed. They publish with an `unresolved` answer key, `evidence_status=unresolved` and `status=excluded`, so they cannot be played or scheduled until the owner sets an answer (`PATCH /api/questions/:id` with `correctOptionIds`, then `POST /api/questions/:id/restore`). Unsupported types return `415` with `error.details.supportedFormats`.
 
 ```sh
