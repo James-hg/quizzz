@@ -4,6 +4,7 @@ import { assertOwnsQuestionSet, assertOwnsSession } from "@/server/auth/ownershi
 import type { Database } from "@/server/db";
 import { attempts, studySessions } from "@/server/db/schema";
 import { playabilityForSet } from "@/server/content/playability";
+import type { RevealMode } from "./reveal";
 import { listPlayableItems } from "@/server/content/questions";
 import { conflict, notFound } from "@/server/http/errors";
 import { buildSessionView, elapsedSecondsAt, type SessionRow } from "./view";
@@ -35,6 +36,7 @@ export async function startOrResumeSession(
   db: Database,
   userId: string,
   setId: string,
+  revealMode: RevealMode = "each",
   now: Date = new Date(),
 ) {
   const set = await assertOwnsQuestionSet(db, userId, setId);
@@ -62,6 +64,7 @@ export async function startOrResumeSession(
         questionSetId: setId,
         mode: "quiz",
         state: "active",
+        revealMode,
         itemOrder: items.map((i) => i.questionId),
         revisionIds: Object.fromEntries(items.map((i) => [i.questionId, i.revisionId])),
         startedAt: now,
@@ -171,19 +174,33 @@ export async function completeSession(
 
   const view = await getSession(db, userId, sessionId, now);
   const rows = await db
-    .select({ outcome: attempts.gradingOutcome })
+    .select({ outcome: attempts.gradingOutcome, pass: attempts.pass })
     .from(attempts)
     .where(eq(attempts.sessionId, sessionId));
-  const count = (outcome: string) => rows.filter((r) => r.outcome === outcome).length;
-  return {
-    session: view,
-    summary: {
-      totalItems: view.progress.total,
-      answered: rows.length,
+  const tally = (pass: number) => {
+    const mine = rows.filter((r) => r.pass === pass);
+    const count = (outcome: string) => mine.filter((r) => r.outcome === outcome).length;
+    return {
+      answered: mine.length,
       correct: count("correct"),
       incorrect: count("incorrect"),
       uncertain: count("uncertain"),
-      unanswered: view.progress.total - view.progress.removed - rows.length,
+    };
+  };
+  const first = tally(1);
+  const retry = tally(2);
+  const firstPassItems = view.items.filter((i) => i.pass === 1);
+  const removed = firstPassItems.filter((i) => i.status === "removed").length;
+  return {
+    session: view,
+    summary: {
+      // The questions in the set for this session, counted once. Top-level counts are first
+      // tries only (independent answers); retries are reported separately.
+      totalItems: firstPassItems.length,
+      ...first,
+      unanswered: firstPassItems.length - removed - first.answered,
+      retry: { total: view.progress.retries, ...retry },
+      revealMode: view.revealMode,
       elapsedSeconds: view.elapsedSeconds,
     },
   };

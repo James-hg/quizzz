@@ -4,6 +4,8 @@ import { responseSchema } from "./response";
 export const createSessionSchema = z.object({
   questionSetId: z.uuid(),
   mode: z.literal("quiz").default("quiz"),
+  /** When the student sees results. Ignored when resuming a session that is already running. */
+  revealMode: z.enum(["each", "end", "requeue"]).default("each"),
 });
 
 /** Client-chosen key that makes retries of one submission safe. */
@@ -17,6 +19,11 @@ export const submitAnswerSchema = z.object({
   questionId: z.uuid(),
   response: responseSchema,
   idempotencyKey: idempotencyKeySchema,
+  /**
+   * Which turn this answers: 1 (default) or 2 for the retry of a wrong answer. Stated by the
+   * client so a stale tab can never silently use up a retry; a mismatch is `already_answered`.
+   */
+  pass: z.union([z.literal(1), z.literal(2)]).default(1),
 });
 
 export const patchSessionSchema = z.object({ action: z.enum(["pause", "resume"]) });

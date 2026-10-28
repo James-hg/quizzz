@@ -7,6 +7,7 @@ import type { AnswerResult, CorrectAnswer, PlaySession, SessionSummary } from "@
 import { Alert } from "../ui/Alert";
 import { ConfirmButton } from "../ConfirmButton";
 import { StartPracticeButton } from "../StartPracticeButton";
+import { ResultsReview } from "./review";
 import { currentResponse, initialState, playReducer } from "./state";
 
 type Props = { initial: PlaySession; setTitle: string };
@@ -31,6 +32,11 @@ function Clock({ seconds, running }: { seconds: number; running: boolean }) {
     </span>
   );
 }
+
+const MODE_LABEL: Record<string, string> = {
+  end: "Results at the end",
+  requeue: "Wrong answers retried once",
+};
 
 function Outcome({ result }: { result: AnswerResult }) {
   const text =
@@ -73,6 +79,38 @@ function CorrectAnswerView({ answer }: { answer: CorrectAnswer }) {
   return null;
 }
 
+/** What the server let through after an answer: everything, only the verdict, or nothing. */
+function FeedbackBody({ result }: { result: AnswerResult }) {
+  if (result.disclosure === "none") {
+    return (
+      <>
+        <p>
+          <strong>Answer saved</strong>
+        </p>
+        <p className="small">You will see how you did when you finish the session.</p>
+      </>
+    );
+  }
+  return (
+    <>
+      <p>
+        <Outcome result={result} />
+      </p>
+      {result.disclosure === "verdict" ? (
+        <p className="small">
+          You will see this question again at the end. The correct answer is shown after you try it
+          again.
+        </p>
+      ) : (
+        <>
+          {result.correctAnswer ? <CorrectAnswerView answer={result.correctAnswer} /> : null}
+          {result.explanation ? <p className="small">{result.explanation}</p> : null}
+        </>
+      )}
+    </>
+  );
+}
+
 export function PlayScreen({ initial, setTitle }: Props) {
   const [state, dispatch] = useReducer(playReducer, initial, initialState);
   const { session, phase } = state;
@@ -90,13 +128,19 @@ export function PlayScreen({ initial, setTitle }: Props) {
     const key = state.idempotencyKey ?? crypto.randomUUID();
     dispatch({ type: "submit_start", key });
     try {
-      const { result } = await apiFetch<{ result: AnswerResult }>(
-        `/api/sessions/${session.id}/answers`,
-        {
-          body: { questionId: question.questionId, response, idempotencyKey: key },
+      const { result, progress, requeued } = await apiFetch<{
+        result: AnswerResult;
+        progress: { answered: number; total: number };
+        requeued: boolean;
+      }>(`/api/sessions/${session.id}/answers`, {
+        body: {
+          questionId: question.questionId,
+          response,
+          idempotencyKey: key,
+          pass: question.pass ?? 1,
         },
-      );
-      dispatch({ type: "submit_ok", result });
+      });
+      dispatch({ type: "submit_ok", result, progress, requeued });
     } catch (e) {
       dispatch({ type: "submit_fail", error: errorMessage(e) });
       // The question was already answered (e.g. in another tab): show the current server state.
@@ -157,21 +201,35 @@ export function PlayScreen({ initial, setTitle }: Props) {
         <h1>Session complete</h1>
         <div className="card" aria-live="polite">
           <p className="question-prompt">
+            {s.retry.total > 0 ? "First try: " : ""}
             {s.correct} correct out of {s.answered} answered
           </p>
           <ul className="list">
             <li>Questions in this session: {s.totalItems}</li>
             <li>Not answered: {s.unanswered}</li>
+            {s.retry.total > 0 ? (
+              <li>
+                Second tries: {s.retry.correct} correct out of {s.retry.answered}
+                {s.retry.total > s.retry.answered
+                  ? ` (${s.retry.total - s.retry.answered} not tried)`
+                  : ""}
+              </li>
+            ) : null}
             {s.uncertain > 0 ? <li>Could not be checked automatically: {s.uncertain}</li> : null}
             <li>Time: {formatClock(s.elapsedSeconds)}</li>
           </ul>
           <div className="row">
-            <StartPracticeButton questionSetId={session.questionSetId} label="Practise again" />
+            <StartPracticeButton
+              questionSetId={session.questionSetId}
+              label="Practise again"
+              defaultRevealMode={session.revealMode}
+            />
             <Link className="btn" href={`/question-sets/${session.questionSetId}/edit`}>
               Back to the question set
             </Link>
           </div>
         </div>
+        {session.revealMode !== "each" ? <ResultsReview items={session.items} /> : null}
       </div>
     );
   }
@@ -184,6 +242,9 @@ export function PlayScreen({ initial, setTitle }: Props) {
             <Link href={`/question-sets/${session.questionSetId}/edit`}>{setTitle}</Link>
           </p>
           <h1>Practice</h1>
+          {MODE_LABEL[session.revealMode] ? (
+            <span className="badge">{MODE_LABEL[session.revealMode]}</span>
+          ) : null}
         </div>
         <div className="row">
           <Clock
@@ -224,6 +285,9 @@ export function PlayScreen({ initial, setTitle }: Props) {
       </div>
       <p className="small muted">
         {answered} of {total - removed} answered
+        {session.progress.retries > 0
+          ? ` (includes ${session.progress.retries} ${session.progress.retries === 1 ? "retry" : "retries"})`
+          : ""}
       </p>
 
       {state.error ? <Alert tone="error">{state.error}</Alert> : null}
@@ -264,6 +328,9 @@ export function PlayScreen({ initial, setTitle }: Props) {
           }}
         >
           <fieldset style={{ border: 0, padding: 0 }} disabled={phase !== "answering"}>
+            {question.pass === 2 ? (
+              <p className="badge badge-warn">Second try: you did not get this one right earlier</p>
+            ) : null}
             <legend className="question-prompt">{question.prompt}</legend>
             {question.codeSnippet ? <pre className="code">{question.codeSnippet}</pre> : null}
 
@@ -271,9 +338,13 @@ export function PlayScreen({ initial, setTitle }: Props) {
               <ul className="options">
                 {question.options.map((o) => {
                   const multiple = question.type === "mcq_multi";
-                  const feedback = phase === "feedback" ? state.feedback : null;
+                  // Per-option marks need the answer key, so only a full disclosure may draw them.
+                  const feedback =
+                    phase === "feedback" && state.feedback?.disclosure === "full"
+                      ? state.feedback
+                      : null;
                   const isCorrect =
-                    feedback?.correctAnswer.kind === "options" &&
+                    feedback?.correctAnswer?.kind === "options" &&
                     feedback.correctAnswer.correctOptionIds.includes(o.id);
                   const chosenWrong =
                     feedback &&
@@ -337,15 +408,9 @@ export function PlayScreen({ initial, setTitle }: Props) {
               ref={feedbackRef}
               tabIndex={-1}
               aria-live="polite"
-              className={`result result-${state.feedback.outcome}`}
+              className={`result result-${state.feedback.outcome ?? "neutral"}`}
             >
-              <p>
-                <Outcome result={state.feedback} />
-              </p>
-              <CorrectAnswerView answer={state.feedback.correctAnswer} />
-              {state.feedback.explanation ? (
-                <p className="small">{state.feedback.explanation}</p>
-              ) : null}
+              <FeedbackBody result={state.feedback} />
             </div>
           ) : null}
 

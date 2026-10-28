@@ -3,6 +3,8 @@ import type { AnswerResult, PlaySession } from "@/lib/client/types";
 /** Builders for play-screen tests. */
 export const result = (outcome: AnswerResult["outcome"]): AnswerResult => ({
   attemptId: "a",
+  pass: 1,
+  disclosure: "full",
   outcome,
   isCorrect: outcome === "uncertain" ? null : outcome === "correct",
   response: { kind: "options", selectedOptionIds: ["a"] },
@@ -21,10 +23,11 @@ export const session = (overrides: Partial<PlaySession> = {}): PlaySession => ({
   completedAt: null,
   elapsedSeconds: 0,
   currentIndex: 0,
-  progress: { total: 2, answered: 0, removed: 0 },
+  revealMode: "each",
+  progress: { total: 2, answered: 0, removed: 0, retries: 0 },
   items: [
-    { questionId: "q1", position: 0, status: "pending" },
-    { questionId: "q2", position: 1, status: "pending" },
+    { questionId: "q1", position: 0, pass: 1, status: "pending" },
+    { questionId: "q2", position: 1, pass: 1, status: "pending" },
   ],
   current: {
     questionId: "q1",

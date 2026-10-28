@@ -18,8 +18,9 @@ export async function listSetHistory(db: Database, userId: string, setId: string
       completedAt: studySessions.completedAt,
       elapsedSeconds: studySessions.elapsedSeconds,
       totalItems: sql<number>`jsonb_array_length(${studySessions.itemOrder})::int`,
-      answered: sql<number>`count(${attempts.id})::int`,
-      correct: sql<number>`(count(*) filter (where ${attempts.isCorrect}))::int`,
+      // First tries only: a retry repeats a question and is not an independent answer.
+      answered: sql<number>`(count(*) filter (where ${attempts.pass} = 1))::int`,
+      correct: sql<number>`(count(*) filter (where ${attempts.isCorrect} and ${attempts.pass} = 1))::int`,
     })
     .from(studySessions)
     .leftJoin(attempts, eq(attempts.sessionId, studySessions.id))
