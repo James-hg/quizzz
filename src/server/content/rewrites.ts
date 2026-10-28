@@ -15,6 +15,7 @@ import type { Database } from "@/server/db";
 import { addRevision } from "@/server/db/repositories/questions";
 import { questionRewrites, questions } from "@/server/db/schema";
 import { badRequest, conflict, notFound } from "@/server/http/errors";
+import { loadImagesForRevisions } from "@/server/images/service";
 import { getQuestion } from "./questions";
 
 export const saveRewriteSchema = z.object({
@@ -196,6 +197,13 @@ export async function acceptRewrite(
       };
     }
 
+    // Serialize with other accepts and edits of this question, so the base-revision check below
+    // is still true when the new revision is added.
+    await database
+      .select({ id: questions.id })
+      .from(questions)
+      .where(eq(questions.id, row.questionId))
+      .for("update");
     const original = await getQuestion(database, userId, row.questionId);
     const answerKind = contentToRevision(row.content).answerKey.kind;
     let resultQuestionId = row.questionId;
@@ -229,12 +237,21 @@ export async function acceptRewrite(
         .insert(questions)
         .values({ questionSetId: original.questionSetId, position: (last?.p ?? -1) + 1 })
         .returning();
-      const revision = await addRevision(database, created!.id, {
-        ...contentToRevision(row.content),
-        origin: row.origin,
-        evidenceStatus: evidenceFor({ origin: row.origin, answerKind, approve: true }),
-        createdBy: userId,
-      });
+      // The copy keeps the picture the proposal was made from, or it could not be answered.
+      const baseImage = (await loadImagesForRevisions(database, [row.baseRevisionId])).get(
+        row.baseRevisionId,
+      );
+      const revision = await addRevision(
+        database,
+        created!.id,
+        {
+          ...contentToRevision(row.content),
+          origin: row.origin,
+          evidenceStatus: evidenceFor({ origin: row.origin, answerKind, approve: true }),
+          createdBy: userId,
+        },
+        { image: baseImage ? { imageId: baseImage.id, alt: baseImage.alt } : null },
+      );
       resultQuestionId = created!.id;
       revisionId = revision.id;
     }

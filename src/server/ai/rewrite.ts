@@ -74,6 +74,9 @@ const varyOutput = z.object({
 const isMcq = (c: QuestionContent) => c.type === "mcq_single" || c.type === "mcq_multi";
 
 /** The question as data for the model. The answer is included so it can explain or re-derive. */
+/** Room for the longest valid question, so the answer key is never cut off. */
+const MAX_QUESTION_CHARS = 60_000;
+
 function describe(original: QuestionContent) {
   const base = { type: original.type, prompt: original.prompt, code: original.codeSnippet ?? null };
   if (original.type === "mcq_single" || original.type === "mcq_multi") {
@@ -213,7 +216,7 @@ export async function generateRewrite(
   const { mode } = request;
   const prompt = [
     `${guidance(mode, original)}`,
-    delimitData("question", JSON.stringify(describe(original), null, 2)),
+    delimitData("question", JSON.stringify(describe(original), null, 2), MAX_QUESTION_CHARS),
     request.hint ? `Teacher's guidance:\n${delimitData("guidance", request.hint, 300)}` : "",
   ]
     .filter(Boolean)

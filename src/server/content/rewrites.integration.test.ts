@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { contentToRevision, type QuestionContent } from "@/lib/schemas";
@@ -11,6 +14,9 @@ import {
   questions,
   studySessions,
 } from "@/server/db/schema";
+import { LocalStorageAdapter } from "@/server/storage/local";
+import { PNG_BYTES } from "@/test/images";
+import { createImage, loadImagesForRevisions } from "@/server/images/service";
 import { deleteUsers, signUpUser, type TestUser } from "@/test/users";
 import { createCourse } from "./courses";
 import { createQuestionSet } from "./question-sets";
@@ -309,6 +315,49 @@ describe("accepting", () => {
     expect(all.map((q) => q.prompt)).toEqual([original.prompt, "What is 5 + 6?"]);
     expect((await getQuestion(db, alice.id, question.id)).revisionNumber).toBe(1);
     expect(await listPlayableItems(db, set.id)).toHaveLength(2);
+  });
+
+  it("keeps the picture when the rewrite is added as a separate question", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "quizzz-rewrite-"));
+    try {
+      const { question } = await fresh();
+      const image = await createImage(
+        db,
+        new LocalStorageAdapter(dir),
+        alice.id,
+        PNG_BYTES,
+        2 * 1024 * 1024,
+      );
+      const withImage = await updateQuestion(db, alice.id, question.id, {
+        image: { imageId: image.id, alt: "A diagram" },
+      });
+      const proposal = await propose(question.id, "rephrase", rephrased, withImage.revisionId);
+      const added = await acceptRewrite(db, alice.id, proposal.id, {
+        confirmed: true,
+        as: "new_question",
+      });
+      const shown = await loadImagesForRevisions(db, [added.question.revisionId]);
+      expect(shown.get(added.question.revisionId)).toMatchObject({
+        id: image.id,
+        alt: "A diagram",
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("lets only one of two proposals for the same revision replace the question", async () => {
+    const { question } = await fresh();
+    const first = await propose(question.id, "rephrase", rephrased, question.revisionId);
+    const second = await propose(question.id, "add_explanation", explained, question.revisionId);
+    const results = await Promise.allSettled([
+      acceptRewrite(db, alice.id, first.id, { confirmed: true, as: "revision" }),
+      acceptRewrite(db, alice.id, second.id, { confirmed: true, as: "revision" }),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const lost = results.find((r) => r.status === "rejected");
+    expect(lost).toMatchObject({ reason: { status: 409, code: "stale_proposal" } });
+    expect((await getQuestion(db, alice.id, question.id)).revisionNumber).toBe(2);
   });
 
   it("refuses to replace a question that changed since the proposal, but can still add it as new", async () => {
