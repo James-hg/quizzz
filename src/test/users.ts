@@ -6,6 +6,7 @@ import type { Database } from "@/server/db";
 import {
   attempts,
   courses,
+  questionImages,
   questionSets,
   sourceDocuments,
   studySessions,
@@ -43,5 +44,6 @@ export async function deleteUsers(db: Database, userIds: string[]) {
   );
   await db.delete(sourceDocuments).where(inArray(sourceDocuments.ownerId, userIds));
   await db.delete(courses).where(inArray(courses.ownerId, userIds));
+  await db.delete(questionImages).where(inArray(questionImages.ownerId, userIds));
   await db.delete(user).where(inArray(user.id, userIds));
 }

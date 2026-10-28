@@ -1,5 +1,7 @@
 import "server-only";
 import { eq, inArray } from "drizzle-orm";
+import type { QuestionImageView } from "@/lib/images";
+import { loadImagesForRevisions } from "@/server/images/service";
 import { revealAnswer } from "@/server/grading";
 import { disclosureFor, isEnded, type Disclosure, type Pass } from "./reveal";
 import type { Database } from "@/server/db";
@@ -55,13 +57,19 @@ export function resultOf(
  * What the student may see of a question before answering: no key, no explanation. The only
  * thing derived from the key is how many blanks a fill-in question has, which the form needs.
  */
-function questionForPlay(revision: RevisionRow, questionId: string) {
+function questionForPlay(
+  revision: RevisionRow,
+  questionId: string,
+  image: QuestionImageView | null,
+) {
   return {
     questionId,
     revisionNumber: revision.revisionNumber,
     type: revision.type,
     prompt: revision.prompt,
     codeSnippet: revision.codeSnippet,
+    // Images are part of the question, not of the answer, so they are shown before submitting.
+    image,
     options: revision.options.map((o) => ({ id: o.id, text: o.text })),
     ...(revision.answerKey.kind === "blanks"
       ? { blankCount: revision.answerKey.blanks.length }
@@ -115,6 +123,12 @@ export async function buildSessionView(db: Database, session: SessionRow, now: D
   const attemptAt = new Map(sessionAttempts.map((a) => [`${a.questionId}:${a.pass}`, a]));
   const ended = isEnded(session.state);
 
+  // After the session, the results review shows every question again, pictures included.
+  const reviewImages = await loadImagesForRevisions(
+    db,
+    ended ? [...revisions.values()].map((r) => r.id) : [],
+  );
+
   const items: SessionItem[] = sessionSlots(session).map(({ questionId, pass }, position) => {
     const attempt = attemptAt.get(`${questionId}:${pass}`);
     const revision = revisions.get(session.revisionIds[questionId] ?? "");
@@ -132,7 +146,15 @@ export async function buildSessionView(db: Database, session: SessionRow, now: D
         pass,
         status: "answered",
         result: resultOf(attempt, revision, disclosure),
-        ...(ended ? { question: questionForPlay(revision, questionId) } : {}),
+        ...(ended
+          ? {
+              question: questionForPlay(
+                revision,
+                questionId,
+                reviewImages.get(revision.id) ?? null,
+              ),
+            }
+          : {}),
       };
     }
     if (!revision) return { questionId, position, pass, status: "removed" };
@@ -145,6 +167,10 @@ export async function buildSessionView(db: Database, session: SessionRow, now: D
     pending && session.state !== "completed"
       ? revisions.get(session.revisionIds[pending.questionId] ?? "")
       : undefined;
+
+  const currentImages = currentRevision
+    ? await loadImagesForRevisions(db, [currentRevision.id])
+    : new Map<string, QuestionImageView>();
 
   return {
     id: session.id,
@@ -166,7 +192,14 @@ export async function buildSessionView(db: Database, session: SessionRow, now: D
     items,
     current:
       pending && currentRevision
-        ? { ...questionForPlay(currentRevision, pending.questionId), pass: pending.pass }
+        ? {
+            ...questionForPlay(
+              currentRevision,
+              pending.questionId,
+              currentImages.get(currentRevision.id) ?? null,
+            ),
+            pass: pending.pass,
+          }
         : null,
   };
 }

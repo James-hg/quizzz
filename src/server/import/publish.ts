@@ -18,6 +18,7 @@ import {
   sourceSegments,
 } from "@/server/db/schema";
 import { badRequest, conflict, notFound } from "@/server/http/errors";
+import { getOwnedImage } from "@/server/images/service";
 
 type DraftQuestion = Extract<DraftItemPayload, { kind: "question" }>;
 
@@ -141,11 +142,22 @@ export async function publishImport(
           status: isUnresolved ? "excluded" : "active",
         })
         .returning();
-      const created = await addRevision(database, question!.id, {
-        ...revision,
-        origin: "original",
-        createdBy: userId,
-      });
+      const image = payload.image;
+      if (image) {
+        await getOwnedImage(database, userId, image.imageId);
+        if (!image.alt.trim()) {
+          throw badRequest(
+            "Describe the image before publishing this question.",
+            "image_alt_required",
+          );
+        }
+      }
+      const created = await addRevision(
+        database,
+        question!.id,
+        { ...revision, origin: "original", createdBy: userId },
+        { image: image ? { imageId: image.imageId, alt: image.alt.trim() } : undefined },
+      );
 
       const links = item.sourceRefs.flatMap((ref) => {
         const segmentId = segmentByOrdinal.get(ref.ordinal);

@@ -54,6 +54,10 @@ export function ResultsReview({ items }: { items: PlayItem[] }) {
               <p>
                 <strong>{question.prompt}</strong>
               </p>
+              {question.image ? (
+                // eslint-disable-next-line @next/next/no-img-element -- an authenticated API route
+                <img className="question-image" src={question.image.url} alt={question.image.alt} />
+              ) : null}
               {question.codeSnippet ? <pre className="code">{question.codeSnippet}</pre> : null}
               <p className="small">
                 <span aria-label={result.outcome}>{mark(result.outcome)}</span> Your answer:{" "}

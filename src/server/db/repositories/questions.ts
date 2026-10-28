@@ -1,8 +1,9 @@
 import "server-only";
 import { and, eq, max } from "drizzle-orm";
+import type { QuestionImageInput } from "@/lib/images";
 import { answerKeySchema, optionsSchema } from "@/lib/schemas";
 import type { Database } from "../index";
-import { questionRevisions, questions } from "../schema";
+import { questionRevisionImages, questionRevisions, questions } from "../schema";
 
 type RevisionInsert = typeof questionRevisions.$inferInsert;
 type RevisionRow = typeof questionRevisions.$inferSelect;
@@ -18,11 +19,26 @@ export function parseRevisionJson<T extends Pick<RevisionRow, "options" | "answe
   };
 }
 
+export type RevisionOptions = {
+  /**
+   * The image the new revision shows. Omitted: keep the previous revision's image (so editing a
+   * question never drops it by accident). An object: use that image. `null`: remove it. The
+   * caller must already have checked that the image belongs to the question's owner.
+   */
+  image?: QuestionImageInput | null;
+};
+
 /**
  * Appends a new revision to a question and makes it current. Existing revisions are never
- * modified, so earlier attempts keep pointing at what the student actually answered.
+ * modified, so earlier attempts keep pointing at what the student actually answered. The image
+ * link is carried forward or replaced in the same transaction.
  */
-export async function addRevision(db: Database, questionId: string, input: NewRevision) {
+export async function addRevision(
+  db: Database,
+  questionId: string,
+  input: NewRevision,
+  options: RevisionOptions = {},
+) {
   const validated = parseRevisionJson({ ...input, options: input.options ?? [] });
   return db.transaction(async (tx) => {
     // Serialize concurrent edits of one question so revision numbers never collide.
@@ -39,6 +55,34 @@ export async function addRevision(db: Database, questionId: string, input: NewRe
       .insert(questionRevisions)
       .values({ ...validated, questionId, revisionNumber: (latest?.n ?? 0) + 1 })
       .returning();
+
+    let link: { imageId: string; altText: string } | undefined;
+    if (options.image === undefined) {
+      if (latest?.n) {
+        const [previous] = await tx
+          .select({
+            imageId: questionRevisionImages.imageId,
+            altText: questionRevisionImages.altText,
+          })
+          .from(questionRevisionImages)
+          .innerJoin(
+            questionRevisions,
+            eq(questionRevisionImages.questionRevisionId, questionRevisions.id),
+          )
+          .where(
+            and(
+              eq(questionRevisions.questionId, questionId),
+              eq(questionRevisions.revisionNumber, latest.n),
+            ),
+          );
+        link = previous;
+      }
+    } else if (options.image !== null) {
+      link = { imageId: options.image.imageId, altText: options.image.alt };
+    }
+    if (link) {
+      await tx.insert(questionRevisionImages).values({ questionRevisionId: revision!.id, ...link });
+    }
     await tx
       .update(questions)
       .set({ currentRevisionId: revision!.id })

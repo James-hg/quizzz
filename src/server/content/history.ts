@@ -10,6 +10,8 @@ import {
   studySessions,
 } from "@/server/db/schema";
 import { conflict } from "@/server/http/errors";
+import { deleteUnlinkedImages, imageIdsOfRevisions } from "@/server/images/service";
+import { getStorage } from "@/server/storage";
 
 /** True if any question in these sets has ever been attempted. */
 export async function setsHaveAttempts(db: Database, setIds: string[]): Promise<boolean> {
@@ -35,6 +37,7 @@ export const hasHistoryError = () =>
  */
 export async function purgeQuestionSets(db: Database, setIds: string[]) {
   if (setIds.length === 0) return;
+  let imageIds: string[] = [];
   await db.transaction(async (tx) => {
     const database = tx as unknown as Database;
     const questionIds = database
@@ -45,6 +48,15 @@ export async function purgeQuestionSets(db: Database, setIds: string[]) {
       .select({ id: questionRevisions.id })
       .from(questionRevisions)
       .where(inArray(questionRevisions.questionId, questionIds));
+    imageIds = await imageIdsOfRevisions(
+      database,
+      (
+        await database
+          .select({ id: questionRevisions.id })
+          .from(questionRevisions)
+          .where(inArray(questionRevisions.questionId, questionIds))
+      ).map((r) => r.id),
+    );
 
     await database
       .update(questions)
@@ -61,4 +73,6 @@ export async function purgeQuestionSets(db: Database, setIds: string[]) {
     await database.delete(studySessions).where(inArray(studySessions.questionSetId, setIds));
     await database.delete(questionSets).where(inArray(questionSets.id, setIds));
   });
+  // Images that only these questions showed are deleted too (rows and stored bytes).
+  await deleteUnlinkedImages(db, getStorage(), imageIds);
 }

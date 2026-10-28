@@ -203,4 +203,20 @@ describe("PlayScreen", () => {
     );
     expect(screen.getByRole("heading", { name: "Session complete" })).toBeInTheDocument();
   });
+
+  it("shows the question's image with its alt text, and nothing when there is none", () => {
+    const withImage = session({
+      current: {
+        ...session().current!,
+        image: { id: "i1", url: "/api/images/i1", alt: "A cat on a sofa" },
+      },
+    });
+    setup(withImage);
+    const img = screen.getByRole("img", { name: "A cat on a sofa" });
+    expect(img).toHaveAttribute("src", "/api/images/i1");
+    cleanup();
+
+    setup(session());
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
 });

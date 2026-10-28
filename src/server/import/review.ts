@@ -7,7 +7,9 @@ import {
 } from "@/lib/schemas";
 import type { Database } from "@/server/db";
 import { importDraftItems, importDrafts } from "@/server/db/schema";
-import { conflict, notFound } from "@/server/http/errors";
+import { badRequest, conflict, notFound } from "@/server/http/errors";
+import { deleteUnlinkedImages, getOwnedImage } from "@/server/images/service";
+import { getStorage } from "@/server/storage";
 import { getImport, getOwnedDraft } from "./drafts";
 
 function withAnswerWarning(
@@ -22,6 +24,23 @@ function withAnswerWarning(
     {
       code: "answer_unresolved",
       message: "No correct answer was marked. Choose the answer before this can be practised.",
+      anchor,
+    },
+  ];
+}
+
+function withImageWarning(
+  warnings: ImportWarning[],
+  image: { alt: string } | null | undefined,
+  anchor?: ImportWarning["anchor"],
+): ImportWarning[] {
+  const rest = warnings.filter((w) => w.code !== "image_alt_missing");
+  if (!image || image.alt.trim()) return rest;
+  return [
+    ...rest,
+    {
+      code: "image_alt_missing",
+      message: "This question has an image. Describe it before accepting the question.",
       anchor,
     },
   ];
@@ -52,7 +71,16 @@ export async function patchImportItem(
 
   if (input.edit) {
     if (payload.kind !== "question") throw conflict("Only questions can be edited", "not_editable");
+    if (input.edit.image) {
+      // Only the image that came with the question may be described; swapping in another
+      // image is done in the question editor after publishing.
+      if (input.edit.image.imageId !== payload.image?.imageId) {
+        throw badRequest("That image does not belong to this question.", "image_mismatch");
+      }
+      await getOwnedImage(db, userId, input.edit.image.imageId);
+    }
     payload = draftQuestionPayloadSchema.parse({ ...payload, ...input.edit });
+    warnings = withImageWarning(warnings, payload.image, warnings[0]?.anchor);
     warnings = withAnswerWarning(
       warnings,
       payload.correctOptionIds.length > 0,
@@ -62,6 +90,15 @@ export async function patchImportItem(
   }
   if (input.decision === "accepted") decision = input.edit ? "edited" : "accepted";
   else if (input.decision) decision = input.decision;
+
+  if (
+    (decision === "accepted" || decision === "edited") &&
+    payload.kind === "question" &&
+    payload.image &&
+    !payload.image.alt.trim()
+  ) {
+    throw badRequest("Describe the image before accepting this question.", "image_alt_required");
+  }
 
   await db.transaction(async (tx) => {
     await tx
@@ -73,5 +110,10 @@ export async function patchImportItem(
       .set({ status: "reviewing", updatedAt: new Date() })
       .where(eq(importDrafts.id, draftId));
   });
+  // A dropped image is deleted once nothing else (another question or draft item) needs it.
+  const droppedImage = item.payload.kind === "question" ? item.payload.image : undefined;
+  if (droppedImage && !(payload.kind === "question" && payload.image)) {
+    await deleteUnlinkedImages(db, getStorage(), [droppedImage.imageId]);
+  }
   return getImport(db, userId, draftId);
 }

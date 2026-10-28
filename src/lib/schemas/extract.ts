@@ -46,6 +46,10 @@ export const assetSchema = z.object({
   mimeType: z.string(),
   sizeBytes: z.number().int().nonnegative(),
   anchor: extractAnchorSchema.optional(),
+  /** Where the bytes are inside the source file (a ZIP entry name), so an importer can read them. */
+  entryName: z.string().optional(),
+  /** The description the author gave the image in the document, if any. */
+  alt: z.string().optional(),
 });
 
 export const warningSchema = z.object({

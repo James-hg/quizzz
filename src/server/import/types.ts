@@ -10,6 +10,12 @@ export type DetectedQuestion = {
   originalPrompt?: string;
   options: { text: string; isCorrect: boolean }[];
   anchor: ExtractAnchor;
+  /** The first usable image (an extractor asset id) found with this question. */
+  imageAssetId?: string;
+  /** Images beyond the first, which are not imported. */
+  extraImages?: number;
+  /** The stored image, once it has been read from the document and saved. */
+  image?: { imageId: string; alt: string };
   /** Ids of the extractor blocks that make up the question (stem and options). */
   blockIds?: string[];
   warnings: Warning[];

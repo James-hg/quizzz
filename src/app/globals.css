@@ -531,3 +531,14 @@ legend {
     transition: none !important;
   }
 }
+
+.question-image {
+  display: block;
+  max-width: 100%;
+  max-height: 24rem;
+  height: auto;
+  margin: 0 0 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}

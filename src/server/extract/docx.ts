@@ -214,7 +214,12 @@ function collectParagraphs(nodes: XNode[], out: XNode[]): void {
   }
 }
 
-type ParagraphContent = { runs: TextRun[]; imageRels: string[] };
+type ParagraphContent = {
+  runs: TextRun[];
+  imageRels: string[];
+  /** Author-written descriptions (`docPr descr`), by relationship id. */
+  imageAlts: Map<string, string>;
+};
 
 function readRuns(
   nodes: XNode[],
@@ -255,7 +260,11 @@ function readRuns(
           : legacy
             ? attr(legacy, "id")
             : undefined;
-        if (rel) out.imageRels.push(rel);
+        if (rel) {
+          out.imageRels.push(rel);
+          const description = attr(findDeep(kids(part), "docPr") ?? {}, "descr")?.trim();
+          if (description && !out.imageAlts.has(rel)) out.imageAlts.set(rel, description);
+        }
       }
     }
     if (text === "") continue;
@@ -325,7 +334,6 @@ export async function extractDocx(
   const blocks: Block[] = [];
   const assets: Asset[] = [];
   const warnings: Warning[] = [];
-  const assetByTarget = new Map<string, string>();
   let headingPath: string[] = [];
 
   if (sizeByName.has("word/vbaProject.bin")) {
@@ -342,7 +350,7 @@ export async function extractDocx(
     const styleId = attr(pPr ? (child(pPr, "pStyle") ?? {}) : {}, "val");
     const style = resolveStyle(styles, styleId);
 
-    const content: ParagraphContent = { runs: [], imageRels: [] };
+    const content: ParagraphContent = { runs: [], imageRels: [], imageAlts: new Map() };
     readRuns(kids(paragraph), style.bold, styles, content);
 
     const anchorBase = { type: "docx_paragraph" as const, index };
@@ -368,14 +376,17 @@ export async function extractDocx(
         const path = rel.target.startsWith("/")
           ? rel.target.slice(1)
           : posix.normalize(posix.join("word", rel.target));
-        if (!path.startsWith("word/") || assetByTarget.has(path)) continue;
+        if (!path.startsWith("word/")) continue;
+        // One asset per place the image appears (several can share the same file), so every
+        // question that shows it can be given it.
         const id = `img-${assets.length + 1}`;
-        assetByTarget.set(path, id);
         assets.push({
           id,
           mimeType: IMAGE_MIME[extensionOf(path)] ?? "application/octet-stream",
           sizeBytes: sizeByName.get(path) ?? 0,
           anchor,
+          entryName: path,
+          ...(content.imageAlts.get(relId) ? { alt: content.imageAlts.get(relId) } : {}),
         });
       }
     }

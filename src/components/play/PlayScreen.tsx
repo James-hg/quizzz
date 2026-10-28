@@ -332,6 +332,10 @@ export function PlayScreen({ initial, setTitle }: Props) {
               <p className="badge badge-warn">Second try: you did not get this one right earlier</p>
             ) : null}
             <legend className="question-prompt">{question.prompt}</legend>
+            {question.image ? (
+              // eslint-disable-next-line @next/next/no-img-element -- an authenticated API route, not a static asset
+              <img className="question-image" src={question.image.url} alt={question.image.alt} />
+            ) : null}
             {question.codeSnippet ? <pre className="code">{question.codeSnippet}</pre> : null}
 
             {question.type === "mcq_single" || question.type === "mcq_multi" ? (

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { apiFetch, errorMessage } from "@/lib/client/api";
+import { imageUrl } from "@/lib/images";
 import { numberToggleFor } from "@/lib/question-number";
 import {
   describeAnchor,
@@ -135,6 +136,12 @@ export function ImportReview({ initial, existingSets, defaultTitle }: Props) {
                 busy={busy === item.id}
                 onDecision={(decision) => patch(item.id, { decision })}
                 onSaveEdit={(edit) => patch(item.id, { edit, decision: "accepted" })}
+                onImageEdit={(image) =>
+                  patch(item.id, {
+                    edit: { image },
+                    decision: item.decision === "edited" ? "accepted" : item.decision,
+                  })
+                }
                 onNumberToggle={(edit) =>
                   // Toggling the number must never accept or exclude the item by itself, so it
                   // sends the decision the item already has ("edited" is re-sent as accepted).
@@ -187,6 +194,7 @@ function ImportItemCard({
   onDecision,
   onSaveEdit,
   onNumberToggle,
+  onImageEdit,
 }: {
   item: ImportItemView;
   locked: boolean;
@@ -194,8 +202,10 @@ function ImportItemCard({
   onDecision: (decision: "pending" | "accepted" | "excluded") => Promise<boolean>;
   onSaveEdit: (edit: Record<string, unknown>) => Promise<boolean>;
   onNumberToggle: (edit: { prompt: string; originalPrompt: string | null }) => Promise<boolean>;
+  onImageEdit: (image: { imageId: string; alt: string } | null) => Promise<boolean>;
 }) {
   const [editing, setEditing] = useState(false);
+  const [alt, setAlt] = useState<string | null>(null);
 
   if (item.payload.kind === "material") {
     return (
@@ -213,6 +223,8 @@ function ImportItemCard({
   const payload = item.payload;
   const unresolved = payload.correctOptionIds.length === 0;
   const numberToggle = numberToggleFor(payload.prompt, payload.originalPrompt);
+  const image = payload.image ?? null;
+  const needsAlt = Boolean(image && !image.alt.trim());
   const tone =
     item.decision === "excluded"
       ? "badge-bad"
@@ -268,6 +280,60 @@ function ImportItemCard({
               </p>
             </div>
           ) : null}
+          {image ? (
+            <div className="field" style={{ marginBottom: "0.5rem" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- an authenticated API route */}
+              <img
+                className="question-image"
+                src={imageUrl(image.imageId)}
+                alt={image.alt || "Image from the document (not described yet)"}
+              />
+              {!locked ? (
+                <>
+                  <label htmlFor={`alt-${item.id}`}>Describe the image</label>
+                  <div className="row">
+                    <input
+                      id={`alt-${item.id}`}
+                      type="text"
+                      maxLength={300}
+                      value={alt ?? image.alt}
+                      onChange={(e) => setAlt(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-small"
+                      disabled={busy || (alt ?? image.alt).trim() === image.alt}
+                      onClick={async () => {
+                        if (
+                          await onImageEdit({
+                            imageId: image.imageId,
+                            alt: (alt ?? image.alt).trim(),
+                          })
+                        ) {
+                          setAlt(null);
+                        }
+                      }}
+                    >
+                      Save description
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-small btn-quiet"
+                      disabled={busy}
+                      onClick={() => void onImageEdit(null)}
+                    >
+                      Remove image
+                    </button>
+                  </div>
+                  {needsAlt ? (
+                    <p className="hint">
+                      Required: the question can be accepted once the image has a description.
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          ) : null}
           {payload.codeSnippet ? <pre className="code">{payload.codeSnippet}</pre> : null}
           <ul className="options">
             {payload.options.map((o) => {
@@ -303,7 +369,9 @@ function ImportItemCard({
               <button
                 type="button"
                 className="btn btn-small"
-                disabled={busy || item.decision === "accepted" || item.decision === "edited"}
+                disabled={
+                  busy || needsAlt || item.decision === "accepted" || item.decision === "edited"
+                }
                 onClick={() => onDecision("accepted")}
               >
                 Accept

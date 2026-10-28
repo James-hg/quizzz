@@ -10,6 +10,13 @@ export const importWarningSchema = z.object({
 export type ImportWarning = z.infer<typeof importWarningSchema>;
 
 /** A detected multiple-choice question. `correctOptionIds` is empty when the answer is unknown. */
+/** A stored image taken from the document. The alt text may be empty until the owner adds it. */
+export const importImageSchema = z.object({
+  imageId: z.uuid(),
+  alt: z.string().max(300),
+});
+export type ImportImage = z.infer<typeof importImageSchema>;
+
 export const draftQuestionPayloadSchema = z
   .object({
     kind: z.literal("question"),
@@ -20,6 +27,8 @@ export const draftQuestionPayloadSchema = z
      * the review page can put it back. Publishing ignores it.
      */
     originalPrompt: z.string().max(10_000).nullish(),
+    /** The picture that came with the question in the document, if it could be kept. */
+    image: importImageSchema.nullish(),
     codeSnippet: z.string().max(20_000).nullish(),
     explanation: z.string().max(10_000).nullish(),
     options: z.array(optionSchema).min(2).max(10),
@@ -79,6 +88,8 @@ export const patchImportItemSchema = z
         type: z.enum(["mcq_single", "mcq_multi"]),
         prompt: z.string(),
         originalPrompt: z.string().max(10_000).nullable(),
+        /** Change the description of the imported image, or drop the image with null. */
+        image: importImageSchema.nullable(),
         codeSnippet: z.string().nullable(),
         explanation: z.string().nullable(),
         options: z.array(optionSchema),

@@ -18,6 +18,8 @@ export type ImportQuestionPayload = {
   prompt: string;
   /** The prompt as written, set when a leading question number was removed. */
   originalPrompt?: string | null;
+  /** The picture that came with the question. Its description may still be empty. */
+  image?: { imageId: string; alt: string } | null;
   codeSnippet?: string | null;
   explanation?: string | null;
   options: ImportOption[];
@@ -82,6 +84,7 @@ export type OwnerQuestionView = {
   explanation: string | null;
   origin: string;
   evidenceStatus: string;
+  image?: { id: string; url: string; alt: string } | null;
 };
 
 export type PlayOption = { id: string; text: string };
@@ -92,6 +95,8 @@ export type PlayQuestion = {
   type: QuestionType;
   prompt: string;
   codeSnippet: string | null;
+  /** The picture this question shows, if any. Only the owner of the question can load it. */
+  image?: { id: string; url: string; alt: string } | null;
   options: PlayOption[];
   /** Only for fill-in questions: how many answers to collect. */
   blankCount?: number;
