@@ -35,6 +35,31 @@ describe("StartPracticeButton", () => {
     expect(push).toHaveBeenCalledWith("/question-sets/set1/play/s1");
   });
 
+  it("sends the chosen feedback mode when starting", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ session: { id: "s1" } }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<StartPracticeButton questionSetId="set1" />);
+    expect(screen.getByLabelText("Feedback while practising")).toHaveValue("each");
+    await user.selectOptions(screen.getByLabelText("Feedback while practising"), "requeue");
+    await user.click(screen.getByRole("button", { name: "Practice" }));
+    const body = JSON.parse(
+      String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body),
+    );
+    expect(body).toEqual({ questionSetId: "set1", mode: "quiz", revealMode: "requeue" });
+  });
+
+  it("starts with a mode chosen by the caller, such as the one just used", () => {
+    render(<StartPracticeButton questionSetId="set1" defaultRevealMode="end" />);
+    expect(screen.getByLabelText("Feedback while practising")).toHaveValue("end");
+  });
+
   it("explains from the server's counts why nothing is playable, with a link to the fix", async () => {
     stubFetch(409, {
       error: {
