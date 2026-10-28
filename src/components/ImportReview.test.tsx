@@ -194,4 +194,66 @@ describe("Remove question number toggle", () => {
       "originalPrompt",
     );
   });
+
+  describe("images from the document", () => {
+    const image = (alt: string) => ({ imageId: "11111111-1111-4111-8111-111111111111", alt });
+
+    it("shows the picture with its description", () => {
+      view(draft([item("i1", 0, { prompt: "What is shown?", image: image("A stack of plates") })]));
+      expect(screen.getByRole("img", { name: "A stack of plates" })).toHaveAttribute(
+        "src",
+        "/api/images/11111111-1111-4111-8111-111111111111",
+      );
+      expect(screen.getByLabelText("Describe the image")).toHaveValue("A stack of plates");
+    });
+
+    it("cannot be accepted until the image has a description", () => {
+      view(draft([item("i1", 0, { prompt: "What is shown?", image: image("") })]));
+      expect(screen.getByRole("button", { name: "Accept" })).toBeDisabled();
+      expect(screen.getByText(/Required: the question can be accepted/)).toBeInTheDocument();
+    });
+
+    it("saves a description without accepting or excluding the item", async () => {
+      const initial = draft([item("i1", 0, { prompt: "What is shown?", image: image("") })]);
+      respond = () => initial;
+      const user = userEvent.setup();
+      view(initial);
+
+      await user.type(screen.getByLabelText("Describe the image"), "  A stack of plates ");
+      await user.click(screen.getByRole("button", { name: "Save description" }));
+
+      expect(requests[0]).toMatchObject({
+        url: "/api/imports/d1/items/i1",
+        method: "PATCH",
+        body: {
+          edit: {
+            image: { imageId: "11111111-1111-4111-8111-111111111111", alt: "A stack of plates" },
+          },
+          decision: "pending",
+        },
+      });
+    });
+
+    it("drops the image on request", async () => {
+      const initial = draft([item("i1", 0, { prompt: "What is shown?", image: image("Plates") })]);
+      respond = () => initial;
+      const user = userEvent.setup();
+      view(initial);
+      await user.click(screen.getByRole("button", { name: "Remove image" }));
+      expect(requests[0]!.body).toMatchObject({ edit: { image: null }, decision: "pending" });
+    });
+
+    it("shows no image controls for questions without one, or once published", () => {
+      view(draft([item("i1", 0, { prompt: "Plain question" })]));
+      expect(screen.queryByRole("img")).not.toBeInTheDocument();
+      cleanup();
+      view({
+        ...draft([item("i1", 0, { prompt: "Q", image: image("Plates") }, "accepted")]),
+        status: "published",
+        publishedQuestionSetId: "s1",
+      });
+      expect(screen.getByRole("img", { name: "Plates" })).toBeInTheDocument();
+      expect(screen.queryByLabelText("Describe the image")).not.toBeInTheDocument();
+    });
+  });
 });

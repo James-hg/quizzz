@@ -18,6 +18,8 @@ export type ImportQuestionPayload = {
   prompt: string;
   /** The prompt as written, set when a leading question number was removed. */
   originalPrompt?: string | null;
+  /** The picture that came with the question. Its description may still be empty. */
+  image?: { imageId: string; alt: string } | null;
   codeSnippet?: string | null;
   explanation?: string | null;
   options: ImportOption[];
