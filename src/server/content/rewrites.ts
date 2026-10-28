@@ -10,7 +10,7 @@ import {
   type QuestionContent,
   type RevisionColumns,
 } from "@/lib/schemas";
-import { assertOwnsQuestion } from "@/server/auth/ownership";
+import { assertOwnsQuestion, assertOwnsQuestionSet } from "@/server/auth/ownership";
 import type { Database } from "@/server/db";
 import { addRevision } from "@/server/db/repositories/questions";
 import { questionRewrites, questions } from "@/server/db/schema";
@@ -131,6 +131,32 @@ export async function listRewrites(db: Database, userId: string, questionId: str
     .where(and(eq(questionRewrites.questionId, questionId), eq(questionRewrites.status, "pending")))
     .orderBy(desc(questionRewrites.createdAt), asc(questionRewrites.id));
   return rows.map((row) => toView(row, question.currentRevisionId ?? ""));
+}
+
+/** Pending proposals for every question in a set, keyed by question id (one query). */
+export async function listPendingRewritesForSet(
+  db: Database,
+  userId: string,
+  setId: string,
+): Promise<Record<string, RewriteView[]>> {
+  await assertOwnsQuestionSet(db, userId, setId);
+  const rows = await db
+    .select({ rewrite: questionRewrites, currentRevisionId: questions.currentRevisionId })
+    .from(questionRewrites)
+    .innerJoin(questions, eq(questionRewrites.questionId, questions.id))
+    .where(
+      and(
+        eq(questions.questionSetId, setId),
+        eq(questionRewrites.ownerId, userId),
+        eq(questionRewrites.status, "pending"),
+      ),
+    )
+    .orderBy(desc(questionRewrites.createdAt), asc(questionRewrites.id));
+  const byQuestion: Record<string, RewriteView[]> = {};
+  for (const { rewrite, currentRevisionId } of rows) {
+    (byQuestion[rewrite.questionId] ??= []).push(toView(rewrite, currentRevisionId ?? ""));
+  }
+  return byQuestion;
 }
 
 async function ownedRewrite(db: Database, userId: string, rewriteId: string) {
