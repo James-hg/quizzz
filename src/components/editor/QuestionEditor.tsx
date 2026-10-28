@@ -9,6 +9,7 @@ import { editorHref, matchesFilter, type QuestionFilter } from "@/lib/playabilit
 import { Alert } from "../ui/Alert";
 import { ConfirmButton } from "../ConfirmButton";
 import { TYPE_LABELS, draftFromQuestion, emptyDraft } from "./draft";
+import type { ImageChange } from "./image";
 import { QuestionForm } from "./QuestionForm";
 
 const EVIDENCE_LABEL: Record<string, { label: string; tone: string }> = {
@@ -77,12 +78,19 @@ const FILTER_ORDER: QuestionFilter[] = ["all", "needs-review", "no-answer", "exc
 
 type Props = {
   questionSetId: string;
+  /** Largest image the server accepts. */
+  maxImageBytes?: number;
   questions: OwnerQuestionView[];
   /** From the `?filter=` URL parameter, so links such as "Review them" open the right view. */
   filter?: QuestionFilter;
 };
 
-export function QuestionEditor({ questionSetId, questions, filter = "all" }: Props) {
+export function QuestionEditor({
+  questionSetId,
+  questions,
+  filter = "all",
+  maxImageBytes = 2 * 1024 * 1024,
+}: Props) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -117,12 +125,26 @@ export function QuestionEditor({ questionSetId, questions, filter = "all" }: Pro
     }
   }
 
-  async function save(id: string | null, input: Record<string, unknown>) {
+  async function save(id: string | null, input: Record<string, unknown>, change: ImageChange) {
     setFormError(null);
     setBusyId(id ?? "new");
     try {
-      if (id) await apiFetch(`/api/questions/${id}`, { method: "PATCH", body: input });
-      else await apiFetch(`/api/question-sets/${questionSetId}/questions`, { body: input });
+      // The image goes up first; the question is then saved with a reference to it. Leaving the
+      // field out keeps the current image, and null removes it.
+      const body: Record<string, unknown> = { ...input };
+      if (change.type === "remove") body.image = null;
+      else if (change.type === "alt") body.image = { imageId: change.imageId, alt: change.alt };
+      else if (change.type === "upload") {
+        const form = new FormData();
+        form.set("file", change.file);
+        const { image } = await apiFetch<{ image: { id: string } }>(
+          `/api/question-sets/${questionSetId}/images`,
+          { formData: form },
+        );
+        body.image = { imageId: image.id, alt: change.alt };
+      }
+      if (id) await apiFetch(`/api/questions/${id}`, { method: "PATCH", body });
+      else await apiFetch(`/api/question-sets/${questionSetId}/questions`, { body });
       setEditingId(null);
       setAdding(false);
       router.refresh();
@@ -244,7 +266,9 @@ export function QuestionEditor({ questionSetId, questions, filter = "all" }: Pro
                       showApprove={q.origin !== "original"}
                       busy={busy}
                       serverError={formError}
-                      onSubmit={(input) => save(q.id, input)}
+                      onSubmit={(input, change) => save(q.id, input, change)}
+                      initialImage={q.image ?? null}
+                      maxImageBytes={maxImageBytes}
                       onCancel={() => {
                         setEditingId(null);
                         setFormError(null);
@@ -256,6 +280,10 @@ export function QuestionEditor({ questionSetId, questions, filter = "all" }: Pro
                     <p className="question-prompt" style={{ marginTop: "0.5rem" }}>
                       {q.prompt}
                     </p>
+                    {q.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- an authenticated API route
+                      <img className="question-image" src={q.image.url} alt={q.image.alt} />
+                    ) : null}
                     {q.codeSnippet ? <pre className="code">{q.codeSnippet}</pre> : null}
                     <AnswerSummary q={q} />
                     {q.explanation ? (
@@ -343,7 +371,8 @@ export function QuestionEditor({ questionSetId, questions, filter = "all" }: Pro
             showApprove={false}
             busy={busyId === "new"}
             serverError={formError}
-            onSubmit={(input) => save(null, input)}
+            onSubmit={(input, change) => save(null, input, change)}
+            maxImageBytes={maxImageBytes}
             onCancel={() => {
               setAdding(false);
               setFormError(null);

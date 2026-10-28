@@ -69,7 +69,12 @@ export default async function EditSetPage({
 
       <PracticeBlockedNotice questionSetId={set.id} counts={counts} inEditor />
 
-      <QuestionEditor questionSetId={set.id} questions={initial} filter={filter} />
+      <QuestionEditor
+        questionSetId={set.id}
+        questions={initial}
+        filter={filter}
+        maxImageBytes={getEnv().MAX_IMAGE_BYTES}
+      />
 
       <AssistantPanel
         enabled={getEnv().AI_PROVIDER !== "disabled"}

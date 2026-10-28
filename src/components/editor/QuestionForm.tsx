@@ -12,13 +12,26 @@ import {
   type QuestionDraft,
 } from "./draft";
 import type { QuestionType } from "@/lib/client/types";
+import { ImageField } from "./ImageField";
+import {
+  imageChangeOf,
+  imageProblem,
+  initialImageValue,
+  type ExistingImage,
+  type ImageChange,
+  type ImageValue,
+} from "./image";
 
 type Props = {
   initial: QuestionDraft;
   submitLabel: string;
   busy?: boolean;
   serverError?: string | null;
-  onSubmit: (input: Record<string, unknown>) => void | Promise<void>;
+  onSubmit: (input: Record<string, unknown>, image: ImageChange) => void | Promise<void>;
+  /** The question's saved image, if it has one. */
+  initialImage?: ExistingImage | null;
+  /** Largest image the server accepts, so a file that is too big is refused before uploading. */
+  maxImageBytes?: number;
   onCancel?: () => void;
   /**
    * Show the "I have reviewed this" tick. Questions the owner wrote count as reviewed already, so
@@ -43,10 +56,14 @@ export function QuestionForm({
   onSubmit,
   onCancel,
   showApprove = true,
+  initialImage = null,
+  maxImageBytes = 2 * 1024 * 1024,
 }: Props) {
   const uid = useId();
   const [draft, setDraft] = useState(initial);
   const [errors, setErrors] = useState<DraftErrors>({});
+  const [image, setImage] = useState<ImageValue>(() => initialImageValue(initialImage));
+  const [showImageErrors, setShowImageErrors] = useState(false);
   const set = (patch: Partial<QuestionDraft>) => setDraft((d) => ({ ...d, ...patch }));
   const isMcq = draft.type === "mcq_single" || draft.type === "mcq_multi";
   const caseApplies = !isMcq;
@@ -65,15 +82,20 @@ export function QuestionForm({
   async function submit(event: FormEvent) {
     event.preventDefault();
     const result = validateDraft(draft);
-    if (!result.ok) {
-      setErrors(result.errors);
+    const imageError = imageProblem(image);
+    setShowImageErrors(true);
+    if (!result.ok || imageError) {
+      setErrors(result.ok ? {} : result.errors);
       return;
     }
     setErrors({});
-    await onSubmit({ ...result.input, approve: draft.approve });
+    await onSubmit({ ...result.input, approve: draft.approve }, imageChangeOf(initialImage, image));
   }
 
-  const errorList = Object.values(errors);
+  const errorList = [
+    ...Object.values(errors),
+    ...(showImageErrors && imageProblem(image) ? [imageProblem(image)!] : []),
+  ];
 
   return (
     <form className="form-grid" onSubmit={submit} noValidate aria-label="Question form">
@@ -121,6 +143,13 @@ export function QuestionForm({
           spellCheck={false}
         />
       </div>
+
+      <ImageField
+        value={image}
+        onChange={setImage}
+        maxBytes={maxImageBytes}
+        showErrors={showImageErrors}
+      />
 
       {isMcq ? (
         <fieldset

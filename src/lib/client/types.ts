@@ -82,6 +82,7 @@ export type OwnerQuestionView = {
   explanation: string | null;
   origin: string;
   evidenceStatus: string;
+  image?: { id: string; url: string; alt: string } | null;
 };
 
 export type PlayOption = { id: string; text: string };

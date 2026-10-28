@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { emptyDraft } from "./draft";
 import { QuestionForm } from "./QuestionForm";
 
@@ -115,5 +115,88 @@ describe("QuestionForm validation", () => {
     await user.click(tick);
     await user.click(screen.getByRole("button", { name: "Save question" }));
     expect(onSubmit.mock.calls[0]![0]).toMatchObject({ approve: true });
+  });
+
+  describe("image", () => {
+    const valid = {
+      ...emptyDraft(),
+      prompt: "What is shown?",
+      options: [
+        { id: "o1", text: "A cat" },
+        { id: "o2", text: "A dog" },
+      ],
+      correctOptionIds: ["o1"],
+    };
+    const png = () => new File([new Uint8Array(10)], "cat.png", { type: "image/png" });
+
+    beforeEach(() => {
+      URL.createObjectURL = vi.fn(() => "blob:preview");
+      URL.revokeObjectURL = vi.fn();
+    });
+
+    it("shows a saved image and keeps it when nothing about it changed", async () => {
+      const { onSubmit, user } = setup({
+        initial: valid,
+        initialImage: { id: "i1", url: "/api/images/i1", alt: "A cat" },
+      });
+      expect(screen.getByRole("img", { name: "A cat" })).toHaveAttribute("src", "/api/images/i1");
+      await user.click(screen.getByRole("button", { name: "Save question" }));
+      expect(onSubmit.mock.calls[0]![1]).toEqual({ type: "keep" });
+    });
+
+    it("uploads a chosen file once it has a description, and previews it", async () => {
+      const { onSubmit, user } = setup({ initial: valid });
+      await user.upload(screen.getByLabelText("Choose an image"), png());
+      expect(screen.getByRole("img")).toHaveAttribute("src", "blob:preview");
+
+      await user.click(screen.getByRole("button", { name: "Save question" }));
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(screen.getAllByText(/Describe the image/).length).toBeGreaterThan(0);
+
+      await user.type(screen.getByLabelText("Describe the image"), "A cat on a sofa");
+      await user.click(screen.getByRole("button", { name: "Save question" }));
+      const change = onSubmit.mock.calls[0]![1];
+      expect(change).toMatchObject({ type: "upload", alt: "A cat on a sofa" });
+      expect(change.file.name).toBe("cat.png");
+    });
+
+    it("refuses an unsupported file straight away", async () => {
+      const { user } = setup({ initial: valid });
+      const svg = new File(["<svg/>"], "a.svg", { type: "image/svg+xml" });
+      // The picker only offers images, so bypass the accept filter as a drag-and-drop would.
+      await userEvent
+        .setup({ applyAccept: false })
+        .upload(screen.getByLabelText("Choose an image"), svg);
+      expect(screen.getByText("Only PNG, JPEG or WebP images are supported.")).toBeInTheDocument();
+      expect(screen.queryByRole("img")).not.toBeInTheDocument();
+      void user;
+    });
+
+    it("removes a saved image", async () => {
+      const { onSubmit, user } = setup({
+        initial: valid,
+        initialImage: { id: "i1", url: "/api/images/i1", alt: "A cat" },
+      });
+      await user.click(screen.getByRole("button", { name: "Remove image" }));
+      expect(screen.queryByRole("img")).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Save question" }));
+      expect(onSubmit.mock.calls[0]![1]).toEqual({ type: "remove" });
+    });
+
+    it("sends only the new description when the alt text is edited", async () => {
+      const { onSubmit, user } = setup({
+        initial: valid,
+        initialImage: { id: "i1", url: "/api/images/i1", alt: "A cat" },
+      });
+      const alt = screen.getByLabelText("Describe the image");
+      await user.clear(alt);
+      await user.type(alt, "A black cat");
+      await user.click(screen.getByRole("button", { name: "Save question" }));
+      expect(onSubmit.mock.calls[0]![1]).toEqual({
+        type: "alt",
+        imageId: "i1",
+        alt: "A black cat",
+      });
+    });
   });
 });
