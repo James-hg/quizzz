@@ -58,26 +58,29 @@ export function StartPracticeButton({
 
   return (
     <span>
-      <select
-        aria-label="Feedback while practising"
-        value={revealMode}
-        onChange={(e) => setRevealMode(e.target.value as RevealMode)}
-        disabled={disabled || pending}
-      >
-        {MODE_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>{" "}
-      <button
-        type="button"
-        className="btn btn-primary"
-        onClick={start}
-        disabled={disabled || pending}
-      >
-        {pending ? "Starting…" : label}
-      </button>
+      <span className="row">
+        <select
+          aria-label="Feedback while practising"
+          value={revealMode}
+          onChange={(e) => setRevealMode(e.target.value as RevealMode)}
+          disabled={disabled || pending}
+          style={{ width: "auto", maxWidth: "100%" }}
+        >
+          {MODE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={start}
+          disabled={disabled || pending}
+        >
+          {pending ? "Starting…" : label}
+        </button>
+      </span>
       {blocked ? <PracticeBlockedNotice questionSetId={questionSetId} counts={blocked} /> : null}
       {error ? <Alert tone="error">{error}</Alert> : null}
     </span>
