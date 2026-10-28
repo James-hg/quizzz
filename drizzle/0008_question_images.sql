@@ -20,7 +20,8 @@ ALTER TABLE "question_images" ADD CONSTRAINT "question_images_owner_id_user_id_f
 ALTER TABLE "question_revision_images" ADD CONSTRAINT "question_revision_images_question_revision_id_question_revisions_id_fk" FOREIGN KEY ("question_revision_id") REFERENCES "public"."question_revisions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "question_revision_images" ADD CONSTRAINT "question_revision_images_image_id_question_images_id_fk" FOREIGN KEY ("image_id") REFERENCES "public"."question_images"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "question_images_owner_id_idx" ON "question_images" USING btree ("owner_id");--> statement-breakpoint
-CREATE INDEX "question_revision_images_image_id_idx" ON "question_revision_images" USING btree ("image_id");--> statement-breakpoint
+CREATE INDEX "question_revision_images_image_id_idx" ON "question_revision_images" USING btree ("image_id");
+--> statement-breakpoint
 -- A revision's image link is part of what the student saw, so it is frozen once an attempt
 -- references the revision. Editing a question writes a new revision and a new link instead.
 CREATE FUNCTION "question_revision_images_guard_referenced"() RETURNS trigger AS $$

@@ -41,6 +41,7 @@ export const segmentKind = pgEnum("segment_kind", [
 ]);
 export const linkRelationship = pgEnum("link_relationship", ["origin", "evidence"]);
 export const sessionMode = pgEnum("session_mode", ["quiz", "review", "learn", "mixed", "exam"]);
+export const revealMode = pgEnum("reveal_mode", ["each", "end", "requeue"]);
 export const sessionState = pgEnum("session_state", ["active", "paused", "completed", "abandoned"]);
 export const gradingOutcome = pgEnum("grading_outcome", ["correct", "incorrect", "uncertain"]);
 export const activityRole = pgEnum("activity_role", ["scored", "prequestion", "practice"]);

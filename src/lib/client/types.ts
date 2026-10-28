@@ -100,6 +100,8 @@ export type PlayQuestion = {
   options: PlayOption[];
   /** Only for fill-in questions: how many answers to collect. */
   blankCount?: number;
+  /** 2 when this is the retry of a question answered wrongly earlier. */
+  pass?: 1 | 2;
 };
 
 export type PlayResponse =
@@ -113,41 +115,64 @@ export type CorrectAnswer =
   | { kind: "blanks"; blanks: string[][] }
   | { kind: "unresolved" };
 
+/** How much of a result the server revealed: everything, only right/wrong, or nothing yet. */
+export type Disclosure = "full" | "verdict" | "none";
+
+export type RevealMode = "each" | "end" | "requeue";
+
 export type AnswerResult = {
   attemptId: string;
-  outcome: "correct" | "incorrect" | "uncertain";
-  isCorrect: boolean | null;
+  /** 1 for the first answer, 2 for the single retry of a wrong answer (requeue mode). */
+  pass: 1 | 2;
+  disclosure: Disclosure;
   response: PlayResponse;
-  correctAnswer: CorrectAnswer;
-  explanation: string | null;
   submittedAt: string;
+  /** Present for `verdict` and `full`. */
+  outcome?: "correct" | "incorrect" | "uncertain";
+  isCorrect?: boolean | null;
+  /** Present only for `full`. */
+  correctAnswer?: CorrectAnswer;
+  explanation?: string | null;
 };
 
 export type PlayItem =
-  | { questionId: string; position: number; status: "pending" | "removed" }
-  | { questionId: string; position: number; status: "answered"; result: AnswerResult };
+  | { questionId: string; position: number; pass: 1 | 2; status: "pending" | "removed" }
+  | {
+      questionId: string;
+      position: number;
+      pass: 1 | 2;
+      status: "answered";
+      result: AnswerResult;
+      /** Present once the session has ended, so the results can be reviewed. */
+      question?: PlayQuestion;
+    };
 
 export type PlaySession = {
   id: string;
   questionSetId: string;
   courseId: string;
   mode: string;
+  revealMode: RevealMode;
   state: "active" | "paused" | "completed" | "abandoned";
   startedAt: string;
   completedAt: string | null;
   elapsedSeconds: number;
   currentIndex: number;
-  progress: { total: number; answered: number; removed: number };
+  progress: { total: number; answered: number; removed: number; retries: number };
   items: PlayItem[];
   current: PlayQuestion | null;
 };
 
 export type SessionSummary = {
+  /** Questions in the session, counted once. The counts below are first tries only. */
   totalItems: number;
   answered: number;
   correct: number;
   incorrect: number;
   uncertain: number;
   unanswered: number;
+  /** Second tries of wrong answers (requeue mode). */
+  retry: { total: number; answered: number; correct: number; incorrect: number; uncertain: number };
+  revealMode: RevealMode;
   elapsedSeconds: number;
 };

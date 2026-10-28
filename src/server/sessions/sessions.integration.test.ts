@@ -109,7 +109,7 @@ describe("starting and resuming", () => {
     const second = await start(set.id);
     expect(second.status).toBe(200);
     expect(second.body.session.id).toBe(first.body.session.id);
-    expect(first.body.session.progress).toEqual({ total: 2, answered: 0, removed: 0 });
+    expect(first.body.session.progress).toEqual({ total: 2, answered: 0, removed: 0, retries: 0 });
   });
 
   it("practices owner-written questions without any approval, but skips excluded ones", async () => {
@@ -341,7 +341,7 @@ describe("pause, resume, and elapsed time", () => {
     const { set } = await makeSet();
     const t = (seconds: number) => new Date(Date.UTC(2026, 0, 5, 12, 0, 0) + seconds * 1000);
 
-    const { session } = await startOrResumeSession(db, alice.id, set.id, t(0));
+    const { session } = await startOrResumeSession(db, alice.id, set.id, "each", t(0));
     const id = session.id;
     expect((await pauseSession(db, alice.id, id, t(30))).elapsedSeconds).toBe(30);
     expect((await getSession(db, alice.id, id, t(90))).elapsedSeconds).toBe(30);

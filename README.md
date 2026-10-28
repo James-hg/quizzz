@@ -71,7 +71,7 @@ Copy `.env.example` to `.env.local`. Next.js, `npm run db:migrate`, `npm run sam
 | `/courses/:id/import` | Upload a document. The picker lists exactly the formats the server supports. |
 | `/imports/:id` | Review detected questions: fix flagged items, accept or exclude, then publish. Unresolved answers are marked; those questions are added excluded until you set an answer. |
 | `/question-sets/:id/edit` | Question editor (every save creates a new revision, and a question can show one picture), AI panel, past sessions. Filter with `?filter=needs-review`, `no-answer` or `excluded`. The assistant box understands edit commands ("rename this set to ...", "add a question", "update question 2", "remove question 3", "shuffle the questions", "shuffle the choices", "create a set called ...") with or without AI; each shows a preview and waits for you to confirm. |
-| `/question-sets/:id/play/:sessionId` | Practice. Reloading resumes where you were. |
+| `/question-sets/:id/play/:sessionId` | Practice. Reloading resumes where you were. Pick the feedback style when you start: after each answer, only at the end (with a review afterwards), or retry wrong answers once (the correct answer stays hidden until the retry). |
 | `/settings` | Display name, email, timezone, password. |
 
 With `AI_PROVIDER=disabled` the AI panel says so and everything else works. The play screen never receives answer keys before you submit an answer.
