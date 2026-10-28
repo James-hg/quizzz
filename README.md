@@ -60,6 +60,7 @@ Copy `.env.example` to `.env.local`. Next.js, `npm run db:migrate`, `npm run sam
 
 - **Disabled (default).** The AI panel says AI is off and everything else works, including import, editing and practice. AI routes answer `503 ai_unavailable`.
 - **Gemini.** Set `AI_PROVIDER=gemini` and `GEMINI_API_KEY` (a free-tier key from Google AI Studio is enough). Calls are made by the server only, are rate limited per user, and their output is only ever a *proposal*: generated questions are saved excluded and unreviewed until you approve them. If the free quota runs out, AI routes return `429 ai_quota_exceeded` and practice keeps working; the app never switches to a paid model by itself.
+- **Rewriting.** On the edit page each question can be rephrased, given different numbers, or given an explanation. You see the original and the proposal side by side; saving a proposal changes nothing, and it only becomes a new version (or a new question) after you tick that you have checked it. Varied numbers stay "needs review" until then.
 - **Data use.** With the Gemini free tier, content you send (question text, the context of your question set) is processed by Google and, under Google's free-tier terms, may be used to improve their products. Do not enable AI for material you are not allowed to share. Disabled mode sends nothing anywhere.
 
 ## Using the app

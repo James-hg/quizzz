@@ -148,10 +148,22 @@ AI is off by default (`AI_PROVIDER=disabled`); practice never needs it. To enabl
 | `POST /api/ai/question-sets/:id/generate-questions` | `{ count?, topic? }` -> validated proposals, nothing saved |
 | `POST /api/ai/question-sets/:id/save-proposals` | `{ proposals }` -> stored as excluded, `ai_proposed`, `generated_unreviewed` |
 | `POST /api/ai/question-sets/:id/suggest-title` | -> `{ title }` |
+| `POST /api/ai/questions/:id/rewrite` | `{ mode, hint? }` -> one `proposal`, nothing saved |
+| `GET/POST /api/questions/:id/rewrites` | list / save a proposal (`{ mode, baseRevisionId, content }`); no AI needed |
+| `POST /api/rewrites/:id/accept` | `{ confirmed: true, as?: "revision" \| "new_question" }` -> 201 (200 on replay) |
+| `POST /api/rewrites/:id/dismiss` | -> 204 |
 
 AI routes return `503 ai_unavailable` when AI is off. Saved proposals stay out of practice until you approve them (`PATCH /api/questions/:id` with `{"approve": true}`) and restore them (`POST /api/questions/:id/restore`); restore returns `409 needs_review` until then.
 
+### Rewriting a question
+
+`mode` is `rephrase` (new wording, same answer), `vary_numbers` (different numbers, a new answer) or `add_explanation`. The question must have a resolved answer (`409 unresolved_answer`), and `vary_numbers` needs a number in the prompt or code (`422 no_numbers_to_vary`, no quota used). The server checks the proposal against the original: the type never changes, a rephrase keeps the options, answer and numbers, an explanation changes nothing else, and varied numbers never reuse the old answer. Output that fails is retried once, then `502 ai_invalid_output`.
+
+A proposal is never a revision. Saving it stores it in `question_rewrites`; the question stays playable and unchanged, and attempts are never touched. Accepting needs `confirmed: true`: `as: "revision"` (default) adds a new revision of the same question (`409 stale_proposal` if the question changed since), `as: "new_question"` adds it at the end of the set. Varied numbers stay `needs_review` (and out of scored practice) until accepted. Accepting twice is a no-op replay; a dismissed proposal gives `409 already_resolved`.
+
 ```sh
+curl -b /tmp/quizzz-jar -X POST -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
+  -d '{"mode":"rephrase"}' localhost:3000/api/ai/questions/<questionId>/rewrite
 curl -b /tmp/quizzz-jar -X POST -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
   -d '{"message":"What is a list comprehension?"}' localhost:3000/api/ai/chat
 curl -b /tmp/quizzz-jar -X POST -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
