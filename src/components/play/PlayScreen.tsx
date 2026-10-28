@@ -265,6 +265,10 @@ export function PlayScreen({ initial, setTitle }: Props) {
         >
           <fieldset style={{ border: 0, padding: 0 }} disabled={phase !== "answering"}>
             <legend className="question-prompt">{question.prompt}</legend>
+            {question.image ? (
+              // eslint-disable-next-line @next/next/no-img-element -- an authenticated API route, not a static asset
+              <img className="question-image" src={question.image.url} alt={question.image.alt} />
+            ) : null}
             {question.codeSnippet ? <pre className="code">{question.codeSnippet}</pre> : null}
 
             {question.type === "mcq_single" || question.type === "mcq_multi" ? (

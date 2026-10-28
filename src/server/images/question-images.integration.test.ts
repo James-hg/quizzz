@@ -20,6 +20,7 @@ import {
 } from "@/app/api/questions/[questionId]/route";
 import { createCourse } from "@/server/content/courses";
 import { createQuestionSet } from "@/server/content/question-sets";
+import { getSession, startOrResumeSession } from "@/server/sessions/service";
 import { getDb } from "@/server/db";
 import { questionImages, questionRevisionImages, questionRevisions } from "@/server/db/schema";
 import { call } from "@/test/api";
@@ -369,5 +370,42 @@ describe("deleting a question deletes the images only it showed", () => {
       .from(questionRevisions)
       .where(eq(questionRevisions.questionId, b.body.question.id));
     expect(rows).toHaveLength(1);
+  });
+});
+
+describe("practising a question with an image", () => {
+  it("shows the image and its alt text in play, pinned to the session, with no answer key", async () => {
+    const course = await createCourse(db, alice.id, { title: "Play", subject: "S" });
+    const playSet = (await createQuestionSet(db, alice.id, course.id, "Play set")).id;
+    const id = await stage(alice, playSet);
+    const created = await call(questionsPost, "/x", alice, {
+      body: mcq({ image: { imageId: id, alt: "A cat on a sofa" } }),
+      params: { setId: playSet },
+    });
+    expect(created.status).toBe(201);
+
+    const { session } = await startOrResumeSession(db, alice.id, playSet);
+    expect(session.current?.image).toEqual({
+      id,
+      url: `/api/images/${id}`,
+      alt: "A cat on a sofa",
+    });
+    expect(JSON.stringify(session)).not.toMatch(/correctOptionIds|answerKey|isCorrect/);
+
+    // Removing the image afterwards does not change a session that already started.
+    await patch(created.body.question.id, { image: null });
+    const again = await getSession(db, alice.id, session.id);
+    expect(again.current?.image).toMatchObject({ id, alt: "A cat on a sofa" });
+    // The student can load the picture; nobody else can.
+    expect((await fetchImage(alice, id)).status).toBe(200);
+    expect((await fetchImage(bob, id)).status).toBe(404);
+  });
+
+  it("has no image field value for questions without one", async () => {
+    const course = await createCourse(db, alice.id, { title: "Plain", subject: "S" });
+    const plainSet = (await createQuestionSet(db, alice.id, course.id, "Plain set")).id;
+    await call(questionsPost, "/x", alice, { body: mcq(), params: { setId: plainSet } });
+    const { session } = await startOrResumeSession(db, alice.id, plainSet);
+    expect(session.current?.image).toBeNull();
   });
 });

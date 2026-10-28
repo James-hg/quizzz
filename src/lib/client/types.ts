@@ -92,6 +92,8 @@ export type PlayQuestion = {
   type: QuestionType;
   prompt: string;
   codeSnippet: string | null;
+  /** The picture this question shows, if any. Only the owner of the question can load it. */
+  image?: { id: string; url: string; alt: string } | null;
   options: PlayOption[];
   /** Only for fill-in questions: how many answers to collect. */
   blankCount?: number;

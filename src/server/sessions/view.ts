@@ -1,5 +1,7 @@
 import "server-only";
 import { eq, inArray } from "drizzle-orm";
+import type { QuestionImageView } from "@/lib/images";
+import { loadImagesForRevisions } from "@/server/images/service";
 import { revealAnswer } from "@/server/grading";
 import type { Database } from "@/server/db";
 import { parseRevisionJson } from "@/server/db/repositories/questions";
@@ -35,13 +37,19 @@ export function resultOf(attempt: AttemptRow, revision: RevisionRow) {
  * What the student may see of a question before answering: no key, no explanation. The only
  * thing derived from the key is how many blanks a fill-in question has, which the form needs.
  */
-function questionForPlay(revision: RevisionRow, questionId: string) {
+function questionForPlay(
+  revision: RevisionRow,
+  questionId: string,
+  image: QuestionImageView | null,
+) {
   return {
     questionId,
     revisionNumber: revision.revisionNumber,
     type: revision.type,
     prompt: revision.prompt,
     codeSnippet: revision.codeSnippet,
+    // Images are part of the question, not of the answer, so they are shown before submitting.
+    image,
     options: revision.options.map((o) => ({ id: o.id, text: o.text })),
     ...(revision.answerKey.kind === "blanks"
       ? { blankCount: revision.answerKey.blanks.length }
@@ -100,6 +108,10 @@ export async function buildSessionView(db: Database, session: SessionRow, now: D
       ? revisions.get(session.revisionIds[pending.questionId] ?? "")
       : undefined;
 
+  const currentImages = currentRevision
+    ? await loadImagesForRevisions(db, [currentRevision.id])
+    : new Map<string, QuestionImageView>();
+
   return {
     id: session.id,
     questionSetId: session.questionSetId,
@@ -117,7 +129,13 @@ export async function buildSessionView(db: Database, session: SessionRow, now: D
     },
     items,
     current:
-      pending && currentRevision ? questionForPlay(currentRevision, pending.questionId) : null,
+      pending && currentRevision
+        ? questionForPlay(
+            currentRevision,
+            pending.questionId,
+            currentImages.get(currentRevision.id) ?? null,
+          )
+        : null,
   };
 }
 
