@@ -1,5 +1,6 @@
 import "server-only";
 import type { ExtractAnchor, ExtractResult } from "@/lib/schemas";
+import { IMAGE_MIME_TYPES } from "@/lib/images";
 import { detectMcqs } from "./mcq-detect";
 import type { Detection, DetectedQuestion } from "./types";
 
@@ -14,12 +15,26 @@ function paragraphIndex(anchor: ExtractAnchor): number | undefined {
 export function detectDocxQuestions(result: ExtractResult): Detection {
   const draft = detectMcqs(result);
 
-  const questions = draft.questions.map((question): DetectedQuestion => {
+  const rangeOf = (question: (typeof draft.questions)[number]) => {
     const indexes = [question.anchor, ...question.options.map((o) => o.anchor)]
       .map(paragraphIndex)
       .filter((index): index is number => index !== undefined);
-    const first = Math.min(...indexes);
-    const last = Math.max(...indexes);
+    return { first: Math.min(...indexes), last: Math.max(...indexes) };
+  };
+  const firsts = draft.questions.map((q) => rangeOf(q).first);
+
+  const questions = draft.questions.map((question, i): DetectedQuestion => {
+    const { first, last } = rangeOf(question);
+    // Images between this question's start and the next question's start belong to it.
+    const nextFirst = firsts[i + 1] ?? Number.POSITIVE_INFINITY;
+    const ownAssets = result.assets.filter((asset) => {
+      const index = asset.anchor ? paragraphIndex(asset.anchor) : undefined;
+      return index !== undefined && index >= first && index < nextFirst;
+    });
+    const usable = ownAssets.find(
+      (asset) =>
+        asset.entryName && (IMAGE_MIME_TYPES as readonly string[]).includes(asset.mimeType),
+    );
     const blockIds = result.blocks
       .filter((block) => {
         const index = paragraphIndex(block.anchor);
@@ -33,6 +48,10 @@ export function detectDocxQuestions(result: ExtractResult): Detection {
       anchor: question.anchor,
       blockIds,
       warnings: question.warnings,
+      ...(usable ? { imageAssetId: usable.id } : {}),
+      ...(ownAssets.length > (usable ? 1 : 0) && usable
+        ? { extraImages: ownAssets.length - 1 }
+        : {}),
     };
   });
   return { questions, warnings: draft.warnings };

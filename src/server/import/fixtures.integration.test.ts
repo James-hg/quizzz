@@ -38,9 +38,14 @@ const EXPECTED: Record<
     items: [],
     draftWarnings: ["option_without_question", "question_skipped", "no_questions_found"],
   },
+  // The picture is kept, so the "image not imported" warning is gone. It has no description yet.
   "image-in-question.docx": {
-    items: [{ type: "mcq_single", correct: ["a"], warnings: ["image_dependency"] }],
-    draftWarnings: ["image_dependency"],
+    items: [{ type: "mcq_single", correct: ["a"], warnings: ["image_alt_missing"] }],
+    draftWarnings: [],
+  },
+  "image-with-alt.docx": {
+    items: [{ type: "mcq_single", correct: ["a"], warnings: [] }],
+    draftWarnings: [],
   },
   "inherited-bold.docx": {
     items: [{ type: "mcq_single", correct: ["b"], warnings: [] }],
@@ -166,9 +171,12 @@ describe("A7 fixtures through the import pipeline", () => {
     const extracted = await runExtraction(bytes, file, DEFAULT_LIMITS);
     const detected = detectorFor("docx")!(extracted);
     const direct = buildDraftItems(extracted, detected.questions);
-    expect(draft.items.map((i: { payload: unknown }) => i.payload)).toEqual(
-      direct.items.map((i) => i.payload),
-    );
+    // Stored images are added during the import, so compare everything but the image reference.
+    const withoutImage = (payload: Record<string, unknown>) =>
+      Object.fromEntries(Object.entries(payload).filter(([key]) => key !== "image"));
+    expect(
+      draft.items.map((i: { payload: Record<string, unknown> }) => withoutImage(i.payload)),
+    ).toEqual(direct.items.map((i) => withoutImage(i.payload as Record<string, unknown>)));
     expect(draft.items.length).toBe(direct.items.length);
   });
 

@@ -214,7 +214,12 @@ function collectParagraphs(nodes: XNode[], out: XNode[]): void {
   }
 }
 
-type ParagraphContent = { runs: TextRun[]; imageRels: string[] };
+type ParagraphContent = {
+  runs: TextRun[];
+  imageRels: string[];
+  /** Author-written descriptions (`docPr descr`), by relationship id. */
+  imageAlts: Map<string, string>;
+};
 
 function readRuns(
   nodes: XNode[],
@@ -255,7 +260,11 @@ function readRuns(
           : legacy
             ? attr(legacy, "id")
             : undefined;
-        if (rel) out.imageRels.push(rel);
+        if (rel) {
+          out.imageRels.push(rel);
+          const description = attr(findDeep(kids(part), "docPr") ?? {}, "descr")?.trim();
+          if (description && !out.imageAlts.has(rel)) out.imageAlts.set(rel, description);
+        }
       }
     }
     if (text === "") continue;
@@ -342,7 +351,7 @@ export async function extractDocx(
     const styleId = attr(pPr ? (child(pPr, "pStyle") ?? {}) : {}, "val");
     const style = resolveStyle(styles, styleId);
 
-    const content: ParagraphContent = { runs: [], imageRels: [] };
+    const content: ParagraphContent = { runs: [], imageRels: [], imageAlts: new Map() };
     readRuns(kids(paragraph), style.bold, styles, content);
 
     const anchorBase = { type: "docx_paragraph" as const, index };
@@ -376,6 +385,8 @@ export async function extractDocx(
           mimeType: IMAGE_MIME[extensionOf(path)] ?? "application/octet-stream",
           sizeBytes: sizeByName.get(path) ?? 0,
           anchor,
+          entryName: path,
+          ...(content.imageAlts.get(relId) ? { alt: content.imageAlts.get(relId) } : {}),
         });
       }
     }

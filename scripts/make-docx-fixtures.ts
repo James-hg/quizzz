@@ -151,6 +151,22 @@ const fixtures: Record<string, Paragraph[]> = {
     option("3"),
     option("4", true),
   ],
+  // The author described the image in Word, so the import can carry that description over.
+  "image-with-alt": [
+    question("What does the diagram below show?"),
+    new Paragraph({
+      children: [
+        new ImageRun({
+          type: "png",
+          data: PNG_1X1,
+          transformation: { width: 24, height: 24 },
+          altText: { name: "stack", description: "A stack of three plates", title: "Stack" },
+        }),
+      ],
+    }),
+    option("A stack", true),
+    option("A queue"),
+  ],
   "edge-cases": [
     option("An option with no question above it"),
     question("A question with a single option?"),

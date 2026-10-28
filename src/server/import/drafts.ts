@@ -2,11 +2,15 @@ import "server-only";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import {
   draftQuestionPayloadSchema,
+  type ExtractAnchor,
   type ExtractResult,
   type ImportWarning,
   type SourceRefs,
 } from "@/lib/schemas";
 import { stripQuestionNumber } from "@/lib/question-number";
+import { getEnv } from "@/server/env";
+import { deleteUnlinkedImages } from "@/server/images/service";
+import { storeExtractedImages } from "./images";
 import { assertOwnsCourse } from "@/server/auth/ownership";
 import type { Database } from "@/server/db";
 import {
@@ -86,6 +90,7 @@ export function buildDraftItems(result: ExtractResult, detected: DetectedQuestio
       type: correctOptionIds.length > 1 ? ("mcq_multi" as const) : ("mcq_single" as const),
       prompt,
       ...(originalPrompt ? { originalPrompt } : {}),
+      ...(question.image ? { image: question.image } : {}),
       options,
       correctOptionIds,
     };
@@ -104,6 +109,13 @@ export function buildDraftItems(result: ExtractResult, detected: DetectedQuestio
       message: w.message,
       anchor: w.anchor ?? question.anchor,
     }));
+    if (question.image && !question.image.alt.trim()) {
+      itemWarnings.push({
+        code: "image_alt_missing",
+        message: "This question has an image. Describe it before accepting the question.",
+        anchor: question.anchor,
+      });
+    }
     if (correctOptionIds.length === 0) {
       itemWarnings.push({
         code: "answer_unresolved",
@@ -195,11 +207,32 @@ export async function createImport(
 
   const detector = detectorFor(extractor.name);
   const detection = detector ? detector(result) : { questions: [], warnings: [] };
-  const built = buildDraftItems(result, detection.questions);
+  // Images that could be read from the document are kept with their questions; the "image not
+  // imported" warning only stays for the ones that could not be.
+  const images = await storeExtractedImages(
+    db,
+    storage,
+    userId,
+    upload.bytes,
+    limits,
+    result,
+    detection.questions,
+    getEnv().MAX_IMAGE_BYTES,
+  );
+  const built = buildDraftItems(result, images.questions);
+  const keepsWarning = (w: { code: string; anchor?: ExtractAnchor }) =>
+    !(
+      w.code === "image_dependency" &&
+      w.anchor?.type === "docx_paragraph" &&
+      images.keptParagraphs.has(w.anchor.index)
+    );
   const warnings: ImportWarning[] = [
-    ...result.warnings.map((w) => ({ code: w.code, message: w.message, anchor: w.anchor })),
+    ...result.warnings
+      .filter(keepsWarning)
+      .map((w) => ({ code: w.code, message: w.message, anchor: w.anchor })),
     ...detection.warnings.map((w) => ({ code: w.code, message: w.message, anchor: w.anchor })),
     ...built.warnings,
+    ...images.warnings,
   ];
   if (!detector) {
     warnings.push({
@@ -213,21 +246,28 @@ export async function createImport(
     });
   }
 
-  const draftId = await db.transaction(async (tx) => {
-    const database = tx as unknown as Database;
-    await insertSegments(database, documentId, result.blocks);
-    await setExtractionStatus(database, documentId, "extracted");
-    const [draft] = await database
-      .insert(importDrafts)
-      .values({ ownerId: userId, courseId, sourceDocumentId: documentId, warnings })
-      .returning({ id: importDrafts.id });
-    if (built.items.length > 0) {
-      await database
-        .insert(importDraftItems)
-        .values(built.items.map((item) => ({ ...item, draftId: draft!.id })));
-    }
-    return draft!.id;
-  });
+  let draftId: string;
+  try {
+    draftId = await db.transaction(async (tx) => {
+      const database = tx as unknown as Database;
+      await insertSegments(database, documentId, result.blocks);
+      await setExtractionStatus(database, documentId, "extracted");
+      const [draft] = await database
+        .insert(importDrafts)
+        .values({ ownerId: userId, courseId, sourceDocumentId: documentId, warnings })
+        .returning({ id: importDrafts.id });
+      if (built.items.length > 0) {
+        await database
+          .insert(importDraftItems)
+          .values(built.items.map((item) => ({ ...item, draftId: draft!.id })));
+      }
+      return draft!.id;
+    });
+  } catch (error) {
+    // Do not leave the images of an import that never saved.
+    await deleteUnlinkedImages(db, storage, images.imageIds);
+    throw error;
+  }
   return getImport(db, userId, draftId);
 }
 
