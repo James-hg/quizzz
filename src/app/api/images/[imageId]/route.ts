@@ -2,7 +2,7 @@ import { requireUser } from "@/server/auth/session";
 import { getDb } from "@/server/db";
 import { handleRoute, notFound } from "@/server/http/errors";
 import { parseId } from "@/server/http/request";
-import { getOwnedImage } from "@/server/images/service";
+import { deleteOwnedImage, getOwnedImage } from "@/server/images/service";
 import { getStorage } from "@/server/storage";
 import { StorageNotFoundError } from "@/server/storage/types";
 
@@ -45,4 +45,15 @@ export const GET = handleRoute(async (request: Request, { params }: Ctx) => {
   headers.set("Content-Type", image.mimeType);
   headers.set("Content-Length", String(bytes.length));
   return new Response(new Uint8Array(bytes), { status: 200, headers });
+});
+
+/**
+ * Discards one of your own images that nothing uses (for example after a failed save). An image
+ * a question or an import still shows cannot be deleted (409 image_in_use).
+ */
+export const DELETE = handleRoute(async (request: Request, { params }: Ctx) => {
+  const user = await requireUser(request);
+  const imageId = parseId((await params).imageId, "Image");
+  await deleteOwnedImage(getDb(), getStorage(), user.id, imageId);
+  return new Response(null, { status: 204 });
 });

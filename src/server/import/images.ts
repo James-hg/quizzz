@@ -4,6 +4,7 @@ import type { Database } from "@/server/db";
 import { ApiError } from "@/server/http/errors";
 import type { ExtractLimits } from "@/server/extract/types";
 import { readZipEntries } from "@/server/extract/zip";
+import { IMAGE_ALT_MAX } from "@/lib/images";
 import { createImage } from "@/server/images/service";
 import type { StorageAdapter } from "@/server/storage/types";
 import type { DetectedQuestion } from "./types";
@@ -49,19 +50,28 @@ export async function storeExtractedImages(
     wanted.some((asset) => asset.entryName === name),
   );
   const byAsset = new Map<string, { imageId: string; alt: string }>();
+  // The same picture can appear in several questions; it is stored once and shared.
+  const byEntry = new Map<string, string | null>();
 
   for (const asset of wanted) {
     if (byAsset.has(asset.id)) continue;
-    const bytes = entries.get(asset.entryName!);
-    if (!bytes) continue;
-    try {
-      const image = await createImage(db, storage, userId, bytes, maxImageBytes);
-      byAsset.set(asset.id, { imageId: image.id, alt: asset.alt ?? "" });
-      stored.imageIds.push(image.id);
-    } catch (error) {
-      // A bad image must not fail the whole import; the question keeps its warning instead.
-      if (!(error instanceof ApiError)) throw error;
+    const entryName = asset.entryName!;
+    if (!byEntry.has(entryName)) {
+      const bytes = entries.get(entryName);
+      let imageId: string | null = null;
+      if (bytes) {
+        try {
+          imageId = (await createImage(db, storage, userId, bytes, maxImageBytes)).id;
+          stored.imageIds.push(imageId);
+        } catch (error) {
+          // A bad image must not fail the whole import; the question keeps its warning instead.
+          if (!(error instanceof ApiError)) throw error;
+        }
+      }
+      byEntry.set(entryName, imageId);
     }
+    const imageId = byEntry.get(entryName);
+    if (imageId) byAsset.set(asset.id, { imageId, alt: clampAlt(asset.alt) });
   }
 
   stored.questions = questions.map((question) => {
@@ -86,4 +96,19 @@ export async function storeExtractedImages(
     }
   }
   return stored;
+}
+
+/**
+ * An author's description is kept when it fits. A longer one is cut to the limit (the owner can
+ * edit it in review) so it can never make the whole question fail validation.
+ */
+export function clampAlt(alt: string | undefined): string {
+  let text = (alt ?? "").trim();
+  if (text.length > IMAGE_ALT_MAX) {
+    text = text.slice(0, IMAGE_ALT_MAX);
+    // Do not leave half of a surrogate pair at the cut.
+    if (/[\uD800-\uDBFF]$/.test(text)) text = text.slice(0, -1);
+    text = text.trim();
+  }
+  return text;
 }

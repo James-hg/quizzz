@@ -8,7 +8,8 @@ import {
 import type { Database } from "@/server/db";
 import { importDraftItems, importDrafts } from "@/server/db/schema";
 import { badRequest, conflict, notFound } from "@/server/http/errors";
-import { getOwnedImage } from "@/server/images/service";
+import { deleteUnlinkedImages, getOwnedImage } from "@/server/images/service";
+import { getStorage } from "@/server/storage";
 import { getImport, getOwnedDraft } from "./drafts";
 
 function withAnswerWarning(
@@ -109,5 +110,10 @@ export async function patchImportItem(
       .set({ status: "reviewing", updatedAt: new Date() })
       .where(eq(importDrafts.id, draftId));
   });
+  // A dropped image is deleted once nothing else (another question or draft item) needs it.
+  const droppedImage = item.payload.kind === "question" ? item.payload.image : undefined;
+  if (droppedImage && !(payload.kind === "question" && payload.image)) {
+    await deleteUnlinkedImages(db, getStorage(), [droppedImage.imageId]);
+  }
   return getImport(db, userId, draftId);
 }

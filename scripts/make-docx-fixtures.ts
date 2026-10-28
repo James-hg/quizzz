@@ -167,6 +167,35 @@ const fixtures: Record<string, Paragraph[]> = {
     option("A stack", true),
     option("A queue"),
   ],
+  // The same picture is used by two questions, each with its own description.
+  "image-reused": [
+    question("Which structure does the first diagram show?"),
+    new Paragraph({
+      children: [
+        new ImageRun({
+          type: "png",
+          data: PNG_1X1,
+          transformation: { width: 24, height: 24 },
+          altText: { name: "one", description: "First use of the diagram", title: "One" },
+        }),
+      ],
+    }),
+    option("A stack", true),
+    option("A queue"),
+    question("Which structure does the second diagram show?"),
+    new Paragraph({
+      children: [
+        new ImageRun({
+          type: "png",
+          data: PNG_1X1,
+          transformation: { width: 24, height: 24 },
+          altText: { name: "two", description: "Second use of the diagram", title: "Two" },
+        }),
+      ],
+    }),
+    option("A stack"),
+    option("A queue", true),
+  ],
   "edge-cases": [
     option("An option with no question above it"),
     question("A question with a single option?"),

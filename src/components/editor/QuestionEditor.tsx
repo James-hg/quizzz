@@ -128,6 +128,7 @@ export function QuestionEditor({
   async function save(id: string | null, input: Record<string, unknown>, change: ImageChange) {
     setFormError(null);
     setBusyId(id ?? "new");
+    let uploadedId: string | null = null;
     try {
       // The image goes up first; the question is then saved with a reference to it. Leaving the
       // field out keeps the current image, and null removes it.
@@ -141,6 +142,7 @@ export function QuestionEditor({
           `/api/question-sets/${questionSetId}/images`,
           { formData: form },
         );
+        uploadedId = image.id;
         body.image = { imageId: image.id, alt: change.alt };
       }
       if (id) await apiFetch(`/api/questions/${id}`, { method: "PATCH", body });
@@ -149,6 +151,9 @@ export function QuestionEditor({
       setAdding(false);
       router.refresh();
     } catch (e) {
+      // The question was not saved, so the picture that was just uploaded is not needed.
+      if (uploadedId)
+        void apiFetch(`/api/images/${uploadedId}`, { method: "DELETE" }).catch(() => {});
       setFormError(errorMessage(e));
     } finally {
       setBusyId(null);

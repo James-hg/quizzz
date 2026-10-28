@@ -9,7 +9,7 @@ process.env.STORAGE_DIR = storageDir;
 process.env.MAX_IMAGE_BYTES = "4000";
 process.env.AUTH_RATE_LIMIT_MAX = "1000";
 
-import { GET as imageGet } from "@/app/api/images/[imageId]/route";
+import { DELETE as imageDelete, GET as imageGet } from "@/app/api/images/[imageId]/route";
 import { POST as uploadPost } from "@/app/api/question-sets/[setId]/images/route";
 import { POST as questionsPost } from "@/app/api/question-sets/[setId]/questions/route";
 import { POST as shufflePost } from "@/app/api/questions/[questionId]/shuffle-options/route";
@@ -23,6 +23,7 @@ import { createQuestionSet } from "@/server/content/question-sets";
 import { getSession, startOrResumeSession } from "@/server/sessions/service";
 import { getDb } from "@/server/db";
 import { questionImages, questionRevisionImages, questionRevisions } from "@/server/db/schema";
+import { STAGED_IMAGE_GRACE_MS } from "./service";
 import { call } from "@/test/api";
 import { authRequest } from "@/test/auth-helpers";
 import { GIF_BYTES, JPEG_BYTES, PNG_BYTES, SVG_BYTES } from "@/test/images";
@@ -407,5 +408,65 @@ describe("practising a question with an image", () => {
     await call(questionsPost, "/x", alice, { body: mcq(), params: { setId: plainSet } });
     const { session } = await startOrResumeSession(db, alice.id, plainSet);
     expect(session.current?.image).toBeNull();
+  });
+});
+
+describe("discarding and recovering unattached images", () => {
+  const remove = (user: TestUser | null, id: string) =>
+    imageDelete(authRequest(`/api/images/${id}`, { method: "DELETE", cookie: user?.cookie }), {
+      params: Promise.resolve({ imageId: id }),
+    });
+
+  it("lets the owner delete an image nothing uses, and refuses once a question shows it", async () => {
+    const id = await stage();
+    expect((await remove(null, id)).status).toBe(401);
+    expect((await remove(bob, id)).status).toBe(404);
+    expect((await remove(alice, id)).status).toBe(204);
+    expect((await fetchImage(alice, id)).status).toBe(404);
+
+    const used = await stage();
+    await create({ image: { imageId: used, alt: "In use" } });
+    const refused = await remove(alice, used);
+    expect(refused.status).toBe(409);
+    expect((await refused.json()).error.code).toBe("image_in_use");
+    expect((await fetchImage(alice, used)).status).toBe(200);
+  });
+
+  it("releases abandoned uploads when the limit is reached, so uploads are never stuck", async () => {
+    const holder = await signUpUser(db);
+    const course = await createCourse(db, holder.id, { title: "H", subject: "S" });
+    const set = (await createQuestionSet(db, holder.id, course.id, "Hold")).id;
+    try {
+      const ids: string[] = [];
+      for (let i = 0; i < MAX_STAGED_IMAGES; i++) {
+        ids.push((await upload(holder, set, PNG_BYTES)).body.image.id);
+      }
+      // All recent: refused, with a message that says what to do.
+      const blocked = await upload(holder, set, PNG_BYTES);
+      expect(blocked.status).toBe(409);
+      expect(blocked.body.error.message).toMatch(/Save the questions|wait an hour/);
+
+      // Two of them were abandoned long ago: the next upload makes room by releasing them.
+      await db
+        .update(questionImages)
+        .set({ createdAt: new Date(Date.now() - 2 * STAGED_IMAGE_GRACE_MS) })
+        .where(eq(questionImages.id, ids[0]!));
+      expect((await upload(holder, set, PNG_BYTES)).status).toBe(201);
+      expect((await fetchImage(holder, ids[0]!)).status).toBe(404);
+      expect((await fetchImage(holder, ids[1]!)).status).toBe(200);
+    } finally {
+      await deleteUsers(db, [holder.id]);
+    }
+  });
+
+  it("never releases an image a saved question shows, however old", async () => {
+    const id = await stage();
+    await create({ image: { imageId: id, alt: "Kept" } });
+    await db
+      .update(questionImages)
+      .set({ createdAt: new Date(Date.now() - 30 * 24 * 3600 * 1000) })
+      .where(eq(questionImages.id, id));
+    for (let i = 0; i < 3; i++) await stage();
+    expect((await fetchImage(alice, id)).status).toBe(200);
   });
 });

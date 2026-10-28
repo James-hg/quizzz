@@ -1,14 +1,32 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { and, eq, inArray, lt, notExists } from "drizzle-orm";
+import { and, eq, inArray, lt, notExists, sql } from "drizzle-orm";
 import { imageUrl, type QuestionImageView } from "@/lib/images";
 import type { Database } from "@/server/db";
-import { questionImages, questionRevisionImages } from "@/server/db/schema";
-import { notFound } from "@/server/http/errors";
+import { importDraftItems, questionImages, questionRevisionImages } from "@/server/db/schema";
+import { conflict, notFound } from "@/server/http/errors";
 import type { StorageAdapter } from "@/server/storage/types";
 import { detectImage } from "./validate";
 
 type ImageRow = typeof questionImages.$inferSelect;
+
+/** True for an image that no saved question shows. */
+const notLinkedToQuestion = (db: Database) =>
+  notExists(
+    db
+      .select({ one: questionRevisionImages.imageId })
+      .from(questionRevisionImages)
+      .where(eq(questionRevisionImages.imageId, questionImages.id)),
+  );
+
+/** True for an image that no import draft is still waiting to publish. */
+const notNeededByDraft = (db: Database) =>
+  notExists(
+    db
+      .select({ one: sql`1` })
+      .from(importDraftItems)
+      .where(sql`${importDraftItems.payload}->'image'->>'imageId' = ${questionImages.id}::text`),
+  );
 
 /** How many uploaded-but-unattached images one user may hold at a time. */
 export const MAX_STAGED_IMAGES = 50;
@@ -89,15 +107,7 @@ export async function deleteUnlinkedImages(
     .select({ id: questionImages.id, storageKey: questionImages.storageKey })
     .from(questionImages)
     .where(
-      and(
-        inArray(questionImages.id, imageIds),
-        notExists(
-          db
-            .select({ one: questionRevisionImages.imageId })
-            .from(questionRevisionImages)
-            .where(eq(questionRevisionImages.imageId, questionImages.id)),
-        ),
-      ),
+      and(inArray(questionImages.id, imageIds), notLinkedToQuestion(db), notNeededByDraft(db)),
     );
   for (const image of unlinked) {
     await db.delete(questionImages).where(eq(questionImages.id, image.id));
@@ -138,21 +148,69 @@ export async function imageIdsOfRevisions(db: Database, revisionIds: string[]): 
   return [...new Set(rows.map((r) => r.id))];
 }
 
-/** Images the user uploaded that no saved question shows yet. */
+/**
+ * Images the user uploaded that no saved question shows and no import draft is waiting on.
+ * (An import's pictures belong to the draft and do not count against the upload limit.)
+ */
 export async function countStagedImages(db: Database, userId: string): Promise<number> {
   const rows = await db
     .select({ id: questionImages.id })
     .from(questionImages)
-    .where(
-      and(
-        eq(questionImages.ownerId, userId),
-        notExists(
-          db
-            .select({ one: questionRevisionImages.imageId })
-            .from(questionRevisionImages)
-            .where(eq(questionRevisionImages.imageId, questionImages.id)),
-        ),
-      ),
-    );
+    .where(and(eq(questionImages.ownerId, userId), notLinkedToQuestion(db), notNeededByDraft(db)));
   return rows.length;
+}
+
+/** Deletes the user's staged images older than `olderThanMs`. Returns how many were removed. */
+export async function releaseStagedImages(
+  db: Database,
+  storage: StorageAdapter,
+  userId: string,
+  olderThanMs: number,
+  now: Date = new Date(),
+): Promise<number> {
+  const cutoff = new Date(now.getTime() - olderThanMs);
+  const stale = await db
+    .select({ id: questionImages.id })
+    .from(questionImages)
+    .where(and(eq(questionImages.ownerId, userId), lt(questionImages.createdAt, cutoff)));
+  return deleteUnlinkedImages(
+    db,
+    storage,
+    stale.map((s) => s.id),
+  );
+}
+
+/** Staged images this old are assumed abandoned (an upload whose save never happened). */
+export const STAGED_IMAGE_GRACE_MS = 60 * 60 * 1000;
+
+/**
+ * Makes room for one more upload. At the limit, the user's abandoned staged images are released
+ * first; the upload is only refused if they are all recent.
+ */
+export async function ensureStagingRoom(
+  db: Database,
+  storage: StorageAdapter,
+  userId: string,
+): Promise<void> {
+  if ((await countStagedImages(db, userId)) < MAX_STAGED_IMAGES) return;
+  await releaseStagedImages(db, storage, userId, STAGED_IMAGE_GRACE_MS);
+  if ((await countStagedImages(db, userId)) < MAX_STAGED_IMAGES) return;
+  throw conflict(
+    "You have too many images waiting to be attached. Save the questions they belong to, or wait an hour and try again.",
+    "too_many_staged_images",
+  );
+}
+
+/** Deletes one of the user's own images, but only while nothing is using it. */
+export async function deleteOwnedImage(
+  db: Database,
+  storage: StorageAdapter,
+  userId: string,
+  imageId: string,
+): Promise<void> {
+  await getOwnedImage(db, userId, imageId);
+  const removed = await deleteUnlinkedImages(db, storage, [imageId]);
+  if (removed === 0) {
+    throw conflict("This image is still used by a question or an import.", "image_in_use");
+  }
 }

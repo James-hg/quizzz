@@ -20,7 +20,9 @@ import { deleteUsers, signUpUser, type TestUser } from "@/test/users";
 import { createCourse } from "@/server/content/courses";
 import { listQuestions } from "@/server/content/questions";
 import { getDb } from "@/server/db";
-import { questionImages } from "@/server/db/schema";
+import { importDraftItems, questionImages } from "@/server/db/schema";
+import { countStagedImages, getOwnedImage, purgeOrphanImages } from "@/server/images/service";
+import { getStorage } from "@/server/storage";
 import { clearDetectors } from "./detectors";
 import { clearExtractors } from "@/server/extract/registry";
 
@@ -206,5 +208,77 @@ describe("images in imported DOCX questions", () => {
   it("does not attach an image to a document without one", async () => {
     const draft = await upload(await fixture("numbered-list.docx"));
     expect(draft.items.every((i) => !i.payload.image)).toBe(true);
+  });
+
+  it("gives every question that uses the same picture its own copy of the reference", async () => {
+    const draft = await upload(await fixture("image-reused.docx"));
+    const [first, second] = draft.items;
+    expect(first!.payload.image).toMatchObject({ alt: "First use of the diagram" });
+    expect(second!.payload.image).toMatchObject({ alt: "Second use of the diagram" });
+    // The bytes are stored once and shared.
+    expect(second!.payload.image!.imageId).toBe(first!.payload.image!.imageId);
+    expect(draft.warnings.map((w) => w.code)).not.toContain("image_dependency");
+
+    // Dropping it from one question keeps it for the other.
+    await patch(alice, draft, first!, { edit: { image: null } });
+    expect((await fetchImage(alice, second!.payload.image!.imageId)).status).toBe(200);
+
+    // Publishing links the shared image to the question that still has it.
+    await patch(alice, draft, first!, { decision: "accepted" });
+    await patch(alice, draft, second!, { decision: "accepted" });
+    const published = await call(publishPost, "/x", alice, {
+      body: { title: "Reused" },
+      params: { importId: draft.id },
+    });
+    const questions = await listQuestions(db, alice.id, published.body.questionSetId);
+    expect(questions.map((q) => q.image?.alt ?? null)).toEqual([null, "Second use of the diagram"]);
+  });
+
+  it("cuts an over-long description instead of dropping the question", async () => {
+    const files: Record<string, Uint8Array> = unzipSync(
+      new Uint8Array(await fixture("image-with-alt.docx")),
+    );
+    const xml = new TextDecoder().decode(files["word/document.xml"]);
+    files["word/document.xml"] = new TextEncoder().encode(
+      xml.replace("A stack of three plates", "very long description ".repeat(40)),
+    );
+    const draft = await upload(Buffer.from(zipSync(files)));
+    expect(draft.items).toHaveLength(1);
+    expect(draft.warnings.map((w) => w.code)).not.toContain("question_skipped");
+    const alt = draft.items[0]!.payload.image!.alt;
+    expect(alt.length).toBeGreaterThan(0);
+    expect(alt.length).toBeLessThanOrEqual(300);
+  });
+
+  it("deletes an imported image the owner drops, once nothing else needs it", async () => {
+    const draft = await upload(await fixture("image-in-question.docx"));
+    const item = draft.items[0]!;
+    const imageId = item.payload.image!.imageId;
+    await patch(alice, draft, item, { edit: { image: null } });
+    await expect(getOwnedImage(db, alice.id, imageId)).rejects.toMatchObject({ status: 404 });
+    expect((await fetchImage(alice, imageId)).status).toBe(404);
+  });
+
+  it("does not count a pending draft's pictures against the upload limit, or purge them", async () => {
+    const before = await countStagedImages(db, alice.id);
+    const draft = await upload(await fixture("image-with-alt.docx"));
+    const imageId = draft.items[0]!.payload.image!.imageId;
+    expect(await countStagedImages(db, alice.id)).toBe(before);
+
+    // Even when it is old, a picture a draft is waiting to publish is not an orphan.
+    await db
+      .update(questionImages)
+      .set({ createdAt: new Date(Date.now() - 30 * 24 * 3600 * 1000) })
+      .where(eq(questionImages.id, imageId));
+    await purgeOrphanImages(db, getStorage(), 24 * 3600 * 1000);
+    expect((await fetchImage(alice, imageId)).status).toBe(200);
+
+    // Once the draft item no longer refers to it, it is an orphan like any other.
+    await db
+      .update(importDraftItems)
+      .set({ payload: { kind: "material", text: "x" } })
+      .where(eq(importDraftItems.draftId, draft.id));
+    await purgeOrphanImages(db, getStorage(), 24 * 3600 * 1000);
+    expect((await fetchImage(alice, imageId)).status).toBe(404);
   });
 });

@@ -43,6 +43,13 @@ const EXPECTED: Record<
     items: [{ type: "mcq_single", correct: ["a"], warnings: ["image_alt_missing"] }],
     draftWarnings: [],
   },
+  "image-reused.docx": {
+    items: [
+      { type: "mcq_single", correct: ["a"], warnings: [] },
+      { type: "mcq_single", correct: ["b"], warnings: [] },
+    ],
+    draftWarnings: [],
+  },
   "image-with-alt.docx": {
     items: [{ type: "mcq_single", correct: ["a"], warnings: [] }],
     draftWarnings: [],

@@ -334,7 +334,6 @@ export async function extractDocx(
   const blocks: Block[] = [];
   const assets: Asset[] = [];
   const warnings: Warning[] = [];
-  const assetByTarget = new Map<string, string>();
   let headingPath: string[] = [];
 
   if (sizeByName.has("word/vbaProject.bin")) {
@@ -377,9 +376,10 @@ export async function extractDocx(
         const path = rel.target.startsWith("/")
           ? rel.target.slice(1)
           : posix.normalize(posix.join("word", rel.target));
-        if (!path.startsWith("word/") || assetByTarget.has(path)) continue;
+        if (!path.startsWith("word/")) continue;
+        // One asset per place the image appears (several can share the same file), so every
+        // question that shows it can be given it.
         const id = `img-${assets.length + 1}`;
-        assetByTarget.set(path, id);
         assets.push({
           id,
           mimeType: IMAGE_MIME[extensionOf(path)] ?? "application/octet-stream",

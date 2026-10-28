@@ -4,9 +4,9 @@ import { requireUser } from "@/server/auth/session";
 import { getDb } from "@/server/db";
 import { getEnv } from "@/server/env";
 import { TooLarge } from "@/server/extract/errors";
-import { conflict, handleRoute } from "@/server/http/errors";
+import { handleRoute } from "@/server/http/errors";
 import { parseId } from "@/server/http/request";
-import { countStagedImages, createImage, MAX_STAGED_IMAGES } from "@/server/images/service";
+import { createImage, ensureStagingRoom } from "@/server/images/service";
 import { ImageTooLarge } from "@/server/images/validate";
 import { readUpload } from "@/server/import/upload";
 import { getStorage } from "@/server/storage";
@@ -27,12 +27,7 @@ export const POST = handleRoute(async (request: Request, { params }: Ctx) => {
   const db = getDb();
   await assertOwnsQuestionSet(db, user.id, setId);
 
-  if ((await countStagedImages(db, user.id)) >= MAX_STAGED_IMAGES) {
-    throw conflict(
-      "You have too many images waiting to be attached. Save or remove a question's image first.",
-      "too_many_staged_images",
-    );
-  }
+  await ensureStagingRoom(db, getStorage(), user.id);
 
   const maxBytes = getEnv().MAX_IMAGE_BYTES;
   let upload;
