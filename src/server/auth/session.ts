@@ -1,6 +1,7 @@
 import "server-only";
 import { headers } from "next/headers";
 import { getAuth } from "./index";
+import { getLocalUser, isAuthDisabled } from "./local-user";
 import { unauthorized } from "@/server/http/errors";
 
 export type SessionUser = {
@@ -12,6 +13,8 @@ export type SessionUser = {
 };
 
 async function userFromHeaders(requestHeaders: Headers): Promise<SessionUser | null> {
+  // Login switched off for local use: no cookie is needed or looked at.
+  if (isAuthDisabled()) return getLocalUser();
   const result = await getAuth().api.getSession({ headers: requestHeaders });
   if (!result) return null;
   const u = result.user as typeof result.user & { displayName?: string | null; timezone?: string };

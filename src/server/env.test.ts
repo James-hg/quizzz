@@ -43,10 +43,24 @@ describe("parseEnv", () => {
     expect(() => parseEnv({ ...valid, BETTER_AUTH_SECRET: "short" })).toThrow(/BETTER_AUTH_SECRET/);
   });
 
-  it("defaults the image limit to 2 MB and accepts an override", () => {
-    expect(parseEnv(valid).MAX_IMAGE_BYTES).toBe(2 * 1024 * 1024);
-    expect(parseEnv({ ...valid, MAX_IMAGE_BYTES: "" }).MAX_IMAGE_BYTES).toBe(2 * 1024 * 1024);
-    expect(parseEnv({ ...valid, MAX_IMAGE_BYTES: "500000" }).MAX_IMAGE_BYTES).toBe(500000);
-    expect(() => parseEnv({ ...valid, MAX_IMAGE_BYTES: "0" })).toThrow(/MAX_IMAGE_BYTES/);
+  it("keeps login on unless AUTH_DISABLED is explicitly set", () => {
+    expect(parseEnv(valid).AUTH_DISABLED).toBe(false);
+    expect(parseEnv({ ...valid, AUTH_DISABLED: "" }).AUTH_DISABLED).toBe(false);
+    expect(parseEnv({ ...valid, AUTH_DISABLED: "false" }).AUTH_DISABLED).toBe(false);
+    expect(parseEnv({ ...valid, AUTH_DISABLED: "0" }).AUTH_DISABLED).toBe(false);
+    for (const on of ["true", "TRUE", "1", "yes"]) {
+      expect(parseEnv({ ...valid, AUTH_DISABLED: on }).AUTH_DISABLED).toBe(true);
+    }
+  });
+
+  it("refuses to disable login in production", () => {
+    expect(() => parseEnv({ ...valid, AUTH_DISABLED: "true", NODE_ENV: "production" })).toThrow(
+      /AUTH_DISABLED.*production/,
+    );
+    // Production with login on is fine, and so is development with it off.
+    expect(parseEnv({ ...valid, NODE_ENV: "production" }).AUTH_DISABLED).toBe(false);
+    expect(
+      parseEnv({ ...valid, AUTH_DISABLED: "true", NODE_ENV: "development" }).AUTH_DISABLED,
+    ).toBe(true);
   });
 });

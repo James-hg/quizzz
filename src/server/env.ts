@@ -15,6 +15,12 @@ export const envSchema = z.object({
   GEMINI_API_KEY: optionalString,
   GEMINI_MODEL: optionalString,
   STORAGE_DIR: z.string().min(1),
+  // Local-only escape hatch: skip login and act as a built-in local user. Refused in production.
+  AUTH_DISABLED: z.preprocess(
+    (value) =>
+      typeof value === "string" ? ["1", "true", "yes"].includes(value.trim().toLowerCase()) : value,
+    z.boolean().default(false),
+  ),
   // Where sample course fixtures live (default: fixtures/sample-courses in the project).
   SAMPLES_DIR: optionalString,
   AI_REQUESTS_PER_HOUR: z.preprocess(
@@ -54,6 +60,12 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
     throw new EnvError(
       result.error.issues.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`),
     );
+  }
+  if (result.data.AUTH_DISABLED && source.NODE_ENV === "production") {
+    // Skipping login on a server that other people can reach would hand them every account's data.
+    throw new EnvError([
+      "AUTH_DISABLED: login cannot be turned off when NODE_ENV=production. Unset it, or run `npm run dev`.",
+    ]);
   }
   return result.data;
 }

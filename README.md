@@ -45,6 +45,7 @@ Copy `.env.example` to `.env.local`. Next.js, `npm run db:migrate`, `npm run sam
 | `BETTER_AUTH_SECRET` | yes | Signs sessions. At least 32 characters; keep it private. |
 | `BETTER_AUTH_URL` | yes | Public URL of the app, for example `http://localhost:3000`. |
 | `STORAGE_DIR` | yes | Private folder for uploaded documents (default `./storage`). Never web-served. |
+| `AUTH_DISABLED` | no | Local use only: `true` skips login and uses a built-in local user (the app opens straight to the home page). Off by default, and the server refuses to start with it when `NODE_ENV=production`. Everything you create belongs to that one local user, not to an account you sign up with. |
 | `AI_PROVIDER` | no | `disabled` (default) or `gemini`. |
 | `GEMINI_API_KEY` | no | Server-only key for Gemini. Without it, `gemini` behaves as `disabled`. |
 | `GEMINI_MODEL` | no | Model id. Defaults to a free-tier model, see [docs/ai-model.md](docs/ai-model.md). |
