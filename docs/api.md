@@ -92,11 +92,21 @@ The server grades; answer keys, explanations and correctness never reach the bro
 
 | Route | Purpose |
 | --- | --- |
-| `POST /api/sessions` `{ questionSetId, mode: "quiz" }` | Resume the live session for the set (200) or create one (201). Excluded questions and questions that need review (sample, AI-proposed) are skipped. When nothing can be practised: `409 no_playable_questions` with `error.details` `{ total, playable, needsReview, noAnswer, excluded }`, so a client can say why. |
+| `POST /api/sessions` `{ questionSetId, mode: "quiz", revealMode? }` | Resume the live session for the set (200) or create one (201). Excluded questions and questions that need review (sample, AI-proposed) are skipped. When nothing can be practised: `409 no_playable_questions` with `error.details` `{ total, playable, needsReview, noAnswer, excluded }`, so a client can say why. |
 | `GET /api/sessions/:id` | State, elapsed time, progress, the current question (no key or explanation), and results for answered items. |
 | `POST /api/sessions/:id/answers` `{ questionId, response, idempotencyKey }` | Grade and store one answer. The same key returns the stored result (`replayed: true`) with no second attempt. 409 when the session is completed or paused. |
 | `PATCH /api/sessions/:id` `{ action: "pause" \| "resume" }` | Elapsed time only counts while active. |
 | `POST /api/sessions/:id/complete` | End the session (also with unanswered items); returns a summary. |
+
+**Reveal modes** (`revealMode`, fixed when the session is created; resuming a session keeps its mode, so a different value sent while one is running is ignored):
+
+| Mode | During the session | After it ends |
+| --- | --- | --- |
+| `each` (default) | Every answer returns the full result. | Full results. |
+| `end` | Answers return only `{ attemptId, pass, response, submittedAt, disclosure: "none" }`: no correctness, correct answer or explanation, in the answer response, a replay of it, or `GET /api/sessions/:id`. | Full results, and each answered item includes the question text for review. |
+| `requeue` | A wrong first answer returns the verdict (`disclosure: "verdict"`, no correct answer or explanation) and the question is appended once at the end (`requeued: true`, a new item with `pass: 2`). The retry is a new attempt with its own idempotency key, stored as `practice`, and is shown in full. The first answer's correct answer is revealed once its retry is answered. | Full results. |
+
+Each result carries `pass` (1, or 2 for a retry) and `disclosure` (`full`, `verdict` or `none`). A third answer to a question returns `409 already_answered`. The complete summary counts first tries at the top level (`answered`, `correct`, ...) and retries under `retry`.
 | `GET /api/question-sets/:id/history` | Completed sessions with `answered` / `correct` / `totalItems`, from one aggregate query. |
 
 A session pins the revision of every question when it starts, so editing a question mid-session does not change what that session shows or how it grades; the edit applies to the next session. Questions removed from the set mid-session appear as `removed` and are skipped.
