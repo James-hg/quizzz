@@ -87,6 +87,53 @@ describe("requeue mode", () => {
     expect(screen.getByText(/1 of 3 answered \(includes 1 retry\)/)).toBeInTheDocument();
   });
 
+  it("does not mark any option right or wrong when only the verdict is known", async () => {
+    answerBody = {
+      result: hidden({
+        disclosure: "verdict",
+        outcome: "incorrect",
+        isCorrect: false,
+        response: { kind: "options", selectedOptionIds: ["a"] },
+      }),
+      requeued: true,
+      progress: { answered: 1, total: 3 },
+    };
+    const multi = session({
+      revealMode: "requeue",
+      current: { ...session().current!, type: "mcq_multi" },
+    });
+    await answerFirstQuestion(multi);
+    await screen.findByText(/Not quite/);
+    // A partly right selection is not told apart from a wrong one, and nothing is highlighted.
+    expect(document.querySelector(".option-wrong")).toBeNull();
+    expect(document.querySelector(".option-correct")).toBeNull();
+    expect(screen.queryByText(/your answer/i)).not.toBeInTheDocument();
+  });
+
+  it("sends which turn is being answered", async () => {
+    answerBody = { result: hidden(), requeued: false, progress: { answered: 1, total: 2 } };
+    await answerFirstQuestion(session({ revealMode: "requeue" }));
+    await screen.findByText("Answer saved");
+    expect((calls[0]!.body as { pass: number }).pass).toBe(1);
+  });
+
+  it("sends pass 2 for a retry", async () => {
+    answerBody = {
+      result: hidden({ pass: 2 }),
+      requeued: false,
+      progress: { answered: 2, total: 3 },
+    };
+    await answerFirstQuestion(
+      session({
+        revealMode: "requeue",
+        progress: { total: 3, answered: 1, removed: 0, retries: 1 },
+        current: { ...session().current!, pass: 2 },
+      }),
+    );
+    await screen.findByText("Answer saved");
+    expect((calls[0]!.body as { pass: number }).pass).toBe(2);
+  });
+
   it("labels the retry as a second try", () => {
     const play = session({
       revealMode: "requeue",

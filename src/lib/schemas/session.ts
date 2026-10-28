@@ -19,6 +19,11 @@ export const submitAnswerSchema = z.object({
   questionId: z.uuid(),
   response: responseSchema,
   idempotencyKey: idempotencyKeySchema,
+  /**
+   * Which turn this answers: 1 (default) or 2 for the retry of a wrong answer. Stated by the
+   * client so a stale tab can never silently use up a retry; a mismatch is `already_answered`.
+   */
+  pass: z.union([z.literal(1), z.literal(2)]).default(1),
 });
 
 export const patchSessionSchema = z.object({ action: z.enum(["pause", "resume"]) });

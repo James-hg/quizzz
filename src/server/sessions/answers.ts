@@ -160,13 +160,17 @@ export async function submitAnswer(
       const answeredRetry = sessionAttempts.some(
         (a) => a.questionId === input.questionId && a.pass === 2,
       );
-      // The first answer is pass 1. Only a question queued for a retry can be answered again,
-      // once; anything else has already had its turn.
-      let pass: Pass;
-      if (!answeredFirst) pass = 1;
-      else if (session.retryOrder.includes(input.questionId) && !answeredRetry) pass = 2;
-      else
+      // The client says which turn it is answering. Only a question queued for a retry can be
+      // answered a second time, once. A mismatch (for example a stale tab submitting a first
+      // try after another tab already did) is refused instead of being moved to the next turn.
+      const pass: Pass = input.pass;
+      const allowed =
+        pass === 1
+          ? !answeredFirst
+          : answeredFirst && session.retryOrder.includes(input.questionId) && !answeredRetry;
+      if (!allowed) {
         throw conflict("This question was already answered in this session.", "already_answered");
+      }
 
       const revisionId = session.revisionIds[input.questionId];
       const [row] = revisionId

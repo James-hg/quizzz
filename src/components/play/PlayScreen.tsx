@@ -133,7 +133,12 @@ export function PlayScreen({ initial, setTitle }: Props) {
         progress: { answered: number; total: number };
         requeued: boolean;
       }>(`/api/sessions/${session.id}/answers`, {
-        body: { questionId: question.questionId, response, idempotencyKey: key },
+        body: {
+          questionId: question.questionId,
+          response,
+          idempotencyKey: key,
+          pass: question.pass ?? 1,
+        },
       });
       dispatch({ type: "submit_ok", result, progress, requeued });
     } catch (e) {
@@ -333,7 +338,11 @@ export function PlayScreen({ initial, setTitle }: Props) {
               <ul className="options">
                 {question.options.map((o) => {
                   const multiple = question.type === "mcq_multi";
-                  const feedback = phase === "feedback" ? state.feedback : null;
+                  // Per-option marks need the answer key, so only a full disclosure may draw them.
+                  const feedback =
+                    phase === "feedback" && state.feedback?.disclosure === "full"
+                      ? state.feedback
+                      : null;
                   const isCorrect =
                     feedback?.correctAnswer?.kind === "options" &&
                     feedback.correctAnswer.correctOptionIds.includes(o.id);

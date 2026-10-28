@@ -80,9 +80,15 @@ const patch = (sessionId: string, action: "pause" | "resume") =>
   call(sessionPatch, "/api/x", alice, { method: "PATCH", body: { action }, params: { sessionId } });
 const complete = (sessionId: string) =>
   call(completePost, "/api/x", alice, { body: {}, params: { sessionId } });
-const answer = (sessionId: string, questionId: string, response: unknown, idempotencyKey = key()) =>
+const answer = (
+  sessionId: string,
+  questionId: string,
+  response: unknown,
+  idempotencyKey = key(),
+  pass?: 1 | 2,
+) =>
   call(answerPost, "/api/x", alice, {
-    body: { questionId, response, idempotencyKey },
+    body: { questionId, response, idempotencyKey, ...(pass ? { pass } : {}) },
     params: { sessionId },
   });
 const choose = (...ids: string[]) => ({ kind: "options", selectedOptionIds: ids });
@@ -269,7 +275,7 @@ describe("requeue mode", () => {
     expect(leaks({ current: retrying.current })).toEqual([]);
 
     // The retry is a new attempt with its own key, shown in full, and never queued again.
-    const retry = await answer(id, q1.id, choose("c"), keyFor("key_retry_try"));
+    const retry = await answer(id, q1.id, choose("c"), keyFor("key_retry_try"), 2);
     expect(retry.status).toBe(201);
     expect(retry.body.result).toMatchObject({
       disclosure: "full",
@@ -303,10 +309,50 @@ describe("requeue mode", () => {
     });
 
     // No third turn.
-    const third = await answer(id, q1.id, choose("b"));
+    const third = await answer(id, q1.id, choose("b"), key(), 2);
     expect(third.status).toBe(409);
     expect(third.body.error.code).toBe("already_answered");
     expect(await rowsOf(id)).toHaveLength(3);
+  });
+
+  it("refuses a stale first-try submission instead of using up the retry", async () => {
+    const { set, q1, q2 } = await makeSet();
+    const id = (await start(set.id, "requeue")).body.session.id;
+    // Two tabs show the same unanswered question; the first submits a wrong answer.
+    await answer(id, q1.id, choose("a"));
+    // The stale tab submits its own first try, with its own key.
+    const stale = await answer(id, q1.id, choose("b"));
+    expect(stale.status).toBe(409);
+    expect(stale.body.error.code).toBe("already_answered");
+    expect(leaks(stale.body)).toEqual([]);
+
+    // The retry is untouched: still pending, and it can be answered once, as pass 2.
+    const session = (await view(id)).body.session;
+    expect(session.items[2]).toMatchObject({ questionId: q1.id, pass: 2, status: "pending" });
+    expect(await rowsOf(id)).toHaveLength(1);
+    await answer(id, q2.id, text(RIGHT_TEXT));
+    expect((await view(id)).body.session.current).toMatchObject({ questionId: q1.id, pass: 2 });
+    const retry = await answer(id, q1.id, choose("b"), key(), 2);
+    expect(retry.status).toBe(201);
+    expect(retry.body.result).toMatchObject({ pass: 2, outcome: "correct" });
+  });
+
+  it("does not accept a retry that was not asked for, or one sent without saying it is a retry", async () => {
+    const { set, q1 } = await makeSet();
+    const id = (await start(set.id, "requeue")).body.session.id;
+    // Not answered yet: pass 2 is not available.
+    expect((await answer(id, q1.id, choose("b"), key(), 2)).status).toBe(409);
+    await answer(id, q1.id, choose("a"));
+    // A request that omits the pass means a first try, which was already used.
+    expect((await answer(id, q1.id, choose("b"))).status).toBe(409);
+    expect(await rowsOf(id)).toHaveLength(1);
+  });
+
+  it("each mode: a second turn is never available, even when asked for", async () => {
+    const { set, q1 } = await makeSet();
+    const id = (await start(set.id, "each")).body.session.id;
+    await answer(id, q1.id, choose("a"));
+    expect((await answer(id, q1.id, choose("b"), key(), 2)).status).toBe(409);
   });
 
   it("reports first tries and retries separately, and counts only first tries in history", async () => {
@@ -314,7 +360,7 @@ describe("requeue mode", () => {
     const id = (await start(set.id, "requeue")).body.session.id;
     await answer(id, q1.id, choose("a"));
     await answer(id, q2.id, text(RIGHT_TEXT));
-    await answer(id, q1.id, choose("b")); // the retry is right
+    await answer(id, q1.id, choose("b"), key(), 2); // the retry is right
 
     const done = await complete(id);
     expect(done.body.summary).toEqual({
@@ -395,8 +441,8 @@ describe("idempotent submission in every mode", () => {
     const id = (await start(set.id, "requeue")).body.session.id;
     await answer(id, q1.id, choose("a"));
     const [x, y] = [
-      await answer(id, q1.id, choose("c"), keyFor("key_retry_key_1")),
-      await answer(id, q1.id, choose("c"), keyFor("key_retry_key_1")),
+      await answer(id, q1.id, choose("c"), keyFor("key_retry_key_1"), 2),
+      await answer(id, q1.id, choose("c"), keyFor("key_retry_key_1"), 2),
     ];
     expect(x.body.replayed).toBe(false);
     expect(y.body.replayed).toBe(true);
