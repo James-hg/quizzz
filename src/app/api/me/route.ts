@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { updateProfileSchema } from "@/lib/schemas";
+import { isAuthDisabled, LOCAL_EMAIL } from "@/server/auth/local-user";
 import { requireUser } from "@/server/auth/session";
 import { getDb } from "@/server/db";
 import { user } from "@/server/db/schema";
@@ -35,6 +36,14 @@ export const PATCH = handleRoute(async (request: Request) => {
 
   if (input.email) {
     const email = input.email.toLowerCase();
+    // The local user is found again by its email after a restart; changing it would orphan
+    // everything created while login was off.
+    if (isAuthDisabled() && email !== LOCAL_EMAIL) {
+      throw badRequest(
+        "The local user's email cannot be changed while login is turned off.",
+        "local_user_email_fixed",
+      );
+    }
     const [taken] = await db.select({ id: user.id }).from(user).where(eq(user.email, email));
     if (taken && taken.id !== current.id) throw conflict("Email already in use", "email_taken");
     input.email = email;
