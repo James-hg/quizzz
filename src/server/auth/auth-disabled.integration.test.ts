@@ -71,6 +71,38 @@ describe("with login disabled", () => {
     expect(patched.status).toBe(200);
   });
 
+  it("shows profile changes on the next request, without a restart", async () => {
+    const patched = await mePatch(
+      authRequest("/api/me", {
+        method: "PATCH",
+        body: { displayName: "Me at home", timezone: "Asia/Tokyo" },
+      }),
+    );
+    expect(patched.status).toBe(200);
+
+    const current = await requireUser(authRequest("/api/me"));
+    expect(current).toMatchObject({ displayName: "Me at home", timezone: "Asia/Tokyo" });
+    const me = await (await meGet(authRequest("/api/me"))).json();
+    expect(me.user).toMatchObject({ displayName: "Me at home", timezone: "Asia/Tokyo" });
+  });
+
+  it("refuses to change the local user's email, but accepts the unchanged one", async () => {
+    const before = await getLocalUser();
+    const changed = await mePatch(
+      authRequest("/api/me", { method: "PATCH", body: { email: "someone@example.test" } }),
+    );
+    expect(changed.status).toBe(400);
+    expect((await changed.json()).error.code).toBe("local_user_email_fixed");
+    const [row] = await db.select().from(user).where(eq(user.id, before.id));
+    expect(row?.email).toBe("local@quizzz.local");
+
+    const same = await mePatch(
+      authRequest("/api/me", { method: "PATCH", body: { email: "LOCAL@quizzz.local" } }),
+    );
+    expect(same.status).toBe(200);
+    expect((await getLocalUser()).id).toBe(before.id);
+  });
+
   it("does not let the local user see another real user's data", async () => {
     const theirs = await createCourse(db, other.id, { title: "Private", subject: "x" });
     const response = await courseGet(authRequest(`/api/courses/${theirs.id}`), {
