@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { apiFetch, errorMessage } from "@/lib/client/api";
-import type { OwnerQuestionView } from "@/lib/client/types";
+import type { OwnerQuestionView, SavedRewriteView } from "@/lib/client/types";
 import { editorHref, matchesFilter, type QuestionFilter } from "@/lib/playability";
 import { Alert } from "../ui/Alert";
 import { ConfirmButton } from "../ConfirmButton";
 import { TYPE_LABELS, draftFromQuestion, emptyDraft } from "./draft";
 import type { ImageChange } from "./image";
 import { QuestionForm } from "./QuestionForm";
+import { QuestionRewrite } from "./rewrite/QuestionRewrite";
 
 const EVIDENCE_LABEL: Record<string, { label: string; tone: string }> = {
   human_reviewed: { label: "Reviewed", tone: "badge-ok" },
@@ -78,6 +79,10 @@ const FILTER_ORDER: QuestionFilter[] = ["all", "needs-review", "no-answer", "exc
 
 type Props = {
   questionSetId: string;
+  /** Whether AI help is on, so the rewrite buttons can be offered. */
+  aiEnabled?: boolean;
+  /** Pending AI rewrites, by question id. */
+  rewrites?: Record<string, SavedRewriteView[]>;
   /** Largest image the server accepts. */
   maxImageBytes?: number;
   questions: OwnerQuestionView[];
@@ -90,6 +95,8 @@ export function QuestionEditor({
   questions,
   filter = "all",
   maxImageBytes = 2 * 1024 * 1024,
+  aiEnabled = false,
+  rewrites = {},
 }: Props) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -359,6 +366,11 @@ export function QuestionEditor({
                         }}
                       />
                     </div>
+                    <QuestionRewrite
+                      question={q}
+                      aiEnabled={aiEnabled}
+                      rewrites={rewrites[q.id] ?? []}
+                    />
                   </>
                 )}
               </article>

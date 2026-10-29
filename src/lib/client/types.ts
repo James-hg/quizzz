@@ -176,3 +176,35 @@ export type SessionSummary = {
   revealMode: RevealMode;
   elapsedSeconds: number;
 };
+
+/** A rewrite of a question, as the editor shows it (the same shape for a fresh and a saved one). */
+export type RewriteContent = {
+  type: QuestionType;
+  prompt: string;
+  codeSnippet?: string | null;
+  explanation?: string | null;
+  options?: ImportOption[];
+  correctOptionIds?: string[];
+  accepted?: string[];
+  blanks?: string[][];
+};
+
+export type RewriteProposalView = {
+  mode: "rephrase" | "vary_numbers" | "add_explanation";
+  baseRevisionId: string;
+  content: RewriteContent;
+  origin: string;
+  evidenceStatus: string;
+  warnings: string[];
+};
+
+export type SavedRewriteView = {
+  id: string;
+  questionId: string;
+  mode: RewriteProposalView["mode"];
+  content: RewriteContent;
+  origin: string;
+  evidenceStatus: string;
+  stale: boolean;
+  createdAt: string;
+};

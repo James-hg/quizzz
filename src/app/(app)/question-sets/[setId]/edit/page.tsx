@@ -12,6 +12,7 @@ import { idParam, orNotFound, requirePageUser } from "@/server/auth/page";
 import { getCourse } from "@/server/content/courses";
 import { getQuestionSet } from "@/server/content/question-sets";
 import { listQuestions } from "@/server/content/questions";
+import { listPendingRewritesForSet } from "@/server/content/rewrites";
 import { getDb } from "@/server/db";
 import { getEnv } from "@/server/env";
 import { listSetHistory } from "@/server/sessions/history";
@@ -31,10 +32,11 @@ export default async function EditSetPage({
   const setId = await idParam(params, "setId");
   const filter = parseFilter((await searchParams).filter);
   const set = await orNotFound(getQuestionSet(db, user.id, setId));
-  const [course, questions, history] = await Promise.all([
+  const [course, questions, history, pendingRewrites] = await Promise.all([
     getCourse(db, user.id, set.courseId),
     listQuestions(db, user.id, setId),
     listSetHistory(db, user.id, setId),
+    listPendingRewritesForSet(db, user.id, setId),
   ]);
   // Dates become strings across the server/client boundary.
   const initial = JSON.parse(JSON.stringify(questions)) as OwnerQuestionView[];
@@ -74,6 +76,8 @@ export default async function EditSetPage({
         questions={initial}
         filter={filter}
         maxImageBytes={getEnv().MAX_IMAGE_BYTES}
+        aiEnabled={getEnv().AI_PROVIDER !== "disabled"}
+        rewrites={JSON.parse(JSON.stringify(pendingRewrites))}
       />
 
       <AssistantPanel
