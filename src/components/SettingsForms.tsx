@@ -10,7 +10,16 @@ import { Field } from "./ui/Field";
 
 type Profile = { email: string; displayName: string; timezone: string };
 
-export function ProfileForm({ profile, timezones }: { profile: Profile; timezones: string[] }) {
+export function ProfileForm({
+  profile,
+  timezones,
+  emailLocked = false,
+}: {
+  profile: Profile;
+  timezones: string[];
+  /** True while login is turned off: the built-in local user's email cannot change. */
+  emailLocked?: boolean;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -59,6 +68,10 @@ export function ProfileForm({ profile, timezones }: { profile: Profile; timezone
         defaultValue={profile.email}
         required
         autoComplete="email"
+        readOnly={emailLocked}
+        hint={
+          emailLocked ? "Login is turned off, so the local user's email stays fixed." : undefined
+        }
       />
       <div className="field">
         <label htmlFor="timezone">Timezone</label>

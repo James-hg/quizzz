@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PasswordForm, ProfileForm } from "@/components/SettingsForms";
+import { isAuthDisabled } from "@/server/auth/local-user";
 import { requirePageUser } from "@/server/auth/page";
 
 export const metadata: Metadata = { title: "Settings · Quizzz" };
@@ -21,6 +22,7 @@ export default async function SettingsPage() {
           timezone: user.timezone,
         }}
         timezones={timezones}
+        emailLocked={isAuthDisabled()}
       />
       <PasswordForm />
     </div>
