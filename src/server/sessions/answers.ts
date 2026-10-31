@@ -7,6 +7,11 @@ import { parseRevisionJson } from "@/server/db/repositories/questions";
 import { attempts, questionRevisions, studySessions } from "@/server/db/schema";
 import { badRequest, conflict, notFound } from "@/server/http/errors";
 import { gradeResponse } from "@/server/grading";
+import {
+  applyScheduling,
+  claimHelpEvents,
+  pendingHelpForTurn,
+} from "@/server/scheduler/repository";
 import { lockSession } from "./service";
 import { disclosureFor, isEnded, shouldRequeue, type Pass } from "./reveal";
 import { firstPendingIndex, resultOf, sessionSlots, type SessionRow } from "./view";
@@ -185,6 +190,13 @@ export async function submitAnswer(
       validateResponseShape(revision, input.response);
       const outcome = gradeResponse(revision, input.response);
 
+      // Help asked for before this answer, recorded as evidence on the attempt itself.
+      const help = await pendingHelpForTurn(database, {
+        sessionId,
+        questionId: input.questionId,
+        pass,
+      });
+
       const attempt = await insertAttempt(database, {
         sessionId,
         userId,
@@ -197,10 +209,16 @@ export async function submitAnswer(
         // independent (scored) answer.
         activityRole: pass === 2 ? "practice" : "scored",
         pass,
+        assistanceLevel: help.strongest,
         idempotencyKey: input.idempotencyKey,
         startedAt: now,
         submittedAt: now,
       });
+
+      await claimHelpEvents(database, attempt.id, help.ids);
+      // Same transaction as the insert, and this path is skipped for a replayed key, so a retried
+      // submit never moves the schedule twice.
+      await applyScheduling(database, attempt, session.policyVersion, now);
 
       // A wrong first answer in requeue mode is asked once more, at the end.
       const retryOrder =
