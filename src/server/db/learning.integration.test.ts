@@ -404,14 +404,12 @@ describe("approved hints", () => {
 
   it("go away with a never-attempted question instead of blocking its deletion", async () => {
     const s = await seed();
-    await db
-      .insert(approvedHints)
-      .values({
-        questionRevisionId: s.revisionId,
-        level: "conceptual_hint",
-        text: "x",
-        origin: "owner",
-      });
+    await db.insert(approvedHints).values({
+      questionRevisionId: s.revisionId,
+      level: "conceptual_hint",
+      text: "x",
+      origin: "owner",
+    });
     // An abandoned-session placeholder would block deletion; there is none, so this succeeds.
     await db
       .update(studySessions)
@@ -488,13 +486,11 @@ describe("review states", () => {
 
   it("can be found by what is due for one user", async () => {
     const s = await seed();
-    await db
-      .insert(reviewStates)
-      .values({
-        userId: alice.id,
-        questionId: s.question.id,
-        nextDueAt: new Date("2026-01-01T00:00:00Z"),
-      });
+    await db.insert(reviewStates).values({
+      userId: alice.id,
+      questionId: s.question.id,
+      nextDueAt: new Date("2026-01-01T00:00:00Z"),
+    });
     const due = await db
       .select()
       .from(reviewStates)
