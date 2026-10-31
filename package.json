@@ -50,6 +50,7 @@
     "drizzle-kit": "0.31.11",
     "eslint": "9.39.5",
     "eslint-config-next": "16.4.2",
+    "fast-check": "4.10.2",
     "jsdom": "30.1.3",
     "prettier": "3.9.10",
     "tsx": "4.23.15",
