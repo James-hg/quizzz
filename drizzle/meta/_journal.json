@@ -71,6 +71,13 @@
       "when": 1793179819176,
       "tag": "0009_question_rewrites",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793488947593,
+      "tag": "0010_assistance_review_schema",
+      "breakpoints": true
     }
   ]
 }

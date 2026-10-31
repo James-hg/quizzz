@@ -45,3 +45,22 @@ export const revealMode = pgEnum("reveal_mode", ["each", "end", "requeue"]);
 export const sessionState = pgEnum("session_state", ["active", "paused", "completed", "abandoned"]);
 export const gradingOutcome = pgEnum("grading_outcome", ["correct", "incorrect", "uncertain"]);
 export const activityRole = pgEnum("activity_role", ["scored", "prequestion", "practice"]);
+
+// Strength order: the declaration order is what `max(level)` compares. Mirrors ASSISTANCE_LEVELS.
+export const assistanceLevel = pgEnum("assistance_level", [
+  "none",
+  "conceptual_hint",
+  "next_step_hint",
+  "partial_example",
+  "full_explanation",
+  "solution_revealed",
+]);
+export const helpAction = pgEnum("help_action", [
+  "small_hint",
+  "explain_step",
+  "why_wrong",
+  "similar_example",
+  "full_explanation",
+]);
+export const reviewState = pgEnum("review_state", ["new", "learning", "reviewing", "suspended"]);
+export const hintOrigin = pgEnum("hint_origin", ["owner", "ai_proposed", "sample"]);
