@@ -15,7 +15,15 @@ import {
 import type { QuestionResponse } from "@/lib/schemas";
 import { user } from "./auth";
 import { courses } from "./courses";
-import { activityRole, gradingOutcome, revealMode, sessionMode, sessionState } from "./enums";
+import {
+  activityRole,
+  assistanceLevel,
+  gradingOutcome,
+  revealMode,
+  sessionMode,
+  sessionState,
+} from "./enums";
+import { schedulerPolicies } from "./scheduler";
 import { questionRevisions, questionSets, questions } from "./questions";
 
 export const studySessions = pgTable(
@@ -46,7 +54,10 @@ export const studySessions = pgTable(
     revealMode: revealMode("reveal_mode").notNull().default("each"),
     // Questions appended for a second pass (requeue mode), each at most once, in order.
     retryOrder: jsonb("retry_order").$type<string[]>().notNull().default([]),
-    policyVersion: text("policy_version").notNull().default("v1"),
+    policyVersion: text("policy_version")
+      .notNull()
+      .default("v1")
+      .references(() => schedulerPolicies.version, { onDelete: "restrict" }),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
@@ -80,6 +91,9 @@ export const attempts = pgTable(
     isCorrect: boolean("is_correct"),
     gradingOutcome: gradingOutcome("grading_outcome").notNull(),
     activityRole: activityRole("activity_role").notNull().default("scored"),
+    // The strongest help used before this answer, set when it is stored. Attempts are never
+    // updated, so it cannot change later. "none" means answered without help.
+    assistanceLevel: assistanceLevel("assistance_level").notNull().default("none"),
     // 1 for the first answer to a question in a session, 2 for its single retry.
     pass: smallint("pass").notNull().default(1),
     idempotencyKey: text("idempotency_key").notNull(),
