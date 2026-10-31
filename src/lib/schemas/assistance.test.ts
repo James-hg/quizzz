@@ -76,7 +76,12 @@ describe("schedulerPolicyConfigSchema", () => {
   };
 
   it("accepts the v1 policy and names the default version", () => {
-    expect(schedulerPolicyConfigSchema.parse(v1)).toEqual(v1);
+    // The stored v1 row has no daily cap, which reads as the default of 20.
+    expect(schedulerPolicyConfigSchema.parse(v1)).toEqual({ ...v1, maxReviewsPerDay: 20 });
+    expect(schedulerPolicyConfigSchema.parse({ ...v1, maxReviewsPerDay: 5 }).maxReviewsPerDay).toBe(
+      5,
+    );
+    expect(() => schedulerPolicyConfigSchema.parse({ ...v1, maxReviewsPerDay: 0 })).toThrow();
     expect(DEFAULT_POLICY_VERSION).toBe("v1");
   });
 
