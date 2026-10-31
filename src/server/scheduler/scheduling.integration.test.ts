@@ -203,7 +203,7 @@ describe("what counts as independent recall", () => {
 
     // The help is recorded on the attempt, and linked to it.
     const [attempt] = await db.select().from(attempts).where(eq(attempts.sessionId, sessionId));
-    expect(attempt!.assistanceLevel).toBe("next_step_hint", day(1));
+    expect(attempt!.assistanceLevel).toBe("next_step_hint");
     const [help] = await db.select().from(helpEvents).where(eq(helpEvents.sessionId, sessionId));
     expect(help!.attemptId).toBe(attempt!.id);
   });
