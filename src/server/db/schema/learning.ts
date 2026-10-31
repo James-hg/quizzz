@@ -50,9 +50,10 @@ export const approvedHints = pgTable(
   "approved_hints",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    // Hints are content, not history: they go with their revision when it is deleted.
     questionRevisionId: uuid("question_revision_id")
       .notNull()
-      .references(() => questionRevisions.id, { onDelete: "restrict" }),
+      .references(() => questionRevisions.id, { onDelete: "cascade" }),
     level: assistanceLevel("level").notNull(),
     text: text("text").notNull(),
     // Source segments the hint is based on. An array, so the database does not enforce them.

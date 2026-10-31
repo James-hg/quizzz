@@ -12,7 +12,7 @@ import {
 import { assertOwnsQuestion, assertOwnsQuestionSet } from "@/server/auth/ownership";
 import type { Database } from "@/server/db";
 import { addRevision, parseRevisionJson } from "@/server/db/repositories/questions";
-import { attempts, questionRevisions, questionSourceLinks, questions } from "@/server/db/schema";
+import { questionRevisions, questionSourceLinks, questions } from "@/server/db/schema";
 import { badRequest, conflict, notFound } from "@/server/http/errors";
 import {
   deleteUnlinkedImages,
@@ -21,7 +21,7 @@ import {
   loadImagesForRevisions,
 } from "@/server/images/service";
 import { getStorage } from "@/server/storage";
-import { hasHistoryError } from "./history";
+import { hasHistoryError, questionHasHistory } from "./history";
 import { evidenceFor } from "@/lib/evidence";
 import type { QuestionImageInput, QuestionImageView } from "@/lib/images";
 import { NO_ANSWER_KIND, PLAY_BLOCKING_EVIDENCE } from "@/lib/playability";
@@ -226,12 +226,7 @@ export async function setQuestionStatus(
 /** Hard delete only for never-attempted questions; otherwise 409 has_history. */
 export async function deleteQuestion(db: Database, userId: string, questionId: string) {
   await assertOwnsQuestion(db, userId, questionId);
-  const [attempted] = await db
-    .select({ id: attempts.id })
-    .from(attempts)
-    .where(eq(attempts.questionId, questionId))
-    .limit(1);
-  if (attempted) throw hasHistoryError();
+  if (await questionHasHistory(db, questionId)) throw hasHistoryError();
   let imageIds: string[] = [];
   await db.transaction(async (tx) => {
     const database = tx as unknown as Database;

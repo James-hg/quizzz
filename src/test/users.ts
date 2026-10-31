@@ -5,6 +5,10 @@ import { purgeQuestionSets } from "@/server/content/history";
 import type { Database } from "@/server/db";
 import {
   attempts,
+  conceptEvidence,
+  concepts,
+  helpEvents,
+  reviewStates,
   courses,
   questionImages,
   questionSets,
@@ -32,6 +36,10 @@ export async function signUpUser(db: Database): Promise<TestUser> {
 /** Test-only teardown: attempts are normally permanent, so remove them explicitly. */
 export async function deleteUsers(db: Database, userIds: string[]) {
   if (userIds.length === 0) return;
+  await db.delete(helpEvents).where(inArray(helpEvents.userId, userIds));
+  await db.delete(reviewStates).where(inArray(reviewStates.userId, userIds));
+  await db.delete(conceptEvidence).where(inArray(conceptEvidence.userId, userIds));
+  await db.delete(concepts).where(inArray(concepts.ownerId, userIds));
   await db.delete(attempts).where(inArray(attempts.userId, userIds));
   await db.delete(studySessions).where(inArray(studySessions.userId, userIds));
   const sets = await db
