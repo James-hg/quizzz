@@ -115,7 +115,7 @@ describe("ReviewQueue", () => {
   });
 
   it("blocks approval when a required check failed, but still allows rejecting", async () => {
-    const fetchMock = vi.fn(async (_url: string) => json({ question: {} }));
+    const fetchMock = vi.fn<(url: string) => Promise<Response>>(async () => json({ question: {} }));
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     render(
