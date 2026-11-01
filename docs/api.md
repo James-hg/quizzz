@@ -148,6 +148,23 @@ curl -b jar localhost:3000/api/question-sets/<setId>/history
 
 Response shapes: `{"kind":"options","selectedOptionIds":[...]}`, `{"kind":"text","text":"..."}`, `{"kind":"blanks","values":[...]}`.
 
+### Help while practising (tutor)
+
+`POST /api/sessions/:id/help` `{ questionId, action }`, with `action` one of `small_hint`, `explain_step`, `why_wrong`, `similar_example`, `full_explanation`.
+
+The server decides which turn the help is for (the question the session is on, first try or retry) and the strength it records: `small_hint` is `conceptual_hint`, `explain_step` and `why_wrong` are `next_step_hint`, `similar_example` is `partial_example`, `full_explanation` is `full_explanation`. A body with any other field (a pass, a level) is rejected. The help is stored as an immutable `help_events` row before the student answers; `submitAnswer` links it to the attempt and records the strongest level, so a correct answer with help is scored as assisted. An error never stores an event.
+
+Response: `{ help: { id, questionId, pass, action, level, text, citations: [{ segmentId, href, filename, location }], sourceSupported, uncertainty?, origin: "approved" | "ai_proposed", servedAs: "requested" | "fallback_hint" } }`.
+
+- `origin: "ai_proposed"` is generated text that passed the checks below; it is not reviewed. `approved` was reviewed by a person (an `approved_hints` row with `human_reviewed` status for the pinned revision).
+- `servedAs: "fallback_hint"` means a generic reviewed hint was served instead of what was asked (for example when AI is off). A client must not present it as a tailored diagnosis. `why_wrong` is never answered with a hint that is not marked as a fallback.
+- Citations are only passages that were supplied to the model for this request, from the student's own course material. `href` is the authenticated passage endpoint (`GET /api/sources/segments/:id`). A citation the model invented, or one from another user, is dropped, and the answer is then not `sourceSupported`. A valid citation shows where the text came from; it does not mean the claim was checked.
+- A small hint (and any help during a protected retry) is refused if it states the correct option or an accepted answer. If nothing safe can be served the request fails with `502 ai_invalid_output`.
+- If a reviewed hint of exactly the requested strength exists it is served without a model call. If the model is off, over quota, slow, or returns unusable output, a reviewed hint of the same or a weaker strength is served as a fallback. If there is none, the normalized AI error is returned (`503 ai_unavailable`, `429 ai_quota_exceeded` or `ai_rate_limited`, `504 ai_timeout`, `502 ai_invalid_output`) with no provider detail.
+- Reveal rules: `403 help_disabled_in_exam` and `403 help_disabled_in_session` (reveal mode `end`). In a requeue session, after a wrong first answer and before its retry is answered, only `small_hint` and `why_wrong` are allowed (`403 help_not_available_yet` otherwise), no passages are used, and the text is checked for the answer.
+- Other errors: `401`, `404` (another user's or missing session), `409 stale_turn` (not the current question, or the student moved on while the answer was generated), `409 session_paused`, `409 session_completed`, `409 no_wrong_answer` (`why_wrong` before any wrong answer on that question).
+- With `Accept: text/event-stream` the validated text is sent as `event: text` chunks and then `event: done` with the same JSON as above. Nothing is sent before the whole answer has been checked, so this does not make the first words arrive sooner.
+
 ## AI (optional)
 
 AI is off by default (`AI_PROVIDER=disabled`); practice never needs it. To enable Gemini, set `AI_PROVIDER=gemini` and a server-only `GEMINI_API_KEY` (optionally `GEMINI_MODEL`, see `docs/ai-model.md`). Keys never reach the browser: `npm run build && npm run check:bundle` fails if a secret appears in client output.

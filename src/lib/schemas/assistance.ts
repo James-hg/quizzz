@@ -74,3 +74,56 @@ export const helpEventInputSchema = z
     path: ["contentText"],
   });
 export type HelpEventInput = z.infer<typeof helpEventInputSchema>;
+
+/** Asking for help: the server decides which turn it is for, never the client. */
+export const helpRequestSchema = z.strictObject({
+  questionId: z.uuid(),
+  action: helpActionSchema,
+});
+export type HelpRequest = z.infer<typeof helpRequestSchema>;
+
+/** The assistance level each action records. The student never picks a level. */
+export const HELP_ACTION_LEVEL = {
+  small_hint: "conceptual_hint",
+  explain_step: "next_step_hint",
+  why_wrong: "next_step_hint",
+  similar_example: "partial_example",
+  full_explanation: "full_explanation",
+} as const satisfies Record<HelpAction, (typeof HINT_LEVELS)[number]>;
+
+/** What the model must return. A proposal: checked against the context before anyone sees it. */
+export const tutorOutputSchema = z.strictObject({
+  text: z.string().trim().min(1).max(8000),
+  level: hintLevelSchema,
+  citedSegmentIds: z.array(z.uuid()).max(20),
+  sourceSupported: z.boolean(),
+  uncertainty: z.string().trim().min(1).max(1000).optional(),
+});
+export type TutorOutput = z.infer<typeof tutorOutputSchema>;
+
+export type HelpCitation = {
+  segmentId: string;
+  /** The authenticated passage endpoint, so the student can open exactly what was cited. */
+  href: string;
+  filename: string;
+  location: string;
+};
+
+export type HelpResponse = {
+  help: {
+    /** The recorded help event. */
+    id: string;
+    questionId: string;
+    pass: 1 | 2;
+    action: HelpAction;
+    level: (typeof HINT_LEVELS)[number];
+    text: string;
+    citations: HelpCitation[];
+    sourceSupported: boolean;
+    uncertainty?: string;
+    /** `approved` was reviewed by a person; `ai_proposed` is generated and unchecked. */
+    origin: "approved" | "ai_proposed";
+    /** `fallback_hint`: a generic reviewed hint, not the tailored help that was asked for. */
+    servedAs: "requested" | "fallback_hint";
+  };
+};
