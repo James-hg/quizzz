@@ -3,7 +3,12 @@ import { and, eq, max } from "drizzle-orm";
 import type { QuestionImageInput } from "@/lib/images";
 import { answerKeySchema, optionsSchema } from "@/lib/schemas";
 import type { Database } from "../index";
-import { questionRevisionImages, questionRevisions, questions } from "../schema";
+import {
+  questionRevisionImages,
+  questionRevisions,
+  questionSourceLinks,
+  questions,
+} from "../schema";
 
 type RevisionInsert = typeof questionRevisions.$inferInsert;
 type RevisionRow = typeof questionRevisions.$inferSelect;
@@ -26,6 +31,15 @@ export type RevisionOptions = {
    * caller must already have checked that the image belongs to the question's owner.
    */
   image?: QuestionImageInput | null;
+  /**
+   * The source passages the new revision cites. Omitted: carry the previous revision's links
+   * over, so editing a question never drops where it came from. An array replaces them.
+   */
+  sourceLinks?: {
+    segmentId: string;
+    excerpt?: string | null;
+    relationship: "origin" | "evidence";
+  }[];
 };
 
 /**
@@ -82,6 +96,41 @@ export async function addRevision(
     }
     if (link) {
       await tx.insert(questionRevisionImages).values({ questionRevisionId: revision!.id, ...link });
+    }
+    if (options.sourceLinks) {
+      if (options.sourceLinks.length > 0) {
+        await tx.insert(questionSourceLinks).values(
+          options.sourceLinks.map((l) => ({
+            questionRevisionId: revision!.id,
+            sourceSegmentId: l.segmentId,
+            relationship: l.relationship,
+            excerpt: l.excerpt ?? null,
+          })),
+        );
+      }
+    } else if (latest?.n) {
+      const previousLinks = await tx
+        .select({
+          sourceSegmentId: questionSourceLinks.sourceSegmentId,
+          relationship: questionSourceLinks.relationship,
+          excerpt: questionSourceLinks.excerpt,
+        })
+        .from(questionSourceLinks)
+        .innerJoin(
+          questionRevisions,
+          eq(questionSourceLinks.questionRevisionId, questionRevisions.id),
+        )
+        .where(
+          and(
+            eq(questionRevisions.questionId, questionId),
+            eq(questionRevisions.revisionNumber, latest.n),
+          ),
+        );
+      if (previousLinks.length > 0) {
+        await tx
+          .insert(questionSourceLinks)
+          .values(previousLinks.map((l) => ({ ...l, questionRevisionId: revision!.id })));
+      }
     }
     await tx
       .update(questions)

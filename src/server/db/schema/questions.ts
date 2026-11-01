@@ -101,6 +101,11 @@ export const questionSourceLinks = pgTable(
       .notNull()
       .references(() => sourceSegments.id, { onDelete: "cascade" }),
     relationship: linkRelationship("relationship").notNull(),
+    /**
+     * The words the question quotes from the segment, kept so the quote can be checked again if
+     * the document changes. Null when the question cites a passage without quoting it.
+     */
+    excerpt: text("excerpt"),
   },
   (t) => [
     primaryKey({ columns: [t.questionRevisionId, t.sourceSegmentId, t.relationship] }),

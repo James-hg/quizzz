@@ -210,3 +210,45 @@ export type SavedRewriteView = {
   stale: boolean;
   createdAt: string;
 };
+
+/** One named check of a question, as the review queue shows it. */
+export type CheckResultView = {
+  name:
+    | "schema_valid"
+    | "supported_type"
+    | "correct_option_count"
+    | "source_ids"
+    | "excerpt_fidelity"
+    | "explanation_answer_agreement"
+    | "imported_key_agreement";
+  result: "pass" | "fail" | "not_applicable";
+  reasonCode?: string;
+};
+
+export type QueueQuestionView = {
+  kind: "question";
+  setId: string;
+  setTitle: string;
+  question: OwnerQuestionView;
+  checks: CheckResultView[];
+  /** Required checks that failed when this revision was made and still block approval. */
+  recordedFailures: string[];
+  keyConflict: boolean;
+  importedKey: OwnerAnswerKey | null;
+  citations: { segmentId: string; filename: string; location: string; excerpt: string | null }[];
+};
+
+export type QueueRewriteView = {
+  kind: "rewrite";
+  id: string;
+  questionId: string;
+  setId: string;
+  setTitle: string;
+  mode: "rephrase" | "vary_numbers" | "add_explanation";
+  content: RewriteContent;
+  stale: boolean;
+  checks: CheckResultView[];
+  keyConflict: boolean;
+};
+
+export type ReviewQueueView = { questions: QueueQuestionView[]; rewrites: QueueRewriteView[] };

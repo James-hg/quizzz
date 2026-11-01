@@ -3,6 +3,8 @@ import { eq, inArray, sql } from "drizzle-orm";
 import type { Database } from "@/server/db";
 import {
   attempts,
+  contentChecks,
+  contentReviewDecisions,
   helpEvents,
   questionRevisions,
   questionSets,
@@ -92,6 +94,12 @@ export async function purgeQuestionSets(db: Database, setIds: string[]) {
     await database
       .delete(questionSourceLinks)
       .where(inArray(questionSourceLinks.questionRevisionId, revisionIds));
+    await database
+      .delete(contentChecks)
+      .where(inArray(contentChecks.questionRevisionId, revisionIds));
+    await database
+      .delete(contentReviewDecisions)
+      .where(inArray(contentReviewDecisions.questionRevisionId, revisionIds));
     await database
       .delete(questionRevisions)
       .where(inArray(questionRevisions.questionId, questionIds));

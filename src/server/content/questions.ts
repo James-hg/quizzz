@@ -12,7 +12,13 @@ import {
 import { assertOwnsQuestion, assertOwnsQuestionSet } from "@/server/auth/ownership";
 import type { Database } from "@/server/db";
 import { addRevision, parseRevisionJson } from "@/server/db/repositories/questions";
-import { questionRevisions, questionSourceLinks, questions } from "@/server/db/schema";
+import {
+  contentChecks,
+  contentReviewDecisions,
+  questionRevisions,
+  questionSourceLinks,
+  questions,
+} from "@/server/db/schema";
 import { badRequest, conflict, notFound } from "@/server/http/errors";
 import {
   deleteUnlinkedImages,
@@ -246,6 +252,10 @@ export async function deleteQuestion(db: Database, userId: string, questionId: s
       await database
         .delete(questionSourceLinks)
         .where(eq(questionSourceLinks.questionRevisionId, r.id));
+      await database.delete(contentChecks).where(eq(contentChecks.questionRevisionId, r.id));
+      await database
+        .delete(contentReviewDecisions)
+        .where(eq(contentReviewDecisions.questionRevisionId, r.id));
     }
     await database.delete(questionRevisions).where(eq(questionRevisions.questionId, questionId));
     await database.delete(questions).where(eq(questions.id, questionId));

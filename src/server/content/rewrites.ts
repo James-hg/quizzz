@@ -12,8 +12,14 @@ import {
 } from "@/lib/schemas";
 import { assertOwnsQuestion, assertOwnsQuestionSet } from "@/server/auth/ownership";
 import type { Database } from "@/server/db";
+import { failedRequired, keyConflict } from "@/server/content-checks/checks";
+import {
+  evaluateCandidate,
+  importedBaseline,
+  runContentChecks,
+} from "@/server/content-checks/service";
 import { addRevision } from "@/server/db/repositories/questions";
-import { questionRewrites, questions } from "@/server/db/schema";
+import { contentReviewDecisions, questionRewrites, questions } from "@/server/db/schema";
 import { badRequest, conflict, notFound } from "@/server/http/errors";
 import { loadImagesForRevisions } from "@/server/images/service";
 import { getQuestion } from "./questions";
@@ -32,6 +38,8 @@ export const acceptRewriteSchema = z.object({
   }),
   /** Replace the question with a new revision, or add the rewrite as a separate question. */
   as: z.enum(["revision", "new_question"]).default("revision"),
+  /** Required when the new answer differs from the one the question was imported with. */
+  keyConflictReason: z.string().trim().min(1).max(500).optional(),
 });
 export type AcceptRewriteInput = z.infer<typeof acceptRewriteSchema>;
 
@@ -216,6 +224,32 @@ export async function acceptRewrite(
           "stale_proposal",
         );
       }
+      // The same checks as for any generated content, run on the proposal before it can replace
+      // the question. An answer that differs from the imported one needs the owner's reason.
+      const baseline = await importedBaseline(database, row.questionId);
+      const { courseId } = await assertOwnsQuestionSet(database, userId, original.questionSetId);
+      const { results } = await evaluateCandidate(
+        database,
+        { userId, courseId, baseline },
+        row.content as unknown as Record<string, unknown>,
+        [],
+      );
+      const failed = failedRequired(results);
+      if (failed.length > 0) {
+        throw conflict(
+          "Some checks failed, so this cannot replace the question.",
+          "checks_failed",
+          {
+            failed: failed.map((f) => f.name),
+          },
+        );
+      }
+      if (keyConflict(results) && !input.keyConflictReason) {
+        throw conflict(
+          "The answer differs from the imported one. Say why you are keeping it.",
+          "key_conflict_reason_required",
+        );
+      }
       const revision = await addRevision(database, row.questionId, {
         ...contentToRevision(row.content),
         origin: row.origin,
@@ -228,6 +262,14 @@ export async function acceptRewrite(
         createdBy: userId,
       });
       revisionId = revision.id;
+      const { runId } = await runContentChecks(database, userId, revision.id, { persist: true });
+      await database.insert(contentReviewDecisions).values({
+        questionRevisionId: revision.id,
+        checkRunId: runId,
+        reviewerId: userId,
+        decision: "approve",
+        conflictReason: input.keyConflictReason ?? null,
+      });
     } else {
       const [last] = await database
         .select({ p: max(questions.position) })
