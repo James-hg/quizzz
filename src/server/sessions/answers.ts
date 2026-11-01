@@ -14,7 +14,13 @@ import {
 } from "@/server/scheduler/repository";
 import { lockSession } from "./service";
 import { disclosureFor, isEnded, shouldRequeue, type Pass } from "./reveal";
-import { firstPendingIndex, resultOf, sessionSlots, type SessionRow } from "./view";
+import {
+  elapsedSecondsAt,
+  firstPendingIndex,
+  resultOf,
+  sessionSlots,
+  type SessionRow,
+} from "./view";
 
 type RevisionRow = typeof questionRevisions.$inferSelect;
 
@@ -110,6 +116,7 @@ async function replay(
   });
   return {
     replayed: true,
+    sessionEnded: isEnded(session.state),
     result: resultOf(attempt, parseRevisionJson(revision!), disclosure),
     requeued: attempt.pass === 1 && session.retryOrder.includes(attempt.questionId),
     progress: await progressOf(db, attempt.sessionId, sessionSlots(session).length),
@@ -245,14 +252,35 @@ export async function submitAnswer(
         .set({ currentIndex: nextIndex, retryOrder })
         .where(eq(studySessions.id, sessionId));
 
+      // A planned session has a time budget. The answer just stored is always kept; once the
+      // active time is used up the session ends here, so no further question is offered. Time
+      // while paused is not counted. Nothing is lost: questions not reached stay unanswered
+      // and, for review, still due.
+      const elapsed = elapsedSecondsAt(session, now);
+      const budgetReached =
+        session.timeBudgetMinutes !== null && elapsed >= session.timeBudgetMinutes * 60;
+      if (budgetReached) {
+        await database
+          .update(studySessions)
+          .set({
+            state: "completed",
+            elapsedSeconds: elapsed,
+            activeStartedAt: null,
+            completedAt: now,
+          })
+          .where(eq(studySessions.id, sessionId));
+      }
+
       return {
         replayed: false,
+        // True when this answer used up the time budget: the session is over and results are open.
+        sessionEnded: budgetReached,
         result: resultOf(
           attempt,
           revision,
           disclosureFor({
             mode: session.revealMode,
-            sessionEnded: false,
+            sessionEnded: budgetReached,
             pass,
             outcome,
             retryAnswered: pass === 2,
