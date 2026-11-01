@@ -165,6 +165,12 @@ Response: `{ help: { id, questionId, pass, action, level, text, citations: [{ se
 - Other errors: `401`, `404` (another user's or missing session), `409 stale_turn` (not the current question, or the student moved on while the answer was generated), `409 session_paused`, `409 session_completed`, `409 no_wrong_answer` (`why_wrong` before any wrong answer on that question).
 - With `Accept: text/event-stream` the validated text is sent as `event: text` chunks and then `event: done` with the same JSON as above. Nothing is sent before the whole answer has been checked, so this does not make the first words arrive sooner.
 
+## AI usage limits and status
+
+`GET /api/ai/status` (signed in) returns `200 { state, retryAt?, message }` with `Cache-Control: private, no-store`. `state` is `available`, `paused` (the provider ran out of quota; `retryAt` is when AI is tried again) or `disabled`. It reports server availability only, not whether you are under your own caps.
+
+Every AI route (`/api/ai/*` and the tutor's model calls) can also answer `429 ai_rate_limited` (minute, hour, day or global cap; `error.details.retryAt` when known), `429 ai_busy`, `503 ai_paused` (`error.details.retryAt`) or `422 ai_input_too_large`. See [ai-model.md](ai-model.md) for the counting rules and defaults.
+
 ## AI (optional)
 
 AI is off by default (`AI_PROVIDER=disabled`); practice never needs it. To enable Gemini, set `AI_PROVIDER=gemini` and a server-only `GEMINI_API_KEY` (optionally `GEMINI_MODEL`, see `docs/ai-model.md`). Keys never reach the browser: `npm run build && npm run check:bundle` fails if a secret appears in client output.

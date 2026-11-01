@@ -49,7 +49,15 @@ Copy `.env.example` to `.env.local`. Next.js, `npm run db:migrate`, `npm run sam
 | `AI_PROVIDER` | no | `disabled` (default) or `gemini`. |
 | `GEMINI_API_KEY` | no | Server-only key for Gemini. Without it, `gemini` behaves as `disabled`. |
 | `GEMINI_MODEL` | no | Model id. Defaults to a free-tier model, see [docs/ai-model.md](docs/ai-model.md). |
-| `AI_REQUESTS_PER_HOUR` | no | Per-user cap on AI calls (default 30). |
+| `AI_REQUESTS_PER_MINUTE` | no | Per-user AI operations per minute (default 10). |
+| `AI_REQUESTS_PER_HOUR` | no | Per-user AI operations per UTC hour (default 30). |
+| `AI_REQUESTS_PER_DAY` | no | Per-user AI operations per UTC day (default 100). |
+| `AI_GLOBAL_REQUESTS_PER_DAY` | no | AI operations per UTC day for the whole app (default 500). |
+| `AI_MAX_CONCURRENT_CALLS` | no | AI operations running at once across all app instances (default 2). |
+| `AI_MAX_INPUT_CHARS` | no | Longest prompt (messages plus system text) sent to the model (default 100000). |
+| `AI_MAX_OUTPUT_TOKENS` | no | Upper bound on the output tokens any call may ask for (default 4096). |
+
+These are limits of this app, not of the AI provider. Set them within the quota of your own Gemini key. See [docs/ai-model.md](docs/ai-model.md) for how they behave.
 | `MAX_UPLOAD_BYTES` | no | Upload size limit (default 10 MB). |
 | `AUTH_RATE_LIMIT_MAX` | no | Sign-in/sign-up attempts per minute per client (default 10). |
 | `DB_POOL_MAX` | no | Database pool size (default 5). |

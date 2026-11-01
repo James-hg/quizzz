@@ -11,7 +11,22 @@ Checked on **2026-10-19** against the official pages
 | `AI_PROVIDER` | `gemini` or `disabled` (default). `gemini` without a key behaves as disabled. |
 | `GEMINI_API_KEY` | Server-only. Sent in the `x-goog-api-key` header, never in a URL, never logged. |
 | `GEMINI_MODEL` | Model id. Defaults to `gemini-2.5-flash` when unset. |
-| `AI_REQUESTS_PER_HOUR` | Per-user cap on AI calls (default 30). |
+| `AI_REQUESTS_PER_MINUTE` | Per-user AI operations per minute (default 10). |
+| `AI_REQUESTS_PER_HOUR` | Per-user AI operations per UTC hour (default 30). |
+| `AI_REQUESTS_PER_DAY` | Per-user AI operations per UTC day (default 100). |
+| `AI_GLOBAL_REQUESTS_PER_DAY` | AI operations per UTC day for the whole app (default 500). |
+| `AI_MAX_CONCURRENT_CALLS` | AI operations running at once across all app instances (default 2). |
+| `AI_MAX_INPUT_CHARS` | Longest prompt (messages plus system text) sent to the model (default 100000). |
+| `AI_MAX_OUTPUT_TOKENS` | Upper bound on the output tokens any call may ask for (default 4096). |
+
+### Usage limits, pause and logging
+
+- **What is counted.** One *operation* is one request to a model route (chat, question generation, title suggestion, rewrite, tutor help). It counts once against the minute, hour, day and global caps even when it makes more than one provider call (a rewrite may retry; structured output may repair once). A request that is refused, invalid, not yours, oversized, or served from a reviewed hint without a model call uses no quota. Day windows are UTC days.
+- **Concurrency.** `AI_MAX_CONCURRENT_CALLS` is enforced with short database leases, so it holds across app instances. A lease is released when the operation ends and expires after 90 seconds if a worker dies. Each operation also stops at 75 seconds.
+- **Refusals** are `429 ai_rate_limited` (a personal or global cap; `error.details.retryAt` says when the window resets), `429 ai_busy` (too many running at once), `503 ai_paused`, and `422 ai_input_too_large`. A refusal never calls the provider.
+- **Pause.** Two provider quota errors (`429 ai_quota_exceeded`) within 5 minutes pause new AI operations for 10 minutes. After that one trial operation is allowed; if it succeeds AI resumes, if it hits quota again the pause restarts. Other failures do not pause AI. Practice, import and editing never depend on this state. The cooldown is a fixed heuristic, not the provider's real reset time.
+- **Status.** `GET /api/ai/status` (sign-in required) returns `{ state: "available" | "paused" | "disabled", retryAt?, message }`. It spends no quota and does not call the provider.
+- **Call log.** Every provider call writes one `ai_call_logs` row: route, model, method, outcome, latency, and input/output tokens. Tokens are `null` when Gemini did not report them (an explicit `0` is a real zero). No prompt, reply or error text is stored, and there is no money amount because the provider does not return one. Rows are not pruned automatically. A row left in `started` means the process died mid-call.
 
 There is no automatic switch to a paid model. When the free quota is used up the routes return
 `429 ai_quota_exceeded` and normal practice keeps working.
