@@ -5,6 +5,7 @@ import { assertOwnsQuestionSet } from "@/server/auth/ownership";
 import { toOwnerView } from "@/server/content/questions";
 import type { Database } from "@/server/db";
 import { addRevision } from "@/server/db/repositories/questions";
+import { runContentChecks } from "@/server/content-checks/service";
 import { questions } from "@/server/db/schema";
 
 /**
@@ -37,6 +38,8 @@ export async function saveProposals(
         evidenceStatus: "generated_unreviewed",
         createdBy: userId,
       });
+      // Recorded now, so a proposal's checks exist before anyone is asked to approve it.
+      await runContentChecks(database, userId, revision.id, { persist: true });
       saved.push(toOwnerView({ ...question!, currentRevisionId: revision.id }, revision));
     }
     return saved;

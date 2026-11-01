@@ -32,6 +32,8 @@ export type EvidenceInput = {
   approve: boolean;
   /** The evidence state of the revision being replaced, if any. */
   previous?: EvidenceState;
+  /** The owner rejects this content. Wins over everything except a missing answer. */
+  reject?: boolean;
 };
 
 export function evidenceFor({
@@ -39,8 +41,10 @@ export function evidenceFor({
   answerKind,
   approve,
   previous,
+  reject,
 }: EvidenceInput): EvidenceState {
   if (answerKind === "unresolved") return "unresolved";
+  if (reject) return "rejected";
   if (origin === "original") return "human_reviewed";
   if (approve) return "human_reviewed";
   if (previous && KEEP_UNTIL_APPROVED.includes(previous)) return previous;
