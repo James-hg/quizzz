@@ -180,6 +180,36 @@ curl -b /tmp/quizzz-jar -X POST -H 'Origin: http://localhost:3000' -H 'Content-T
   -d '{"count":3,"topic":"loops"}' localhost:3000/api/ai/question-sets/<setId>/generate-questions
 ```
 
+## Source passages (citations)
+
+`GET /api/sources/segments/:segmentId` opens one passage of your own course material so a
+citation can be shown and checked. It returns `{ segment }`:
+
+```json
+{
+  "segment": {
+    "id": "…", "sourceDocumentId": "…", "filename": "week2.docx",
+    "text": "the passage, exactly as stored", "kind": "paragraph",
+    "anchor": { "paragraphIndex": 4, "headingPath": ["Week 2", "Closures"] },
+    "location": "paragraph 5, under \"Week 2 > Closures\""
+  }
+}
+```
+
+`location` is built only from the stored anchor: `page` and `slide` are 1-based, and
+`paragraphIndex` (0-based) is shown as paragraph N+1. A Word file has no page numbers, so none are
+claimed. A passage that is missing, or belongs to someone else, is the same `404 not_found`;
+signed out is `401`. The response is `private, no-store`.
+
+Inside the server, `findRelevantSegments` (`src/server/retrieval/segments.ts`) picks passages for
+a question: the ones linked to the question's revision first, then full-text hits from the same
+course, never another user's. `limit` (1 to 20, default 8) caps how many passages and `maxChars`
+(1 to 20,000, default 8,000) caps the characters of passage text. A passage that does not fit is
+skipped, never cut, so what is returned always equals what is stored. Search uses PostgreSQL's
+`simple` configuration (no stemming), which suits code and identifiers; any word of the query may
+match, and better matches rank higher. The index is a generated `search_vector` column with a GIN
+index, so existing and new passages are indexed without any application code.
+
 ## Sample courses
 
 Ready-made courses (one per language) that a student can copy into their account. The project owner supplies the checked content; see `fixtures/sample-courses/README.md` for the format, the template, and how to add one. With none present, the app shows none.

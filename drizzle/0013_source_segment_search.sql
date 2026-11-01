@@ -1,0 +1,2 @@
+ALTER TABLE "source_segments" ADD COLUMN "search_vector" "tsvector" GENERATED ALWAYS AS (to_tsvector('simple'::regconfig, coalesce("text", ''))) STORED;--> statement-breakpoint
+CREATE INDEX "source_segments_search_idx" ON "source_segments" USING gin ("search_vector");
