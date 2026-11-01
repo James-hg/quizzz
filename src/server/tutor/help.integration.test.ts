@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
+import { resetAiState } from "@/test/ai-state";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { POST as answerPost } from "@/app/api/sessions/[sessionId]/answers/route";
 import { POST as helpPost } from "@/app/api/sessions/[sessionId]/help/route";
@@ -43,7 +44,10 @@ beforeAll(async () => {
   bobCourseId = (await createCourse(db, bob.id, { title: "Bob", subject: "S" })).id;
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
-afterEach(() => setAiProviderForTesting(undefined));
+afterEach(async () => {
+  setAiProviderForTesting(undefined);
+  await resetAiState(db);
+});
 afterAll(async () => {
   vi.restoreAllMocks();
   await deleteUsers(db, [alice.id, bob.id]);

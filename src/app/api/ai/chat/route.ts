@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { chatRequestSchema } from "@/lib/schemas";
 import { chat } from "@/server/ai/assistant";
-import { chargeAiQuota, requireAi } from "@/server/ai/guard";
+import { requireAi, withAiOperation } from "@/server/ai/guard";
 import { assertOwnsCourse, assertOwnsQuestionSet } from "@/server/auth/ownership";
 import { getDb } from "@/server/db";
 import { handleRoute } from "@/server/http/errors";
@@ -16,6 +16,8 @@ export const POST = handleRoute(async (request: Request) => {
   const db = getDb();
   if (input.questionSetId) await assertOwnsQuestionSet(db, user.id, input.questionSetId);
   if (input.courseId) await assertOwnsCourse(db, user.id, input.courseId);
-  await chargeAiQuota(db, user.id);
-  return NextResponse.json({ reply: await chat(db, provider, user.id, input) });
+  const reply = await withAiOperation(db, { userId: user.id, route: "chat" }, provider, (metered) =>
+    chat(db, metered, user.id, input),
+  );
+  return NextResponse.json({ reply });
 });

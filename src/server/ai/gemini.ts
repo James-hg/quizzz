@@ -27,7 +27,20 @@ type Part = { text?: string };
 type GeminiResponse = {
   candidates?: { content?: { parts?: Part[] }; finishReason?: string }[];
   promptFeedback?: { blockReason?: string };
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
 };
+
+type Usage = { inputTokens?: number; outputTokens?: number };
+
+/** Token counts the response reported. A missing field stays missing; it is never guessed. */
+function usageOf(body: GeminiResponse): Usage | undefined {
+  const meta = body.usageMetadata;
+  if (!meta) return undefined;
+  const usage: Usage = {};
+  if (Number.isInteger(meta.promptTokenCount)) usage.inputTokens = meta.promptTokenCount;
+  if (Number.isInteger(meta.candidatesTokenCount)) usage.outputTokens = meta.candidatesTokenCount;
+  return usage.inputTokens === undefined && usage.outputTokens === undefined ? undefined : usage;
+}
 
 /** Maps an HTTP failure to a normalized error. Never includes the key or the response body. */
 export function mapHttpError(status: number, apiStatus?: string): Error {
@@ -82,10 +95,12 @@ function withDeadline(options: GenerateOptions | undefined, defaultMs: number) {
 
 export class GeminiProvider implements AiProvider {
   readonly name = "gemini";
+  readonly model: string;
   private readonly fetchImpl: typeof fetch;
   private readonly baseUrl: string;
 
   constructor(private readonly config: GeminiConfig) {
+    this.model = config.model;
     this.fetchImpl = config.fetch ?? fetch;
     this.baseUrl = config.baseUrl ?? DEFAULT_BASE_URL;
   }
@@ -127,7 +142,10 @@ export class GeminiProvider implements AiProvider {
   ): Promise<string> {
     const response = await this.request("generateContent", messages, options, json, signal);
     if (!response.ok) throw mapHttpError(response.status, await apiStatusOf(response));
-    return textOf((await response.json()) as GeminiResponse);
+    const body = (await response.json()) as GeminiResponse;
+    const usage = usageOf(body);
+    if (usage) options?.onUsage?.(usage);
+    return textOf(body);
   }
 
   /** Converts low-level failures (abort, network) into normalized errors. */
@@ -193,6 +211,8 @@ export class GeminiProvider implements AiProvider {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      // Each streamed chunk repeats the running totals, so only the last one counts.
+      let lastUsage: Usage | undefined;
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -211,6 +231,7 @@ export class GeminiProvider implements AiProvider {
             } catch {
               throw new AiInvalidOutput();
             }
+            lastUsage = usageOf(chunk) ?? lastUsage;
             const text = (chunk.candidates?.[0]?.content?.parts ?? [])
               .map((p) => p.text ?? "")
               .join("");
@@ -219,6 +240,7 @@ export class GeminiProvider implements AiProvider {
           boundary = buffer.indexOf("\n\n");
         }
       }
+      if (lastUsage) options?.onUsage?.(lastUsage);
     } catch (error) {
       this.normalize(error, deadline);
     } finally {

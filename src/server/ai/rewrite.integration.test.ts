@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { resetAiState } from "@/test/ai-state";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 process.env.AI_REQUESTS_PER_HOUR = "30";
@@ -40,6 +41,7 @@ beforeAll(async () => {
 });
 beforeEach(async () => {
   vi.spyOn(console, "error").mockImplementation(() => {});
+  await resetAiState(db);
   await db.delete(aiUsage).where(eq(aiUsage.userId, alice.id));
   const course = await createCourse(db, alice.id, { title: "CS", subject: "Math" });
   setId = (await createQuestionSet(db, alice.id, course.id, `Set ${Math.random()}`)).id;
