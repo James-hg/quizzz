@@ -8,6 +8,7 @@ export type CallOptions = {
   body?: unknown;
   as?: TestUser | null;
   params?: Record<string, string>;
+  headers?: Record<string, string>;
 };
 
 /** Invokes a Route Handler directly with a signed-in user's cookie. */
@@ -21,10 +22,12 @@ export async function call(
     method: options.method,
     body: options.body,
     cookie: as?.cookie,
+    headers: options.headers,
   });
   const response = await (handler as Handler)(request, {
     params: Promise.resolve((options.params ?? {}) as never),
   });
   const text = await response.text();
-  return { status: response.status, text, body: text ? JSON.parse(text) : null };
+  const isJson = response.headers.get("content-type")?.includes("json") ?? true;
+  return { status: response.status, text, body: text && isJson ? JSON.parse(text) : null };
 }
