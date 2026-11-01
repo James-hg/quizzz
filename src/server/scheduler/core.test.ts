@@ -217,31 +217,33 @@ describe("applyAttempt", () => {
       expect(utc.state.nextDueAt).toEqual(startOfLocalDay("2026-02-03", "UTC"));
     });
 
+    // Past dates only: a zone's rules for future years can still change.
     it("keeps one local day per interval across the spring clock change", () => {
-      const out = apply(NEW_REVIEW_STATE, {}, "2026-03-07T20:00:00Z"); // Sat, PST
-      expect(out.state.nextDueAt).toEqual(startOfLocalDay("2026-03-08", TZ));
+      const out = apply(NEW_REVIEW_STATE, {}, "2025-03-08T20:00:00Z"); // Sat, PST
+      expect(out.state.nextDueAt).toEqual(startOfLocalDay("2025-03-09", TZ));
       const next = apply(
         out.state,
-        { lastExposureAt: at("2026-03-07T20:00:00Z") },
-        "2026-03-08T20:00:00Z", // Sun, PDT
+        { lastExposureAt: at("2025-03-08T20:00:00Z") },
+        "2025-03-09T20:00:00Z", // Sun, PDT
       );
-      expect(localDate(next.state.nextDueAt!, TZ)).toBe("2026-03-11");
-      expect(next.state.nextDueAt!.toISOString()).toBe("2026-03-11T07:00:00.000Z");
+      expect(localDate(next.state.nextDueAt!, TZ)).toBe("2025-03-12");
+      expect(next.state.nextDueAt!.toISOString()).toBe("2025-03-12T07:00:00.000Z");
     });
 
     it("keeps one local day per interval across the autumn clock change", () => {
-      const out = apply(NEW_REVIEW_STATE, {}, "2026-10-31T20:00:00Z");
+      const out = apply(NEW_REVIEW_STATE, {}, "2025-11-01T20:00:00Z"); // Sat, PDT
       const next = apply(
         { ...out.state, stepIndex: 1 },
-        { lastExposureAt: at("2026-10-31T20:00:00Z") },
-        "2026-11-01T20:00:00Z",
+        { lastExposureAt: at("2025-11-01T20:00:00Z") },
+        "2025-11-02T20:00:00Z", // Sun, PST
       );
-      expect(localDate(next.state.nextDueAt!, TZ)).toBe("2026-11-08");
+      expect(localDate(next.state.nextDueAt!, TZ)).toBe("2025-11-09");
+      expect(next.state.nextDueAt!.toISOString()).toBe("2025-11-09T08:00:00.000Z");
     });
 
     it("works the same for a student in Sydney", () => {
-      const out = apply(NEW_REVIEW_STATE, {}, "2026-10-03T01:00:00Z", { tz: "Australia/Sydney" });
-      expect(localDate(out.state.nextDueAt!, "Australia/Sydney")).toBe("2026-10-04");
+      const out = apply(NEW_REVIEW_STATE, {}, "2025-10-04T01:00:00Z", { tz: "Australia/Sydney" });
+      expect(localDate(out.state.nextDueAt!, "Australia/Sydney")).toBe("2025-10-05");
     });
 
     it("never schedules past the exam: the last review day is the day before", () => {
