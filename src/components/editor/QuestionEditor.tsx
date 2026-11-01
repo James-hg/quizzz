@@ -23,7 +23,7 @@ const EVIDENCE_LABEL: Record<string, { label: string; tone: string }> = {
   deterministically_checked: { label: "Machine-checked", tone: "badge-ok" },
 };
 
-function AnswerSummary({ q }: { q: OwnerQuestionView }) {
+export function AnswerSummary({ q }: { q: OwnerQuestionView }) {
   const key = q.answerKey;
   if (key.kind === "unresolved") {
     return (

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { evidenceFor, type EvidenceState } from "@/lib/evidence";
 import { anchorSchema, patchQuestionSchema } from "@/lib/schemas";
@@ -26,7 +26,6 @@ import {
   latestChecks,
   loadOwnedRevision,
   runContentChecks,
-  type Citation,
 } from "./service";
 
 /** Revisions that need the owner's decision: generated or sample content not yet approved. */
@@ -422,4 +421,34 @@ export async function getReviewQueue(db: Database, userId: string, courseId: str
     });
   }
   return { questions: items, rewrites };
+}
+
+/** How many things wait for review in a course, for a link badge. */
+export async function countReviewQueue(db: Database, userId: string, courseId: string) {
+  const [{ n: generated } = { n: 0 }] = await db
+    .select({ n: count() })
+    .from(questions)
+    .innerJoin(questionRevisions, eq(questions.currentRevisionId, questionRevisions.id))
+    .innerJoin(questionSets, eq(questions.questionSetId, questionSets.id))
+    .where(
+      and(
+        eq(questionSets.courseId, courseId),
+        eq(questionSets.ownerId, userId),
+        inArray(questionRevisions.origin, [...NON_OWNER_ORIGINS]),
+        inArray(questionRevisions.evidenceStatus, [...REVIEWABLE]),
+      ),
+    );
+  const [{ n: rewrites } = { n: 0 }] = await db
+    .select({ n: count() })
+    .from(questionRewrites)
+    .innerJoin(questions, eq(questionRewrites.questionId, questions.id))
+    .innerJoin(questionSets, eq(questions.questionSetId, questionSets.id))
+    .where(
+      and(
+        eq(questionRewrites.ownerId, userId),
+        eq(questionRewrites.status, "pending"),
+        eq(questionSets.courseId, courseId),
+      ),
+    );
+  return generated + rewrites;
 }

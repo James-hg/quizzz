@@ -225,3 +225,41 @@ npm run samples:load -- python --email you@example.com     # copy into an accoun
 curl -b /tmp/quizzz-jar localhost:3000/api/samples
 curl -b /tmp/quizzz-jar -X POST -H 'Origin: http://localhost:3000' localhost:3000/api/samples/python/load
 ```
+
+## Content checks and the review queue
+
+Generated and sample questions stay out of scored practice until the owner approves them, and
+approving needs the required checks to pass. Checks are named, stored per revision
+(`content_checks`, one `run_id` per complete run, validator version `b6.1`) and append-only:
+
+| Check | Looks at | Required |
+| --- | --- | --- |
+| `schema_valid`, `supported_type` | the whole question | yes |
+| `correct_option_count` | exactly one correct option for single choice, at least one for multiple | yes |
+| `source_ids` | every cited passage exists, is the owner's and is in the course | yes |
+| `excerpt_fidelity` | a quoted excerpt appears in its passage (case, spacing and Unicode form ignored) | yes |
+| `explanation_answer_agreement` | an explicit "The answer is B" matches the key; prose without one is not guessed at | yes |
+| `imported_key_agreement` | the answer differs from the one the question was imported with | no: the owner must give a reason |
+
+Each is `pass`, `fail` or `not_applicable`. `not_applicable` means there was nothing to look at;
+it is never shown or treated as a pass, and nothing is called "verified". Structural checks do
+not prove an answer is educationally correct; the owner still decides. Approval is recorded as
+`human_reviewed`, with a row in `content_review_decisions` (reviewer, the check run, and the
+reason when the imported answer is kept). The imported revision is never changed.
+
+| Route | Purpose |
+| --- | --- |
+| `GET /api/courses/:id/review-queue` | `{ questions, rewrites }`: AI and sample questions waiting for review, and pending AI rewrites, each with live check results, the imported key if it differs, and cited passages. Contains answer keys: owner only, `no-store`. |
+| `POST /api/question-revisions/:id/approve` | `{ confirmed: true, keyConflictReason? }` approves the current revision after fresh checks. A generated proposal is brought back into practice; one you excluded yourself stays excluded |
+| `POST /api/question-revisions/:id/reject` | `{ confirmed: true }` adds a rejected revision and excludes the question |
+| `POST /api/question-revisions/:id/edit` | `{ patch, citations?: [{ segmentId, excerpt? }] }` edits into a new revision that still waits for review. Citations that do not exist or are not yours are not linked and stay as a failed `source_ids` on that revision |
+| `POST /api/courses/:id/review-queue/approve-selected` | `{ confirmed: true, revisionIds }` (1 to 50): all or nothing |
+
+Errors: `404` for another user's course or revision, `409 stale_revision` when the question
+changed since it was opened, `409 checks_failed` (with `details.failed`),
+`409 key_conflict_reason_required`, `409 bulk_blocked` (with `details.problems`).
+`POST /api/rewrites/:id/accept` runs the same checks and also takes `keyConflictReason`.
+
+Existing content: `npm run content:backfill` reports approved generated or sample questions that
+now fail a required check; `npm run content:backfill -- --apply` records the checks and sends
+those back to review as a new revision (nothing is deleted, attempts are untouched).

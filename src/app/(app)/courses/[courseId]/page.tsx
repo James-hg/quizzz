@@ -5,6 +5,7 @@ import { NeedsReviewNote, PracticeBlockedNotice } from "@/components/PracticeBlo
 import { StartPracticeButton } from "@/components/StartPracticeButton";
 import { formatDate, LANGUAGE_LABELS } from "@/lib/labels";
 import { idParam, orNotFound, requirePageUser } from "@/server/auth/page";
+import { countReviewQueue } from "@/server/content-checks/review";
 import { getCourse } from "@/server/content/courses";
 import { listCourseImports, listQuestionSetsWithCounts } from "@/server/content/overview";
 import { getDb } from "@/server/db";
@@ -23,9 +24,10 @@ export default async function CoursePage({ params }: { params: Promise<{ courseI
   const db = getDb();
   const courseId = await idParam(params, "courseId");
   const course = await orNotFound(getCourse(db, user.id, courseId));
-  const [sets, imports] = await Promise.all([
+  const [sets, imports, waiting] = await Promise.all([
     listQuestionSetsWithCounts(db, user.id, courseId),
     listCourseImports(db, user.id, courseId),
+    countReviewQueue(db, user.id, courseId),
   ]);
 
   return (
@@ -46,9 +48,16 @@ export default async function CoursePage({ params }: { params: Promise<{ courseI
             ) : null}
           </p>
         </div>
-        <Link className="btn btn-primary" href={`/courses/${course.id}/import`}>
-          Import from a document
-        </Link>
+        <div className="row">
+          {waiting > 0 ? (
+            <Link className="btn" href={`/courses/${course.id}/review`}>
+              Review queue ({waiting})
+            </Link>
+          ) : null}
+          <Link className="btn btn-primary" href={`/courses/${course.id}/import`}>
+            Import from a document
+          </Link>
+        </div>
       </div>
 
       <section className="card" aria-labelledby="sets-heading">
