@@ -79,15 +79,20 @@ export async function chat(
   });
 }
 
-/** Returns validated proposals. Nothing is saved: the owner reviews them first. */
-export async function generateQuestionProposals(
-  db: Database,
+export const GENERATION_PROMPT_VERSION = "generate-v1";
+
+/** What question generation needs to know about where the questions are for. */
+export type GenerationContext = Pick<SetContext, "course" | "prompts">;
+
+/**
+ * The model call and checks behind question generation, with no database in it so the
+ * evaluation harness can run exactly what the app runs.
+ */
+export async function proposeQuestions(
   provider: AiProvider,
-  userId: string,
-  setId: string,
+  ctx: GenerationContext,
   input: GenerateQuestionsRequest,
 ): Promise<{ proposals: QuestionContent[]; dropped: number }> {
-  const ctx = await loadSetContext(db, userId, setId);
   const parts = [
     `Write ${input.count} multiple-choice practice questions.`,
     input.topic ? delimitData("topic", input.topic, 400) : "",
@@ -124,6 +129,17 @@ export async function generateQuestionProposals(
   }
   if (proposals.length === 0) throw new AiInvalidOutput();
   return { proposals, dropped: generated.questions.length - proposals.length };
+}
+
+/** Returns validated proposals. Nothing is saved: the owner reviews them first. */
+export async function generateQuestionProposals(
+  db: Database,
+  provider: AiProvider,
+  userId: string,
+  setId: string,
+  input: GenerateQuestionsRequest,
+): Promise<{ proposals: QuestionContent[]; dropped: number }> {
+  return proposeQuestions(provider, await loadSetContext(db, userId, setId), input);
 }
 
 export async function suggestTitle(

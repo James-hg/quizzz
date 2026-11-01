@@ -7,6 +7,7 @@ import {
   hintLevelSchema,
   tutorOutputSchema,
   type HelpCitation,
+  type TutorOutput,
   type HelpRequest,
   type HelpResponse,
 } from "@/lib/schemas";
@@ -49,9 +50,10 @@ import { leaksAnswer } from "./leak";
  */
 
 export const TUTOR_PROMPT_VERSION = "tutor-v1";
+/** Shared with the evaluation harness so it measures the call the app makes. */
+export const TUTOR_CALL_OPTIONS = { timeoutMs: 25_000, temperature: 0.3 } as const;
 const MAX_PASSAGES = 5;
 const MAX_PASSAGE_CHARS = 6_000;
-const TIMEOUT_MS = 25_000;
 
 type Hint = typeof approvedHints.$inferSelect;
 type Revision = typeof questionRevisions.$inferSelect;
@@ -178,7 +180,7 @@ const mustNotLeak = (turn: Turn) => turn.action === "small_hint" || turn.protect
 const leaks = (turn: Turn, text: string) =>
   mustNotLeak(turn) && leaksAnswer(text, turn.revision.answerKey, turn.revision.options);
 
-function toCitations(segments: CitationSegment[]): HelpCitation[] {
+function toCitations(segments: PromptPassage[]): HelpCitation[] {
   return segments.map((s) => ({
     segmentId: s.id,
     href: hrefFor(s.id),
@@ -268,7 +270,7 @@ async function passagesFor(db: Database, turn: Turn): Promise<CitationSegment[]>
   }
 }
 
-function questionAsData(turn: Turn, imageAlt: string | null) {
+function questionAsData(turn: PromptTurn, imageAlt: string | null) {
   const r = turn.revision;
   return {
     type: r.type,
@@ -282,7 +284,13 @@ function questionAsData(turn: Turn, imageAlt: string | null) {
   };
 }
 
-function buildPrompt(turn: Turn, passages: CitationSegment[], imageAlt: string | null) {
+/** What the prompt and output checks need to know about a turn. The evaluation harness builds this too. */
+export type PromptTurn = Pick<Turn, "action" | "revision" | "priorWrong">;
+export type ShapeTurn = Pick<Turn, "action" | "revision" | "protectedRetry">;
+/** A passage as the prompt sees it. */
+export type PromptPassage = Pick<CitationSegment, "id" | "filename" | "location" | "text">;
+
+export function buildPrompt(turn: PromptTurn, passages: PromptPassage[], imageAlt: string | null) {
   const level = HELP_ACTION_LEVEL[turn.action];
   const system = [
     "You are a patient tutor helping a student with one practice question.",
@@ -319,6 +327,44 @@ type Generated = {
   latencyMs: number;
 };
 
+/**
+ * Checks a model's proposal before anything is shown: it must be the level that was asked for and
+ * keep the answer back when it should; only passages that were supplied can be cited (anything
+ * else is dropped, and the answer is then not called source supported). Throws AiInvalidOutput
+ * for a proposal that cannot be shown. Pure, so the evaluation harness runs the same code.
+ */
+export function shapeOutput(turn: ShapeTurn, output: TutorOutput, passages: PromptPassage[]) {
+  if (output.level !== HELP_ACTION_LEVEL[turn.action]) throw new AiInvalidOutput();
+  if (
+    (turn.action === "small_hint" || turn.protectedRetry) &&
+    leaksAnswer(output.text, turn.revision.answerKey, turn.revision.options)
+  ) {
+    throw new AiInvalidOutput();
+  }
+  const supplied = new Map(passages.map((p) => [p.id, p]));
+  const valid = [...new Set(output.citedSegmentIds)].filter((id) => supplied.has(id));
+  const sourceSupported = output.sourceSupported && valid.length > 0;
+  const cited = sourceSupported ? valid.map((id) => supplied.get(id)!) : [];
+  const dropped =
+    output.citedSegmentIds.length > valid.length || (output.sourceSupported && !sourceSupported);
+  const uncertainty = dropped
+    ? [
+        output.uncertainty,
+        "Some cited sources could not be verified, so this is not marked as source supported.",
+      ]
+        .filter(Boolean)
+        .join(" ")
+    : output.uncertainty;
+  return {
+    text: output.text,
+    cited,
+    sourceSupported,
+    uncertainty,
+    /** Ids the model cited that were not among the supplied passages. */
+    fabricatedIds: output.citedSegmentIds.filter((id) => !supplied.has(id)),
+  };
+}
+
 async function generate(db: Database, request: Request, turn: Turn): Promise<Generated> {
   const { user, provider } = await requireAi(request);
   const imageAlt =
@@ -330,38 +376,17 @@ async function generate(db: Database, request: Request, turn: Turn): Promise<Gen
   const started = Date.now();
   const output = await provider.generateStructured(prompt, tutorOutputSchema, {
     system,
-    timeoutMs: TIMEOUT_MS,
-    temperature: 0.3,
+    ...TUTOR_CALL_OPTIONS,
   });
   const latencyMs = Date.now() - started;
 
-  // A proposal is only shown once it matches what was asked and keeps the answer back.
-  if (output.level !== HELP_ACTION_LEVEL[turn.action]) throw new AiInvalidOutput();
-  if (leaks(turn, output.text)) throw new AiInvalidOutput();
-
-  // Only passages that were supplied for this request can be cited. Anything else is dropped
-  // and the answer is no longer called source supported: a citation is never made up.
-  const supplied = new Map(passages.map((p) => [p.id, p]));
-  const valid = [...new Set(output.citedSegmentIds)].filter((id) => supplied.has(id));
-  const sourceSupported = output.sourceSupported && valid.length > 0;
-  const cited = sourceSupported ? valid.map((id) => supplied.get(id)!) : [];
-
-  const dropped =
-    output.citedSegmentIds.length > valid.length || (output.sourceSupported && !sourceSupported);
-  const uncertainty = dropped
-    ? [
-        output.uncertainty,
-        "Some cited sources could not be verified, so this is not marked as source supported.",
-      ]
-        .filter(Boolean)
-        .join(" ")
-    : output.uncertainty;
+  const shaped = shapeOutput(turn, output, passages);
 
   return {
-    text: output.text,
-    citations: toCitations(cited),
-    sourceSupported,
-    ...(uncertainty ? { uncertainty } : {}),
+    text: shaped.text,
+    citations: toCitations(shaped.cited),
+    sourceSupported: shaped.sourceSupported,
+    ...(shaped.uncertainty ? { uncertainty: shaped.uncertainty } : {}),
     provider: provider.name,
     model: getEnv().GEMINI_MODEL ?? DEFAULT_GEMINI_MODEL,
     latencyMs,

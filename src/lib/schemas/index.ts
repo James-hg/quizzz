@@ -13,3 +13,4 @@ export * from "./ai";
 export * from "./sample-course";
 export * from "./assistance";
 export * from "./scheduler";
+export * from "./eval";
