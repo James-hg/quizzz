@@ -60,7 +60,6 @@ export function createMockProvider(c: EvalCase, meter: RequestMeter): AiProvider
     async generateText() {
       throw new Error("the mock provider only answers structured calls");
     },
-    // eslint-disable-next-line require-yield
     async *streamText() {
       throw new Error("the mock provider only answers structured calls");
     },

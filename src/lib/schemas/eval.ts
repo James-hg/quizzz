@@ -142,25 +142,25 @@ const base = {
 
 export const evalCaseSchema = z
   .discriminatedUnion("task", [
-    z.object({
+    z.strictObject({
       ...base,
       task: z.literal("hint"),
       input: tutorInput(["small_hint", "why_wrong"]),
       expected: tutorExpected,
     }),
-    z.object({
+    z.strictObject({
       ...base,
       task: z.literal("explanation"),
       input: tutorInput(["explain_step", "similar_example", "full_explanation"]),
       expected: tutorExpected,
     }),
-    z.object({
+    z.strictObject({
       ...base,
       task: z.literal("question_generation"),
       input: generationInput,
       expected: generationExpected,
     }),
-    z.object({
+    z.strictObject({
       ...base,
       task: z.literal("short_answer_grading"),
       input: gradingInput,
