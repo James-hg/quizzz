@@ -10,6 +10,11 @@ export type GenerateOptions = {
   /** Hard deadline for the whole call, including any repair retry. */
   timeoutMs?: number;
   signal?: AbortSignal;
+  /**
+   * Called with the token counts the provider reported for one invocation (summed over any repair
+   * request). Never called when the provider reports none.
+   */
+  onUsage?: (usage: { inputTokens?: number; outputTokens?: number }) => void;
 };
 
 export const DEFAULT_TIMEOUT_MS = 30_000;
@@ -17,6 +22,8 @@ export const DEFAULT_MAX_OUTPUT_TOKENS = 1024;
 
 export interface AiProvider {
   readonly name: string;
+  /** The configured model id, when there is one. Safe to log. */
+  readonly model?: string;
   generateText(input: string | AiMessage[], options?: GenerateOptions): Promise<string>;
   /**
    * Asks for JSON, parses it, and validates it with `schema`. One bounded repair retry,
