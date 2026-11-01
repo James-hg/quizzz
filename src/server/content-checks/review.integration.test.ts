@@ -619,3 +619,52 @@ describe("audit rows", () => {
     expect(before.every((r) => r.validatorVersion === "b6.1")).toBe(true);
   });
 });
+
+describe("backfill", () => {
+  it("reports without changing anything, then sends failing approved content back to review", async () => {
+    const { backfillContentChecks } = await import("./backfill");
+    const set = await makeSet();
+    // A sample question approved before the checks existed, with a broken key.
+    const [q] = await db
+      .insert(questions)
+      .values({ questionSetId: set.id, position: 0 })
+      .returning();
+    const bad = await addRevision(db, q!.id, {
+      type: "mcq_single",
+      prompt: "Legacy",
+      codeSnippet: null,
+      explanation: null,
+      options: OPTIONS,
+      answerKey: { kind: "options", correctOptionIds: ["a", "b"] },
+      origin: "sample",
+      evidenceStatus: "human_reviewed",
+      createdBy: alice.id,
+    });
+    // A good one that must be left alone.
+    const [good] = await saveProposals(db, alice.id, set.id, [content()]);
+    await approve(good!.revisionId);
+    expect(await playable(set.id)).toContain(q!.id);
+
+    const dry = await backfillContentChecks(db, { apply: false });
+    expect(dry.failing.map((f) => f.revisionId)).toContain(bad.id);
+    expect(dry.quarantined).toBe(0);
+    expect(await latestChecks(db, bad.id)).toBeNull();
+    expect(await playable(set.id)).toContain(q!.id);
+
+    const applied = await backfillContentChecks(db, { apply: true });
+    expect(applied.quarantined).toBeGreaterThanOrEqual(1);
+    const now = await getQuestion(db, alice.id, q!.id);
+    expect(now).toMatchObject({
+      evidenceStatus: "needs_review",
+      status: "excluded",
+      revisionNumber: 2,
+    });
+    const [old] = await db.select().from(questionRevisions).where(eq(questionRevisions.id, bad.id));
+    expect(old!.evidenceStatus).toBe("human_reviewed");
+    expect(await playable(set.id)).toEqual([good!.id]);
+
+    // Repeating changes nothing more.
+    const again = await backfillContentChecks(db, { apply: true });
+    expect(again.failing.map((f) => f.questionId)).not.toContain(q!.id);
+  });
+});

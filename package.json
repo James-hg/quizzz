@@ -22,6 +22,7 @@
     "fixtures:docx": "tsx scripts/make-docx-fixtures.ts",
     "check:bundle": "node scripts/check-bundle.mjs",
     "samples:validate": "tsx scripts/samples-validate.ts",
+    "content:backfill": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/backfill-content-checks.ts",
     "samples:load": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/samples-load.ts"
   },
   "dependencies": {
