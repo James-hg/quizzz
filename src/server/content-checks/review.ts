@@ -46,7 +46,8 @@ export const citationSchema = z.object({
   excerpt: z.string().max(1_000).nullish(),
 });
 export const editSchema = z.object({
-  patch: patchQuestionSchema.omit({ approve: true }),
+  /** `approve` is ignored: only the approve action approves. */
+  patch: patchQuestionSchema,
   citations: z.array(citationSchema).max(20).optional(),
 });
 export const approveSelectedSchema = z.object({
@@ -217,7 +218,10 @@ export async function editRevision(
     if (loaded.revision.origin === "original") {
       throw badRequest("Edit your own questions in the question editor.", "use_editor");
     }
-    const view = await updateQuestion(database, userId, loaded.question.id, input.patch);
+    const view = await updateQuestion(database, userId, loaded.question.id, {
+      ...input.patch,
+      approve: false,
+    });
     if (input.citations) {
       const baseline = await importedBaseline(database, loaded.question.id);
       const { cited } = await evaluateCandidate(
