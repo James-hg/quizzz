@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "study_sessions_live_course_uq" ON "study_sessions" USING btree ("user_id","course_id","mode") WHERE "study_sessions"."question_set_id" is null and "study_sessions"."state" in ('active', 'paused');

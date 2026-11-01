@@ -68,6 +68,12 @@ export const studySessions = pgTable(
     uniqueIndex("study_sessions_live_uq")
       .on(t.userId, t.questionSetId, t.mode)
       .where(sql`${t.state} in ('active', 'paused')`),
+    // Course-level review and exam sessions have no question set, and Postgres treats NULLs as
+    // distinct, so the index above cannot stop a second one: at most one live session per
+    // user, course, and mode.
+    uniqueIndex("study_sessions_live_course_uq")
+      .on(t.userId, t.courseId, t.mode)
+      .where(sql`${t.questionSetId} is null and ${t.state} in ('active', 'paused')`),
   ],
 );
 

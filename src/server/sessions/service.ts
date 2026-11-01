@@ -2,11 +2,12 @@ import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
 import { assertOwnsQuestionSet, assertOwnsSession } from "@/server/auth/ownership";
 import type { Database } from "@/server/db";
-import { attempts, studySessions } from "@/server/db/schema";
+import { studySessions } from "@/server/db/schema";
 import { playabilityForSet } from "@/server/content/playability";
 import type { RevealMode } from "./reveal";
 import { listPlayableItems } from "@/server/content/questions";
 import { conflict, notFound } from "@/server/http/errors";
+import { loadAttemptFacts, tallyAttempts } from "./results";
 import { buildSessionView, elapsedSecondsAt, type SessionRow } from "./view";
 
 const isUniqueViolation = (error: unknown) =>
@@ -173,33 +174,27 @@ export async function completeSession(
   });
 
   const view = await getSession(db, userId, sessionId, now);
-  const rows = await db
-    .select({ outcome: attempts.gradingOutcome, pass: attempts.pass })
-    .from(attempts)
-    .where(eq(attempts.sessionId, sessionId));
-  const tally = (pass: number) => {
-    const mine = rows.filter((r) => r.pass === pass);
-    const count = (outcome: string) => mine.filter((r) => r.outcome === outcome).length;
-    return {
-      answered: mine.length,
-      correct: count("correct"),
-      incorrect: count("incorrect"),
-      uncertain: count("uncertain"),
-    };
-  };
-  const first = tally(1);
-  const retry = tally(2);
+  const { first, retry } = tallyAttempts(await loadAttemptFacts(db, sessionId));
   const firstPassItems = view.items.filter((i) => i.pass === 1);
   const removed = firstPassItems.filter((i) => i.status === "removed").length;
   return {
     session: view,
     summary: {
-      // The questions in the set for this session, counted once. Top-level counts are first
-      // tries only (independent answers); retries are reported separately.
+      // The questions in the session, counted once. Top-level counts are first tries only
+      // (independent answers); retries are reported separately.
       totalItems: firstPassItems.length,
-      ...first,
+      answered: first.answered,
+      correct: first.correct,
+      incorrect: first.incorrect,
+      uncertain: first.uncertain,
       unanswered: firstPassItems.length - removed - first.answered,
-      retry: { total: view.progress.retries, ...retry },
+      retry: {
+        total: view.progress.retries,
+        answered: retry.answered,
+        correct: retry.correct,
+        incorrect: retry.incorrect,
+        uncertain: retry.uncertain,
+      },
       revealMode: view.revealMode,
       elapsedSeconds: view.elapsedSeconds,
     },

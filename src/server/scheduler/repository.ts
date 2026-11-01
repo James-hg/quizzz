@@ -52,7 +52,7 @@ export async function claimHelpEvents(db: Database, attemptId: string, ids: stri
   await db.update(helpEvents).set({ attemptId }).where(inArray(helpEvents.id, ids));
 }
 
-const toSnapshot = (row: typeof reviewStates.$inferSelect): ReviewSnapshot => ({
+export const toSnapshot = (row: typeof reviewStates.$inferSelect): ReviewSnapshot => ({
   state: row.state,
   stepIndex: row.stepIndex,
   nextDueAt: row.nextDueAt,
