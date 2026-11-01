@@ -2,11 +2,12 @@ const ORIGIN = "http://localhost:3000";
 
 export function authRequest(
   path: string,
-  init: { method?: string; body?: unknown; cookie?: string } = {},
+  init: { method?: string; body?: unknown; cookie?: string; headers?: Record<string, string> } = {},
 ) {
   const headers = new Headers({ origin: ORIGIN });
   if (init.body !== undefined) headers.set("content-type", "application/json");
   if (init.cookie) headers.set("cookie", init.cookie);
+  for (const [name, value] of Object.entries(init.headers ?? {})) headers.set(name, value);
   return new Request(`${ORIGIN}${path}`, {
     method: init.method ?? (init.body !== undefined ? "POST" : "GET"),
     headers,
