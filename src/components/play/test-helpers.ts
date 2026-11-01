@@ -24,6 +24,7 @@ export const session = (overrides: Partial<PlaySession> = {}): PlaySession => ({
   elapsedSeconds: 0,
   currentIndex: 0,
   revealMode: "each",
+  timeBudgetMinutes: null,
   progress: { total: 2, answered: 0, removed: 0, retries: 0 },
   items: [
     { questionId: "q1", position: 0, pass: 1, status: "pending" },

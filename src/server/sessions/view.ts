@@ -178,6 +178,7 @@ export async function buildSessionView(db: Database, session: SessionRow, now: D
     courseId: session.courseId,
     mode: session.mode,
     revealMode: session.revealMode,
+    timeBudgetMinutes: session.timeBudgetMinutes,
     state: session.state,
     startedAt: session.startedAt,
     completedAt: session.completedAt,

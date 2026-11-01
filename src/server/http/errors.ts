@@ -13,6 +13,7 @@ export class ApiError extends Error {
   }
 }
 
+export const forbidden = (message: string, code = "forbidden") => new ApiError(403, code, message);
 export const unauthorized = (message = "Authentication required") =>
   new ApiError(401, "unauthorized", message);
 /** Used for both missing and not-owned resources so existence is never leaked. */
