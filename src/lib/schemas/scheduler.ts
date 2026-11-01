@@ -21,6 +21,11 @@ export const schedulerPolicyConfigSchema = z
     assistedAdvances: z.boolean(),
     /** After a lapse (a miss on review), how many interval steps to go back. */
     onLapse: z.object({ stepBack: z.number().int().min(0).max(12) }).strict(),
+    /**
+     * The most reviews offered on one local day. Anything beyond it is deferred to later days,
+     * not marked as failed. Versions stored before this existed read as 20.
+     */
+    maxReviewsPerDay: z.number().int().min(1).max(500).default(20),
   })
   .strict()
   .refine((c) => c.onLapse.stepBack <= c.intervalsDays.length, {

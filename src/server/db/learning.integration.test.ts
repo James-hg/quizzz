@@ -114,6 +114,8 @@ describe("scheduler policy v1", () => {
       intervalsDays: [1, 3, 7, 14],
       assistedAdvances: false,
       onLapse: { stepBack: 1 },
+      // Not in the stored row; the schema supplies the default.
+      maxReviewsPerDay: 20,
     });
   });
 

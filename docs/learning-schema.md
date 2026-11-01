@@ -41,8 +41,9 @@ one. Two places record that.
   reference it.
 - **`review_states`**: one row per `(user, question)`: `state` (`new`, `learning`, `reviewing`,
   `suspended`), `step_index`, `next_due_at` (timestamptz), `last_independent_success_at`,
-  `delayed_success_count`, `distinct_success_days`, `lapses`, and the policy version. Filled by
-  the scheduler (B2) and planner (B3).
+  `delayed_success_count`, `distinct_success_days`, `lapses`, the policy version, `last_reason`
+  (why the schedule is what it is, in plain words) and `last_attempt_id`. Filled by the scheduler
+  (B2); the planner (B3) reads it. See [review-scheduler.md](review-scheduler.md).
 
 ## Concepts
 

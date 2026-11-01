@@ -150,6 +150,10 @@ export const reviewStates = pgTable(
       .notNull()
       .default("v1")
       .references(() => schedulerPolicies.version, { onDelete: "restrict" }),
+    /** Why the schedule is what it is, in words the student can read. */
+    lastReason: text("last_reason"),
+    /** The attempt that last changed this state. */
+    lastAttemptId: uuid("last_attempt_id").references(() => attempts.id, { onDelete: "set null" }),
     updatedAt: tz("updated_at").notNull().defaultNow(),
   },
   (t) => [
