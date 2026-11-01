@@ -111,6 +111,16 @@ The server grades; answer keys, explanations and correctness never reach the bro
 | `PATCH /api/sessions/:id` `{ action: "pause" \| "resume" }` | Elapsed time only counts while active. |
 | `POST /api/sessions/:id/complete` | End the session (also with unanswered items); returns a summary. |
 
+### Today's session (course-level)
+
+| Route | Purpose |
+| --- | --- |
+| `GET /api/today?courseId=` | Recommendation for the course: recommended budget (5, 10 or 20 minutes), what each budget would hold, counts of due, deferred and new questions, and reasons. Metadata only: no question text or answers. `400` without exactly one course id, `404` for a course that is not yours. |
+| `POST /api/sessions` `{ courseId, mode: "review" \| "exam", timeBudgetMinutes: 5 \| 10 \| 20 }` | Resume the live session of that kind for the course (200) or plan and create one (201, with `plan: { estimatedSeconds, reasons, limitedBy }`). The reveal mode is fixed by the mode (`review` is `requeue`, `exam` is `end`); a body that sets `revealMode` or `questionSetId` is rejected. `409 no_playable_questions` with course counts when nothing can be practised. |
+| `GET /api/sessions/:id/results` | Results of an ended session (`409 session_in_progress` while it is active or paused). |
+
+The answer response includes `sessionEnded`: true when the time budget ran out with that answer. See [planner.md](planner.md) for how questions are chosen. In an exam, hints are refused with `403 help_disabled_in_exam`.
+
 **Reveal modes** (`revealMode`, fixed when the session is created; resuming a session keeps its mode, so a different value sent while one is running is ignored):
 
 | Mode | During the session | After it ends |

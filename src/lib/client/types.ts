@@ -153,6 +153,8 @@ export type PlaySession = {
   courseId: string;
   mode: string;
   revealMode: RevealMode;
+  /** Set for planned review and exam sessions: new questions stop once it is used up. */
+  timeBudgetMinutes: number | null;
   state: "active" | "paused" | "completed" | "abandoned";
   startedAt: string;
   completedAt: string | null;

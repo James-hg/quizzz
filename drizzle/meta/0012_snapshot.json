@@ -1,5 +1,5 @@
 {
-  "id": "38a7c58c-5750-4a0f-b7b1-86adf3f24876",
+  "id": "ff496f9d-abf5-4bd3-bdc7-3125a9c60711",
   "prevId": "554f77c6-b8fe-4520-ad16-7c022fe93e38",
   "version": "7",
   "dialect": "postgresql",
@@ -965,6 +965,34 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "study_sessions_live_course_uq": {
+          "name": "study_sessions_live_course_uq",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "course_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "mode",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"study_sessions\".\"question_set_id\" is null and \"study_sessions\".\"state\" in ('active', 'paused')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -1210,16 +1238,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "search_vector": {
-          "name": "search_vector",
-          "type": "tsvector",
-          "primaryKey": false,
-          "notNull": false,
-          "generated": {
-            "as": "to_tsvector('simple'::regconfig, coalesce(\"text\", ''))",
-            "type": "stored"
-          }
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1228,23 +1246,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "source_segments_search_idx": {
-          "name": "source_segments_search_idx",
-          "columns": [
-            {
-              "expression": "search_vector",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "gin",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "source_segments_source_document_id_source_documents_id_fk": {
           "name": "source_segments_source_document_id_source_documents_id_fk",
