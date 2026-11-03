@@ -97,7 +97,8 @@ export function loadEvalDir(
   const taskFiles = new Set(EVAL_TASKS.map((t) => `${t}.jsonl`));
   for (const language of readdirSync(dir).sort()) {
     const langDir = path.join(dir, language);
-    if (!isDir(langDir) || language.startsWith(".")) continue;
+    // Drafts are loaded only when asked for by pointing --dir at them, never mixed into a run.
+    if (!isDir(langDir) || language.startsWith(".") || language === "drafts") continue;
     if (filter.language && language !== filter.language) continue;
     for (const name of readdirSync(langDir).sort()) {
       const file = path.join(langDir, name);

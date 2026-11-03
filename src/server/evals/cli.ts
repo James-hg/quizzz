@@ -157,8 +157,10 @@ export async function runCli(args: string[], deps: CliDeps): Promise<number> {
       deps.error(`--max-cases is limited to ${MAX_LIVE_CASES} per run.`);
       return 1;
     }
-    if (cases.some((c) => c.case.kind === "smoke")) {
-      deps.error("Smoke fixtures only test the harness and are never sent to a live model.");
+    if (cases.some((c) => c.case.kind !== "checked")) {
+      deps.error(
+        "Only checked cases are sent to a live model. Smoke fixtures and unchecked drafts are not.",
+      );
       return 1;
     }
   } else if (o.live) {
@@ -231,7 +233,11 @@ export async function runCli(args: string[], deps: CliDeps): Promise<number> {
     provider: o.provider,
     model: live ? o.model : "mock",
     // Mock output proves the plumbing works. It says nothing about any model.
-    evidence: live ? "live" : "smoke",
+    evidence: live
+      ? "live"
+      : cases.some((c) => c.case.kind === "draft")
+        ? "smoke (unchecked drafts)"
+        : "smoke",
     researchOnly: tasks.includes("short_answer_grading")
       ? "short_answer_grading: the app grades deterministically; a model grader is measured for comparison only"
       : undefined,

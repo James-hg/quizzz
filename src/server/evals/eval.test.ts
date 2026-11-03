@@ -98,6 +98,18 @@ describe("case schema", () => {
     expect(parse(hintCase(over as Record<string, unknown>)).success).toBe(false);
   });
 
+  it("keeps drafts apart from checked cases", () => {
+    const draft = {
+      ...hintCase({ kind: "draft", draftNotes: "Check the passage wording." }),
+      review: undefined,
+    };
+    expect(parse(draft).success).toBe(true);
+    // A draft never carries a review, so it cannot pass for a checked case.
+    expect(parse({ ...draft, review }).success).toBe(false);
+    expect(parse({ ...draft, draftNotes: undefined }).success).toBe(false);
+    expect(parse(hintCase({ draftNotes: "only for drafts" })).success).toBe(false);
+  });
+
   it("requires an explanation case to name the answer it should reach", () => {
     const base = hintCase({
       task: "explanation",
@@ -162,6 +174,20 @@ describe("loading", () => {
     expect(hints.fixtureHash).not.toBe(all.fixtureHash);
     expect(loadEvalDir(SMOKE).fixtureHash).toBe(all.fixtureHash);
     expect(loadEvalDir(SMOKE, { language: "java" }).cases).toEqual([]);
+  });
+
+  it("never mixes drafts into a run of the checked set", () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "evals-drafts-"));
+    mkdirSync(path.join(dir, "python"));
+    mkdirSync(path.join(dir, "drafts", "python"), { recursive: true });
+    writeFileSync(path.join(dir, "python", "hint.jsonl"), JSON.stringify(hintCase()) + "\n");
+    const draft = {
+      ...hintCase({ id: "d1", kind: "draft", draftNotes: "Check it." }),
+      review: undefined,
+    };
+    writeFileSync(path.join(dir, "drafts", "python", "hint.jsonl"), JSON.stringify(draft) + "\n");
+    expect(loadEvalDir(dir).cases.map((c) => c.case.id)).toEqual(["hint-1"]);
+    expect(loadEvalDir(path.join(dir, "drafts")).cases.map((c) => c.case.id)).toEqual(["d1"]);
   });
 
   it("reports a missing folder, unknown task files and ids reused across files", () => {
@@ -700,6 +726,22 @@ describe("command line", () => {
         ),
       ).toBe(1);
       expect(await runCli(["--live", "--dir", SMOKE], harness().deps)).toBe(1);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("never sends unchecked drafts to a live model", async () => {
+      const dir = mkdtempSync(path.join(os.tmpdir(), "evals-live-drafts-"));
+      mkdirSync(path.join(dir, "python"));
+      const draft = { ...hintCase({ kind: "draft", draftNotes: "Check it." }), review: undefined };
+      writeFileSync(path.join(dir, "python", "hint.jsonl"), JSON.stringify(draft) + "\n");
+      const fetchSpy = vi.fn();
+      const h = harness({ GEMINI_API_KEY: KEY }, fetchSpy as unknown as typeof fetch);
+      expect(
+        await runCli(
+          ["--provider", "gemini", "--live", "--model", "m", "--max-cases", "1", "--dir", dir],
+          h.deps,
+        ),
+      ).toBe(1);
       expect(fetchSpy).not.toHaveBeenCalled();
     });
 

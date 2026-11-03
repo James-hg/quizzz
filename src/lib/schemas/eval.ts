@@ -127,17 +127,25 @@ const base = {
   language: z.string().regex(/^[a-z0-9_+-]{1,30}$/),
   allowedCitationIds: z.array(localId).max(5).default([]),
   tags: z.array(z.enum(EVAL_TAGS)).max(EVAL_TAGS.length).default([]),
+  /** Who checked the case, when, and why the expected answer is right. Drafts have none. */
   review: z
     .object({
       checkedBy: text(100),
       checkedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "use YYYY-MM-DD"),
       rationale: z.string().trim().min(10).max(1_000),
     })
-    .strict(),
+    .strict()
+    .optional(),
+  /** For a draft only: what the reviewer must verify before it can be used. */
+  draftNotes: z.string().trim().min(1).max(1_000).optional(),
   /** Where the content came from and its version, so a change in the source is noticed. */
   sourceVersion: text(100),
-  /** `smoke` cases only test the harness. They are never quality evidence and never sent live. */
-  kind: z.enum(["checked", "smoke"]).default("checked"),
+  /**
+   * `smoke` cases only test the harness. `draft` cases were written by a model for the owner to
+   * check: they have no review, are never quality evidence and are never sent live. Only
+   * `checked` cases count.
+   */
+  kind: z.enum(["checked", "smoke", "draft"]).default("checked"),
 };
 
 export const evalCaseSchema = z
@@ -170,6 +178,14 @@ export const evalCaseSchema = z
   .superRefine((value, ctx) => {
     const issue = (path: (string | number)[], message: string) =>
       ctx.addIssue({ code: "custom", path, message });
+    if (value.kind === "draft") {
+      // A draft must not look checked: a person adds the review when they promote it.
+      if (value.review) issue(["review"], "a draft has no review; set kind to checked when you add one");
+      if (!value.draftNotes) issue(["draftNotes"], "say what the reviewer must verify");
+    } else {
+      if (!value.review) issue(["review"], "who checked this case, when, and why is required");
+      if (value.draftNotes) issue(["draftNotes"], "only drafts have draft notes");
+    }
     const passageIds =
       value.task === "hint" || value.task === "explanation"
         ? value.input.passages.map((p) => p.id)
