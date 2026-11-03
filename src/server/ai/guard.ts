@@ -156,7 +156,7 @@ export async function withAiOperation<T>(
       })
       .where(eq(aiCallLogs.id, logId));
     if (outcome === "quota") await recordQuotaError(db, current);
-    else if (outcome === "success") await recordProviderSuccess(db);
+    else if (outcome === "success") await recordProviderSuccess(db, current);
   };
 
   const metered: AiProvider = {

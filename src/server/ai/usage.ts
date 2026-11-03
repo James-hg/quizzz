@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, gt, lt, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, lt, sql } from "drizzle-orm";
 import type { Database } from "@/server/db";
 import { aiCallLeases, aiProviderState, aiRateWindows, aiUsage } from "@/server/db/schema";
 import { AiBusy, AiPaused, AiRateLimited } from "./errors";
@@ -207,17 +207,22 @@ export async function recordQuotaError(
   });
 }
 
-/** A provider call worked: the quota problem is over. */
-export async function recordProviderSuccess(db: Database): Promise<void> {
+/**
+ * A provider call worked. Only the trial that follows a cooldown ends a pause; a call admitted
+ * before the pause that happens to finish later does not. Outside a pause it clears the streak.
+ */
+export async function recordProviderSuccess(db: Database, admission: Admission): Promise<void> {
+  if (admission.isProbe) {
+    await db
+      .update(aiProviderState)
+      .set({ quotaErrorStreak: 0, lastQuotaErrorAt: null, pausedUntil: null, probeLeaseId: null })
+      .where(and(eq(aiProviderState.id, 1), eq(aiProviderState.probeLeaseId, admission.leaseId)));
+    return;
+  }
   await db
     .update(aiProviderState)
-    .set({ quotaErrorStreak: 0, lastQuotaErrorAt: null, pausedUntil: null, probeLeaseId: null })
-    .where(
-      and(
-        eq(aiProviderState.id, 1),
-        sql`(${aiProviderState.quotaErrorStreak} > 0 or ${aiProviderState.pausedUntil} is not null)`,
-      ),
-    );
+    .set({ quotaErrorStreak: 0, lastQuotaErrorAt: null })
+    .where(and(eq(aiProviderState.id, 1), isNull(aiProviderState.pausedUntil)));
 }
 
 /** `pausedUntil` is set while paused and stays set (in the past) until a trial succeeds. */

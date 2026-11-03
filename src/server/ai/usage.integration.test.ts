@@ -182,10 +182,19 @@ describe("provider quota pause", () => {
     await pause();
     const cooled = after(PAUSE_MS + 1000);
     const trial = await admit(alice, {}, cooled);
-    await recordProviderSuccess(db);
+    await recordProviderSuccess(db, trial);
     await releaseAiOperation(db, trial);
     expect(await readPausedUntil(db)).toBeNull();
     expect((await admit(bob, {}, cooled)).isProbe).toBe(false);
+  });
+
+  it("keeps the pause when a call admitted before it finishes successfully", async () => {
+    const slow = await admit(bob, {}, t0);
+    await pause();
+    await recordProviderSuccess(db, slow);
+    await releaseAiOperation(db, slow);
+    await expect(admit(alice, {}, after(1000))).rejects.toBeInstanceOf(AiPaused);
+    expect(await readPausedUntil(db)).not.toBeNull();
   });
 
   it("pauses again straight away when the trial hits quota", async () => {
