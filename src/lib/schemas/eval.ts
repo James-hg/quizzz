@@ -180,7 +180,8 @@ export const evalCaseSchema = z
       ctx.addIssue({ code: "custom", path, message });
     if (value.kind === "draft") {
       // A draft must not look checked: a person adds the review when they promote it.
-      if (value.review) issue(["review"], "a draft has no review; set kind to checked when you add one");
+      if (value.review)
+        issue(["review"], "a draft has no review; set kind to checked when you add one");
       if (!value.draftNotes) issue(["draftNotes"], "say what the reviewer must verify");
     } else {
       if (!value.review) issue(["review"], "who checked this case, when, and why is required");
