@@ -1,8 +1,9 @@
 # Evaluation sets
 
 Checked examples used to compare Gemini models and to decide which AI features are good enough
-to ship. **This folder is empty on purpose.** Cases here must be checked by a person, so no model
-can be chosen or praised until the owner adds some. The harness itself is tested with synthetic
+to ship. **There are no checked cases yet.** Cases here must be checked by a person, so no model
+can be chosen or praised until the owner adds some. `evals/drafts/` holds 80 AI-drafted Python
+cases waiting for that review (see its README); they are never part of a run until promoted. The harness itself is tested with synthetic
 smoke fixtures in `src/test/fixtures/eval-smoke/`, which are never quality evidence.
 
 ## Layout
@@ -24,6 +25,7 @@ Each line is one JSON object. Common fields:
 | `id` | Unique across all files. Lowercase letters, digits, `.` `_` `-`. |
 | `task`, `language` | Must match the file path. |
 | `allowedCitationIds` | Passage ids (from `input.passages`) the help may cite. Empty when no passage genuinely supports the answer. |
+| `kind` | `checked` (the default) for a reviewed case. `draft` and `smoke` are never evidence and never sent live. |
 | `tags` | Any of `missing_source`, `misleading_key`, `ambiguous`, `prompt_injection`, `alternative_valid_answer`, `subject_edge_case`, `retry_protected`. |
 | `review` | `{ "checkedBy", "checkedAt": "YYYY-MM-DD", "rationale" }`. Who checked the expected answer, when, and why it is right. Required. |
 | `sourceVersion` | Where the content came from and its version. |

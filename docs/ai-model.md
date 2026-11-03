@@ -58,18 +58,19 @@ in a provider-specific schema field, so unsupported schema keywords can never re
 grader), so it measures the system the app runs, not a copy of it. How to write cases and run it
 is in [`evals/README.md`](../evals/README.md).
 
-**Status on 2026-11-01: the harness is built; no model has been evaluated and no default has
-been chosen.** `evals/` has no checked cases yet (they must be checked by the owner; the
-AI-drafted sample courses are not), and no live run has been made. So every task below is
+**Status on 2026-11-02: the harness is built; no model has been evaluated and no default has
+been chosen.** `evals/` has no checked cases yet. 80 AI-drafted Python cases (20 per task) wait in
+`evals/drafts/` for the owner to check and promote; drafts are not evidence and are never sent
+live. The AI-drafted sample courses are not checked either. No live run has been made. So every task below is
 **unvalidated**, `gemini-2.5-flash` stays a provisional default, and no feature is yet declared
 withheld or released on the strength of a measurement.
 
 | Task | Checked cases | Live results | Decision |
 | --- | --- | --- | --- |
-| Hints (`small_hint`, `why_wrong`) | 0 | none | unvalidated |
-| Explanations | 0 | none | unvalidated |
-| Question generation | 0 | none | unvalidated |
-| Short-answer grading (research only: the app grades deterministically) | 0 | none | unvalidated |
+| Hints (`small_hint`, `why_wrong`) | 0 (20 Python drafts) | none | unvalidated |
+| Explanations | 0 (20 Python drafts) | none | unvalidated |
+| Question generation | 0 (20 Python drafts) | none | unvalidated |
+| Short-answer grading (research only: the app grades deterministically) | 0 (20 Python drafts) | none | unvalidated |
 
 ### Gates, set before any live result
 
