@@ -220,3 +220,53 @@ describe("createProvider", () => {
     expect(DEFAULT_GEMINI_MODEL).not.toBe("gemini-2.0-flash");
   });
 });
+
+describe("GeminiProvider token usage", () => {
+  const withUsage = (text: string, usage?: object) =>
+    ok({ ...reply(text), ...(usage ? { usageMetadata: usage } : {}) });
+
+  it("reports the tokens Gemini returned, summed over a repair request", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        withUsage("nope", { promptTokenCount: 10, candidatesTokenCount: 2, totalTokenCount: 12 }),
+      )
+      .mockResolvedValueOnce(
+        withUsage('{"title":"x"}', { promptTokenCount: 14, candidatesTokenCount: 5 }),
+      );
+    const seen: object[] = [];
+    await provider(fetchMock).generateStructured("q", schema, { onUsage: (u) => seen.push(u) });
+    expect(seen).toEqual([
+      { inputTokens: 10, outputTokens: 2 },
+      { inputTokens: 14, outputTokens: 5 },
+    ]);
+  });
+
+  it("reports nothing when the response has no usage metadata", async () => {
+    const onUsage = vi.fn();
+    await provider(vi.fn().mockResolvedValue(withUsage("hi"))).generateText("q", { onUsage });
+    expect(onUsage).not.toHaveBeenCalled();
+  });
+
+  it("uses only the last streamed usage, since each chunk repeats the running totals", async () => {
+    const sse = (u: object, text: string) =>
+      `data: ${JSON.stringify({ ...reply(text), usageMetadata: u })}\n\n`;
+    const body =
+      sse({ promptTokenCount: 8, candidatesTokenCount: 1 }, "a") +
+      sse({ promptTokenCount: 8, candidatesTokenCount: 4 }, "b");
+    const onUsage = vi.fn();
+    const chunks: string[] = [];
+    for await (const c of provider(vi.fn().mockResolvedValue(new Response(body))).streamText("q", {
+      onUsage,
+    })) {
+      chunks.push(c);
+    }
+    expect(chunks).toEqual(["a", "b"]);
+    expect(onUsage).toHaveBeenCalledOnce();
+    expect(onUsage).toHaveBeenCalledWith({ inputTokens: 8, outputTokens: 4 });
+  });
+
+  it("exposes the configured model id", () => {
+    expect(provider(vi.fn()).model).toBe("gemini-test");
+  });
+});

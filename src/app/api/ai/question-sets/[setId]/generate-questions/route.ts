@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateQuestionsRequestSchema } from "@/lib/schemas";
 import { generateQuestionProposals } from "@/server/ai/assistant";
-import { chargeAiQuota, requireAi } from "@/server/ai/guard";
+import { requireAi, withAiOperation } from "@/server/ai/guard";
 import { assertOwnsQuestionSet } from "@/server/auth/ownership";
 import { getDb } from "@/server/db";
 import { handleRoute } from "@/server/http/errors";
@@ -19,8 +19,12 @@ export const POST = handleRoute(async (request: Request, { params }: Ctx) => {
   const input = await readJson(request, generateQuestionsRequestSchema);
   const db = getDb();
   await assertOwnsQuestionSet(db, user.id, setId);
-  await chargeAiQuota(db, user.id);
-  const result = await generateQuestionProposals(db, provider, user.id, setId, input);
+  const result = await withAiOperation(
+    db,
+    { userId: user.id, route: "generate_questions" },
+    provider,
+    (metered) => generateQuestionProposals(db, metered, user.id, setId, input),
+  );
   return NextResponse.json({
     ...result,
     origin: "ai_proposed",

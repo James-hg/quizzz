@@ -1,3 +1,4 @@
+import { resetAiState } from "@/test/ai-state";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 process.env.AI_REQUESTS_PER_HOUR = "30";
@@ -44,7 +45,10 @@ beforeAll(async () => {
   setId = (await createQuestionSet(db, alice.id, course.id, "Flow")).id;
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
-afterEach(() => setAiProviderForTesting(undefined));
+afterEach(async () => {
+  setAiProviderForTesting(undefined);
+  await resetAiState(db);
+});
 afterAll(async () => {
   vi.restoreAllMocks();
   await deleteUsers(db, [alice.id, bob.id]);

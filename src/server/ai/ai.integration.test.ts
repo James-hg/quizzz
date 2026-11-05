@@ -11,6 +11,7 @@ import { POST as titlePost } from "@/app/api/ai/question-sets/[setId]/suggest-ti
 import { GET as coursesGet } from "@/app/api/courses/route";
 import { POST as restorePost } from "@/app/api/questions/[questionId]/restore/route";
 import { PATCH as questionPatch } from "@/app/api/questions/[questionId]/route";
+import { resetAiState } from "@/test/ai-state";
 import { authRequest } from "@/test/auth-helpers";
 import { deleteUsers, signUpUser, type TestUser } from "@/test/users";
 import { createCourse } from "@/server/content/courses";
@@ -91,6 +92,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   vi.spyOn(console, "error").mockImplementation(() => {});
+  await resetAiState(db);
   await db.delete(aiUsage).where(eq(aiUsage.userId, alice.id));
   const course = await createCourse(db, alice.id, {
     title: "CS 101",
