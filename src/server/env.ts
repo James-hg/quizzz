@@ -27,6 +27,30 @@ export const envSchema = z.object({
     (value) => (value === "" ? undefined : value),
     z.coerce.number().int().positive().default(30),
   ),
+  AI_REQUESTS_PER_MINUTE: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().positive().max(1000).default(10),
+  ),
+  AI_REQUESTS_PER_DAY: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().positive().max(100000).default(100),
+  ),
+  AI_GLOBAL_REQUESTS_PER_DAY: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().positive().max(1000000).default(500),
+  ),
+  AI_MAX_CONCURRENT_CALLS: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().positive().max(100).default(2),
+  ),
+  AI_MAX_INPUT_CHARS: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().positive().max(1000000).default(100000),
+  ),
+  AI_MAX_OUTPUT_TOKENS: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().positive().max(65536).default(4096),
+  ),
   MAX_IMAGE_BYTES: z.preprocess(
     (value) => (value === "" ? undefined : value),
     z.coerce

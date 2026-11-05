@@ -11,7 +11,7 @@ import {
   type HelpRequest,
   type HelpResponse,
 } from "@/lib/schemas";
-import { chargeAiQuota, requireAi } from "@/server/ai/guard";
+import { requireAi, withAiOperation } from "@/server/ai/guard";
 import { DEFAULT_GEMINI_MODEL } from "@/server/ai";
 import { AiInvalidOutput, AiUnavailable } from "@/server/ai/errors";
 import { DATA_NOT_INSTRUCTIONS, delimitData } from "@/server/ai/prompt";
@@ -372,12 +372,10 @@ async function generate(db: Database, request: Request, turn: Turn): Promise<Gen
   const passages = await passagesFor(db, turn);
   const { system, prompt } = buildPrompt(turn, passages, imageAlt);
 
-  await chargeAiQuota(db, user.id);
   const started = Date.now();
-  const output = await provider.generateStructured(prompt, tutorOutputSchema, {
-    system,
-    ...TUTOR_CALL_OPTIONS,
-  });
+  const output = await withAiOperation(db, { userId: user.id, route: "help" }, provider, (m) =>
+    m.generateStructured(prompt, tutorOutputSchema, { system, ...TUTOR_CALL_OPTIONS }),
+  );
   const latencyMs = Date.now() - started;
 
   const shaped = shapeOutput(turn, output, passages);
