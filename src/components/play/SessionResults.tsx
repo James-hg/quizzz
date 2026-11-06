@@ -44,9 +44,9 @@ export function SessionResults({
 
   useEffect(() => {
     let cancelled = false;
-    apiFetch<Results>(`/api/sessions/${sessionId}/results`)
+    apiFetch<{ results: Results }>(`/api/sessions/${sessionId}/results`)
       .then((data) => {
-        if (!cancelled) setResults(data);
+        if (!cancelled) setResults(data.results);
       })
       .catch((e) => {
         if (!cancelled) setError(errorMessage(e));

@@ -34,7 +34,7 @@ beforeEach(() => {
         });
       }
       if (url.endsWith("/results")) {
-        return new Response(JSON.stringify(resultsBody), {
+        return new Response(JSON.stringify({ results: resultsBody }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });

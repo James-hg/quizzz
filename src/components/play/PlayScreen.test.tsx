@@ -31,7 +31,7 @@ beforeEach(() => {
       calls.push(call);
       // Not about the answer being given: the AI status line and the finished report.
       if (call.url === "/api/ai/status") return json({ state: "available", message: "ok" });
-      if (call.url.endsWith("/results")) return json(results());
+      if (call.url.endsWith("/results")) return json({ results: results() });
       for (const handler of handlers) {
         const response = await handler(call);
         if (response) return response;

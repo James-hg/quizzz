@@ -80,7 +80,7 @@ beforeEach(() => {
       calls.push(call);
       if (url === "/api/ai/status") return json(aiStatus);
       if (url.endsWith("/help")) return helpReply(call);
-      if (url.endsWith("/results")) return json(results());
+      if (url.endsWith("/results")) return json({ results: results() });
       throw new Error(`unexpected request ${url}`);
     }),
   );

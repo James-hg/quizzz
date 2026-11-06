@@ -17,7 +17,7 @@ const json = (body: unknown, status = 200) =>
 function show(data: Results, props: { questionSetId?: string | null } = {}) {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => json(data)),
+    vi.fn(async () => json({ results: data })),
   );
   render(
     <SessionResults
@@ -156,7 +156,7 @@ describe("SessionResults", () => {
               },
               409,
             )
-          : json(results());
+          : json({ results: results() });
       }),
     );
     const user = userEvent.setup();
