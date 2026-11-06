@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { resetAiState } from "@/test/ai-state";
+import { grantAiConsent, resetAiState } from "@/test/ai-state";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { POST as answerPost } from "@/app/api/sessions/[sessionId]/answers/route";
 import { POST as helpPost } from "@/app/api/sessions/[sessionId]/help/route";
@@ -40,6 +40,7 @@ let bobCourseId: string;
 beforeAll(async () => {
   alice = await signUpUser(db);
   bob = await signUpUser(db);
+  await grantAiConsent(db, alice.id, bob.id);
   courseId = (await createCourse(db, alice.id, { title: "CS", subject: "S" })).id;
   bobCourseId = (await createCourse(db, bob.id, { title: "Bob", subject: "S" })).id;
   vi.spyOn(console, "error").mockImplementation(() => {});

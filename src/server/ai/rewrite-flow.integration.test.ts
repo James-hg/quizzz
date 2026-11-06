@@ -1,4 +1,4 @@
-import { resetAiState } from "@/test/ai-state";
+import { grantAiConsent, resetAiState } from "@/test/ai-state";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 process.env.AI_REQUESTS_PER_HOUR = "30";
@@ -41,6 +41,7 @@ const base: QuestionContent = {
 beforeAll(async () => {
   alice = await signUpUser(db);
   bob = await signUpUser(db);
+  await grantAiConsent(db, alice.id, bob.id);
   const course = await createCourse(db, alice.id, { title: "CS", subject: "Math" });
   setId = (await createQuestionSet(db, alice.id, course.id, "Flow")).id;
   vi.spyOn(console, "error").mockImplementation(() => {});

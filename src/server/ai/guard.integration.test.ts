@@ -12,7 +12,7 @@ import { GET as statusGet } from "@/app/api/ai/status/route";
 import { GET as coursesGet } from "@/app/api/courses/route";
 import { getDb } from "@/server/db";
 import { aiCallLeases, aiCallLogs, aiRateWindows, aiUsage } from "@/server/db/schema";
-import { resetAiState } from "@/test/ai-state";
+import { grantAiConsent, resetAiState } from "@/test/ai-state";
 import { authRequest } from "@/test/auth-helpers";
 import { deleteUsers, signUpUser, type TestUser } from "@/test/users";
 import { AiInputTooLarge, AiPaused, AiQuotaExceeded } from "./errors";
@@ -64,6 +64,7 @@ const logs = () =>
 
 beforeAll(async () => {
   alice = await signUpUser(db);
+  await grantAiConsent(db, alice.id);
 });
 beforeEach(async () => {
   vi.spyOn(console, "error").mockImplementation(() => {});

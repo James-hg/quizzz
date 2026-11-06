@@ -41,6 +41,19 @@ export class AiRateLimited extends ApiError {
   }
 }
 
+/** The user has not accepted the current AI data-handling notice. Recoverable by accepting it. */
+export class AiConsentRequired extends ApiError {
+  constructor(noticeVersion: string) {
+    super(
+      403,
+      "consent_required",
+      "Read and accept the AI data notice before using AI help. Practice works without it.",
+      { noticeVersion },
+    );
+    this.name = "AiConsentRequired";
+  }
+}
+
 /** Too many AI operations are running at once across the whole app. */
 export class AiBusy extends ApiError {
   constructor(message = "AI help is busy right now. Try again in a moment.") {

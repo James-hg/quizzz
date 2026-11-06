@@ -29,6 +29,22 @@ export const aiUsage = pgTable(
 );
 
 /**
+ * One row per user per notice version they accepted. Older versions stay as a record but only the
+ * current version permits AI use.
+ */
+export const aiConsents = pgTable(
+  "ai_consents",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    noticeVersion: text("notice_version").notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.noticeVersion] })],
+);
+
+/**
  * Request counters for the minute and UTC-day caps. `subject` is a user id, or `global` for the
  * app-wide daily cap. The hourly cap stays in `ai_usage`.
  */
