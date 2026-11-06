@@ -22,3 +22,6 @@ test-results/
 
 # curl cookie jars
 jar
+
+# Local evaluation runs (raw model answers, for human review)
+/evals/runs/

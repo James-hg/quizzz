@@ -40,6 +40,9 @@ jobs:
       - run: npm run samples:validate
       - run: npm run db:migrate
       - run: npm test
+      # Checks the evaluation harness end to end with canned answers: no key, no network. Its
+      # numbers are smoke evidence about the harness, never about a model.
+      - run: npm run eval -- --provider mock --dir src/test/fixtures/eval-smoke
       - run: npm run build
         env:
           # A recognizable value: check:bundle fails if it shows up in browser-visible output.
