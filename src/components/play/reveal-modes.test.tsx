@@ -6,7 +6,7 @@ import type { AnswerResult, PlayItem, PlayQuestion, PlaySession } from "@/lib/cl
 import { PlayScreen } from "./PlayScreen";
 import { describeCorrect, describeResponse } from "./review";
 import { initialState, playReducer, summarize } from "./state";
-import { result, session } from "./test-helpers";
+import { result, results, session } from "./test-helpers";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
@@ -14,9 +14,11 @@ vi.mock("next/navigation", () => ({
 
 let calls: { url: string; method: string; body: unknown }[];
 let answerBody: unknown;
+let resultsBody: unknown = results();
 
 beforeEach(() => {
   calls = [];
+  resultsBody = results();
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -25,6 +27,18 @@ beforeEach(() => {
         method: init?.method ?? "GET",
         body: init?.body ? JSON.parse(String(init.body)) : undefined,
       });
+      if (url === "/api/ai/status") {
+        return new Response(JSON.stringify({ state: "available", message: "ok" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (url.endsWith("/results")) {
+        return new Response(JSON.stringify(resultsBody), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
       return new Response(JSON.stringify(answerBody), {
         status: 201,
         headers: { "Content-Type": "application/json" },
@@ -114,7 +128,7 @@ describe("requeue mode", () => {
     answerBody = { result: hidden(), requeued: false, progress: { answered: 1, total: 2 } };
     await answerFirstQuestion(session({ revealMode: "requeue" }));
     await screen.findByText("Answer saved");
-    expect((calls[0]!.body as { pass: number }).pass).toBe(1);
+    expect((calls.find((c) => c.url.endsWith("/answers"))!.body as { pass: number }).pass).toBe(1);
   });
 
   it("sends pass 2 for a retry", async () => {
@@ -131,7 +145,7 @@ describe("requeue mode", () => {
       }),
     );
     await screen.findByText("Answer saved");
-    expect((calls[0]!.body as { pass: number }).pass).toBe(2);
+    expect((calls.find((c) => c.url.endsWith("/answers"))!.body as { pass: number }).pass).toBe(2);
   });
 
   it("labels the retry as a second try", () => {
@@ -220,10 +234,21 @@ const finished = (revealMode: "end" | "requeue"): PlaySession => {
 };
 
 describe("results", () => {
-  it("reviews every answer with the correct answer once an end-mode session is over", () => {
+  it("reviews every answer with the correct answer once an end-mode session is over", async () => {
+    resultsBody = results({
+      revealMode: "end",
+      firstPass: {
+        answered: 2,
+        independentCorrect: 1,
+        assistedCorrect: 0,
+        incorrect: 1,
+        uncertain: 0,
+        unanswered: 0,
+      },
+    });
     render(<PlayScreen initial={finished("end")} setTitle="Week 1" />);
     expect(screen.getByText("Session complete")).toBeInTheDocument();
-    expect(screen.getByText(/1 correct out of 2 answered/)).toBeInTheDocument();
+    expect(await screen.findByText(/1 correct out of 2 answered/)).toBeInTheDocument();
     const review = screen.getByRole("list", { name: "Answers" });
     const first = within(review).getAllByRole("listitem")[0]!;
     expect(first).toHaveTextContent("First question?");
@@ -232,9 +257,25 @@ describe("results", () => {
     expect(first).toHaveTextContent("Because beta.");
   });
 
-  it("reports first tries and second tries separately, with the retry in the review", () => {
+  it("reports first tries and second tries separately, with the retry in the review", async () => {
+    resultsBody = results({
+      revealMode: "requeue",
+      attempts: 3,
+      uniqueQuestions: 2,
+      firstPass: {
+        answered: 2,
+        independentCorrect: 1,
+        assistedCorrect: 0,
+        incorrect: 1,
+        uncertain: 0,
+        unanswered: 0,
+      },
+      retry: { total: 1, answered: 1, correct: 1, incorrect: 0, uncertain: 0 },
+    });
     render(<PlayScreen initial={finished("requeue")} setTitle="Week 1" />);
-    expect(screen.getByText(/First try: 1 correct out of 2 answered/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/1 correct out of 2 answered on the first try/),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Second tries: 1 correct out of 1/)).toBeInTheDocument();
     const first = within(screen.getByRole("list", { name: "Answers" })).getAllByRole(
       "listitem",

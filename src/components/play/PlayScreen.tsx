@@ -3,11 +3,19 @@
 import Link from "next/link";
 import { useEffect, useReducer, useRef, useState } from "react";
 import { ApiClientError, apiFetch, errorMessage } from "@/lib/client/api";
-import type { AnswerResult, CorrectAnswer, PlaySession, SessionSummary } from "@/lib/client/types";
+import type {
+  AiStatus,
+  AnswerResult,
+  CorrectAnswer,
+  PlaySession,
+  SessionSummary,
+} from "@/lib/client/types";
 import { Alert } from "../ui/Alert";
 import { ConfirmButton } from "../ConfirmButton";
 import { StartPracticeButton } from "../StartPracticeButton";
+import { HelpPanel } from "./HelpPanel";
 import { ResultsReview } from "./review";
+import { SessionResults } from "./SessionResults";
 import { currentResponse, initialState, playReducer } from "./state";
 
 type Props = { initial: PlaySession; setTitle: string };
@@ -116,10 +124,27 @@ export function PlayScreen({ initial, setTitle }: Props) {
   const { session, phase } = state;
   const question = session.current;
   const feedbackRef = useRef<HTMLDivElement>(null);
+  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
+  // Exam practice and "results at the end" sessions give no help, so the panel is not offered.
+  const helpAllowed = session.mode !== "exam" && session.revealMode !== "end";
 
   useEffect(() => {
     if (phase === "feedback") feedbackRef.current?.focus();
   }, [phase]);
+
+  // Whether AI help can be used right now. Practice never depends on it, so a failure is silent.
+  useEffect(() => {
+    if (!helpAllowed) return;
+    let cancelled = false;
+    apiFetch<AiStatus>("/api/ai/status")
+      .then((status) => {
+        if (!cancelled) setAiStatus(status);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [helpAllowed]);
 
   async function submit() {
     const response = currentResponse(state);
@@ -195,53 +220,47 @@ export function PlayScreen({ initial, setTitle }: Props) {
   const response = currentResponse(state);
 
   if (state.summary) {
-    const s = state.summary;
     return (
       <div className="stack page-narrow">
-        <h1>Session complete</h1>
-        <div className="card" aria-live="polite">
-          <p className="question-prompt">
-            {s.retry.total > 0 ? "First try: " : ""}
-            {s.correct} correct out of {s.answered} answered
-          </p>
-          <ul className="list">
-            <li>Questions in this session: {s.totalItems}</li>
-            <li>Not answered: {s.unanswered}</li>
-            {s.retry.total > 0 ? (
-              <li>
-                Second tries: {s.retry.correct} correct out of {s.retry.answered}
-                {s.retry.total > s.retry.answered
-                  ? ` (${s.retry.total - s.retry.answered} not tried)`
-                  : ""}
-              </li>
-            ) : null}
-            {s.uncertain > 0 ? <li>Could not be checked automatically: {s.uncertain}</li> : null}
-            <li>Time: {formatClock(s.elapsedSeconds)}</li>
-          </ul>
+        <h1>{session.mode === "exam" ? "Exam practice complete" : "Session complete"}</h1>
+        <SessionResults
+          sessionId={session.id}
+          questionSetId={session.questionSetId}
+          courseId={session.courseId}
+        />
+        {session.questionSetId ? (
           <div className="row">
             <StartPracticeButton
               questionSetId={session.questionSetId}
               label="Practise again"
               defaultRevealMode={session.revealMode}
             />
-            <Link className="btn" href={`/question-sets/${session.questionSetId}/edit`}>
-              Back to the question set
-            </Link>
           </div>
-        </div>
+        ) : null}
         {session.revealMode !== "each" ? <ResultsReview items={session.items} /> : null}
       </div>
     );
   }
 
   return (
-    <div className="stack page-narrow">
+    <div className={`stack ${helpAllowed ? "page-play" : "page-narrow"}`}>
       <div className="page-head">
         <div>
           <p className="crumbs">
-            <Link href={`/question-sets/${session.questionSetId}/edit`}>{setTitle}</Link>
+            <Link
+              href={
+                session.questionSetId
+                  ? `/question-sets/${session.questionSetId}/edit`
+                  : `/courses/${session.courseId}`
+              }
+            >
+              {setTitle}
+            </Link>
           </p>
-          <h1>Practice</h1>
+          <h1>{session.mode === "exam" ? "Exam practice" : "Practice"}</h1>
+          {session.timeBudgetMinutes ? (
+            <span className="badge">{session.timeBudgetMinutes} minute plan</span>
+          ) : null}
           {MODE_LABEL[session.revealMode] ? (
             <span className="badge">{MODE_LABEL[session.revealMode]}</span>
           ) : null}
@@ -320,125 +339,141 @@ export function PlayScreen({ initial, setTitle }: Props) {
           </button>
         </div>
       ) : (
-        <form
-          className="card"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (phase === "answering") void submit();
-          }}
-        >
-          <fieldset style={{ border: 0, padding: 0 }} disabled={phase !== "answering"}>
-            {question.pass === 2 ? (
-              <p className="badge badge-warn">Second try: you did not get this one right earlier</p>
-            ) : null}
-            <legend className="question-prompt">{question.prompt}</legend>
-            {question.image ? (
-              // eslint-disable-next-line @next/next/no-img-element -- an authenticated API route, not a static asset
-              <img className="question-image" src={question.image.url} alt={question.image.alt} />
-            ) : null}
-            {question.codeSnippet ? <pre className="code">{question.codeSnippet}</pre> : null}
+        <div className={helpAllowed ? "play-layout" : undefined}>
+          <form
+            className="card"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (phase === "answering") void submit();
+            }}
+          >
+            <fieldset style={{ border: 0, padding: 0 }} disabled={phase !== "answering"}>
+              {question.pass === 2 ? (
+                <p className="badge badge-warn">
+                  Second try: you did not get this one right earlier
+                </p>
+              ) : null}
+              <legend className="question-prompt">{question.prompt}</legend>
+              {question.image ? (
+                // eslint-disable-next-line @next/next/no-img-element -- an authenticated API route, not a static asset
+                <img className="question-image" src={question.image.url} alt={question.image.alt} />
+              ) : null}
+              {question.codeSnippet ? <pre className="code">{question.codeSnippet}</pre> : null}
 
-            {question.type === "mcq_single" || question.type === "mcq_multi" ? (
-              <ul className="options">
-                {question.options.map((o) => {
-                  const multiple = question.type === "mcq_multi";
-                  // Per-option marks need the answer key, so only a full disclosure may draw them.
-                  const feedback =
-                    phase === "feedback" && state.feedback?.disclosure === "full"
-                      ? state.feedback
-                      : null;
-                  const isCorrect =
-                    feedback?.correctAnswer?.kind === "options" &&
-                    feedback.correctAnswer.correctOptionIds.includes(o.id);
-                  const chosenWrong =
-                    feedback &&
-                    state.selected.includes(o.id) &&
-                    !isCorrect &&
-                    feedback.outcome === "incorrect";
-                  return (
-                    <li key={o.id}>
-                      <label
-                        className={`option ${isCorrect ? "option-correct" : ""} ${chosenWrong ? "option-wrong" : ""}`}
-                      >
-                        <input
-                          type={multiple ? "checkbox" : "radio"}
-                          name={`q-${question.questionId}`}
-                          checked={state.selected.includes(o.id)}
-                          onChange={() => dispatch({ type: "select", optionId: o.id, multiple })}
-                        />
-                        <span>
-                          {o.text}
-                          {isCorrect ? <strong> — correct answer</strong> : null}
-                          {chosenWrong ? <strong> — your answer</strong> : null}
-                        </span>
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : question.type === "fill_blank" ? (
-              <div className="stack-sm">
-                {state.blanks.map((value, i) => (
-                  <div className="field" key={i}>
-                    <label htmlFor={`blank-${i}`}>Blank {i + 1}</label>
-                    <input
-                      id={`blank-${i}`}
-                      type="text"
-                      value={value}
-                      autoComplete="off"
-                      onChange={(e) => dispatch({ type: "blank", index: i, value: e.target.value })}
-                    />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="field">
-                <label htmlFor="answer-text">
-                  {question.type === "output_prediction" ? "What does it print?" : "Your answer"}
-                </label>
-                <textarea
-                  id="answer-text"
-                  className={question.type === "output_prediction" ? "mono" : undefined}
-                  value={state.text}
-                  spellCheck={false}
-                  onChange={(e) => dispatch({ type: "text", value: e.target.value })}
-                />
-              </div>
-            )}
-          </fieldset>
+              {question.type === "mcq_single" || question.type === "mcq_multi" ? (
+                <ul className="options">
+                  {question.options.map((o) => {
+                    const multiple = question.type === "mcq_multi";
+                    // Per-option marks need the answer key, so only a full disclosure may draw them.
+                    const feedback =
+                      phase === "feedback" && state.feedback?.disclosure === "full"
+                        ? state.feedback
+                        : null;
+                    const isCorrect =
+                      feedback?.correctAnswer?.kind === "options" &&
+                      feedback.correctAnswer.correctOptionIds.includes(o.id);
+                    const chosenWrong =
+                      feedback &&
+                      state.selected.includes(o.id) &&
+                      !isCorrect &&
+                      feedback.outcome === "incorrect";
+                    return (
+                      <li key={o.id}>
+                        <label
+                          className={`option ${isCorrect ? "option-correct" : ""} ${chosenWrong ? "option-wrong" : ""}`}
+                        >
+                          <input
+                            type={multiple ? "checkbox" : "radio"}
+                            name={`q-${question.questionId}`}
+                            checked={state.selected.includes(o.id)}
+                            onChange={() => dispatch({ type: "select", optionId: o.id, multiple })}
+                          />
+                          <span>
+                            {o.text}
+                            {isCorrect ? <strong> — correct answer</strong> : null}
+                            {chosenWrong ? <strong> — your answer</strong> : null}
+                          </span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : question.type === "fill_blank" ? (
+                <div className="stack-sm">
+                  {state.blanks.map((value, i) => (
+                    <div className="field" key={i}>
+                      <label htmlFor={`blank-${i}`}>Blank {i + 1}</label>
+                      <input
+                        id={`blank-${i}`}
+                        type="text"
+                        value={value}
+                        autoComplete="off"
+                        onChange={(e) =>
+                          dispatch({ type: "blank", index: i, value: e.target.value })
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="field">
+                  <label htmlFor="answer-text">
+                    {question.type === "output_prediction" ? "What does it print?" : "Your answer"}
+                  </label>
+                  <textarea
+                    id="answer-text"
+                    className={question.type === "output_prediction" ? "mono" : undefined}
+                    value={state.text}
+                    spellCheck={false}
+                    onChange={(e) => dispatch({ type: "text", value: e.target.value })}
+                  />
+                </div>
+              )}
+            </fieldset>
 
-          {phase === "feedback" && state.feedback ? (
-            <div
-              ref={feedbackRef}
-              tabIndex={-1}
-              aria-live="polite"
-              className={`result result-${state.feedback.outcome ?? "neutral"}`}
-            >
-              <FeedbackBody result={state.feedback} />
+            {phase === "feedback" && state.feedback ? (
+              <div
+                ref={feedbackRef}
+                tabIndex={-1}
+                aria-live="polite"
+                className={`result result-${state.feedback.outcome ?? "neutral"}`}
+              >
+                <FeedbackBody result={state.feedback} />
+              </div>
+            ) : null}
+
+            <div className="row" style={{ marginTop: "1rem" }}>
+              {phase === "feedback" ? (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={refresh}
+                  disabled={state.busy}
+                >
+                  Next
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={!response || phase === "submitting"}
+                >
+                  {phase === "submitting" ? "Checking…" : "Submit answer"}
+                </button>
+              )}
             </div>
+          </form>
+          {helpAllowed ? (
+            <HelpPanel
+              key={`${session.id}-${question.questionId}-${question.pass ?? 1}`}
+              sessionId={session.id}
+              questionId={question.questionId}
+              pass={question.pass ?? 1}
+              canAsk={phase === "answering"}
+              aiStatus={aiStatus}
+            />
           ) : null}
-
-          <div className="row" style={{ marginTop: "1rem" }}>
-            {phase === "feedback" ? (
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={refresh}
-                disabled={state.busy}
-              >
-                Next
-              </button>
-            ) : (
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={!response || phase === "submitting"}
-              >
-                {phase === "submitting" ? "Checking…" : "Submit answer"}
-              </button>
-            )}
-          </div>
-        </form>
+        </div>
       )}
     </div>
   );
