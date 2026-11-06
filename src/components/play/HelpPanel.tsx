@@ -369,6 +369,8 @@ export function HelpPanel(props: Props) {
       <Drawer titleId={titleId} opener={opener} open={open} onClose={() => setOpen(false)}>
         <HelpBody {...props} />
       </Drawer>
+      {/* Room to scroll the question (and its image) above the open drawer, never under it. */}
+      {open ? <div aria-hidden="true" className="help-drawer-space" /> : null}
     </div>
   );
 }

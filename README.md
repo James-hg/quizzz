@@ -76,12 +76,13 @@ These are limits of this app, not of the AI provider. Set them within the quota 
 | Page | What it does |
 | --- | --- |
 | `/sign-up`, `/sign-in` | Better Auth email + password. Sessions live in HTTP-only cookies. |
-| `/` | Your courses, recent question sets, any practice session you can resume, and "Explore a sample course" (hidden when no samples exist). |
+| `/` | "Today": pick a course, a 5, 10 or 20 minute plan, and start or resume today's session (or exam practice). Below it: your courses, recent question sets, any practice session you can resume, and "Explore a sample course" (hidden when no samples exist). |
 | `/courses/:id` | Course details, question sets (with counts), imported materials, import entry. |
 | `/courses/:id/import` | Upload a document. The picker lists exactly the formats the server supports. |
 | `/imports/:id` | Review detected questions: fix flagged items, accept or exclude, then publish. Unresolved answers are marked; those questions are added excluded until you set an answer. |
 | `/question-sets/:id/edit` | Question editor (every save creates a new revision, and a question can show one picture), AI panel, past sessions. Filter with `?filter=needs-review`, `no-answer` or `excluded`. The assistant box understands edit commands ("rename this set to ...", "add a question", "update question 2", "remove question 3", "shuffle the questions", "shuffle the choices", "create a set called ...") with or without AI; each shows a preview and waits for you to confirm. |
 | `/question-sets/:id/play/:sessionId` | Practice. Reloading resumes where you were. Pick the feedback style when you start: after each answer, only at the end (with a review afterwards), or retry wrong answers once (the correct answer stays hidden until the retry). |
+| `/sessions/:id` | A planned review or exam session over a whole course, with help beside the question (a drawer on narrow screens; none in exam practice) and a results report when it ends. Reloading resumes where you were. |
 | `/settings` | Display name, email, timezone, password. |
 
 With `AI_PROVIDER=disabled` the AI panel says so and everything else works. The play screen never receives answer keys before you submit an answer.
