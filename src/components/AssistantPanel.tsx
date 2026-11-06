@@ -19,6 +19,7 @@ import {
 import { ApiClientError, apiFetch, errorMessage } from "@/lib/client/api";
 import type { OwnerQuestionView } from "@/lib/client/types";
 import { classifyQuestion } from "@/lib/playability";
+import { AI_DECLINED_MESSAGE, useAiConsent } from "./AiConsent";
 import { Alert } from "./ui/Alert";
 
 type Proposal = {
@@ -64,6 +65,7 @@ function toCommandQuestion(q: OwnerQuestionView): CommandQuestion {
  */
 export function AssistantPanel({ enabled, questionSetId, courseId, setTitle, questions }: Props) {
   const router = useRouter();
+  const { ensureConsent, explain, dialog } = useAiConsent();
   const [pending, setPending] = useState<Pending>(START);
   const [transcript, setTranscript] = useState<Turn[]>([]);
   const [chatHistory, setChatHistory] = useState<Turn[]>([]);
@@ -98,7 +100,7 @@ export function AssistantPanel({ enabled, questionSetId, courseId, setTitle, que
     try {
       return await work();
     } catch (e) {
-      setError(errorMessage(e));
+      setError(explain(e));
       return undefined;
     } finally {
       setBusy(null);
@@ -109,6 +111,13 @@ export function AssistantPanel({ enabled, questionSetId, courseId, setTitle, que
 
   async function runEffect(effect: Effect): Promise<Outcome> {
     try {
+      // Only the two model effects need the notice; edit commands run as before.
+      if (
+        (effect.type === "generate" || effect.type === "suggest_title") &&
+        !(await ensureConsent())
+      ) {
+        return { ok: false, code: "consent_declined", message: AI_DECLINED_MESSAGE };
+      }
       switch (effect.type) {
         case "rename_set":
           await apiFetch(`/api/question-sets/${questionSetId}`, {
@@ -189,7 +198,9 @@ export function AssistantPanel({ enabled, questionSetId, courseId, setTitle, que
         }
       }
     } catch (e) {
-      if (e instanceof ApiClientError) return { ok: false, code: e.code, message: e.message };
+      if (e instanceof ApiClientError) {
+        return { ok: false, code: e.code, message: explain(e) };
+      }
       return { ok: false, code: "error", message: errorMessage(e) };
     }
   }
@@ -245,6 +256,10 @@ export function AssistantPanel({ enabled, questionSetId, courseId, setTitle, que
   async function askAi(text: string) {
     setBusy("chat");
     try {
+      if (!(await ensureConsent())) {
+        say(AI_DECLINED_MESSAGE);
+        return;
+      }
       const reply = await apiFetch<{ reply: string }>("/api/ai/chat", {
         body: { message: text, history: chatHistory.slice(-10), questionSetId, courseId },
       });
@@ -257,7 +272,7 @@ export function AssistantPanel({ enabled, questionSetId, courseId, setTitle, que
         ].slice(-10),
       );
     } catch (e) {
-      setError(errorMessage(e));
+      setError(explain(e));
     } finally {
       setBusy(null);
     }
@@ -268,12 +283,16 @@ export function AssistantPanel({ enabled, questionSetId, courseId, setTitle, que
     const form = new FormData(event.currentTarget);
     const topic = String(form.get("topic") ?? "").trim();
     const count = Number(form.get("count") ?? 5);
-    const result = await guarded("generate", () =>
-      apiFetch<{ proposals: Proposal[]; dropped: number }>(
+    const result = await guarded("generate", async () => {
+      if (!(await ensureConsent())) {
+        setNotice(AI_DECLINED_MESSAGE);
+        return undefined;
+      }
+      return apiFetch<{ proposals: Proposal[]; dropped: number }>(
         `/api/ai/question-sets/${questionSetId}/generate-questions`,
         { body: { count, ...(topic ? { topic } : {}) } },
-      ),
-    );
+      );
+    });
     if (result) {
       setProposals(result.proposals);
       setPicked(new Set(result.proposals.map((_, i) => i)));
@@ -302,11 +321,15 @@ export function AssistantPanel({ enabled, questionSetId, courseId, setTitle, que
   }
 
   async function suggestTitle() {
-    const result = await guarded("title", () =>
-      apiFetch<{ title: string }>(`/api/ai/question-sets/${questionSetId}/suggest-title`, {
+    const result = await guarded("title", async () => {
+      if (!(await ensureConsent())) {
+        setNotice(AI_DECLINED_MESSAGE);
+        return undefined;
+      }
+      return apiFetch<{ title: string }>(`/api/ai/question-sets/${questionSetId}/suggest-title`, {
         method: "POST",
-      }),
-    );
+      });
+    });
     if (result) setSuggested(result.title);
   }
 
@@ -329,6 +352,7 @@ export function AssistantPanel({ enabled, questionSetId, courseId, setTitle, que
   return (
     <section className="card stack" aria-labelledby="ai-heading">
       <h2 id="ai-heading">Assistant</h2>
+      {dialog}
       {error ? <Alert tone="error">{error}</Alert> : null}
       {notice ? <Alert tone="success">{notice}</Alert> : null}
 

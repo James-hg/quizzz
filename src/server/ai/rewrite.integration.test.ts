@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { resetAiState } from "@/test/ai-state";
+import { grantAiConsent, resetAiState } from "@/test/ai-state";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 process.env.AI_REQUESTS_PER_HOUR = "30";
@@ -38,6 +38,7 @@ const arithmetic: QuestionContent = {
 beforeAll(async () => {
   alice = await signUpUser(db);
   bob = await signUpUser(db);
+  await grantAiConsent(db, alice.id, bob.id);
 });
 beforeEach(async () => {
   vi.spyOn(console, "error").mockImplementation(() => {});

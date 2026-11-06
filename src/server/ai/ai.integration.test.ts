@@ -11,7 +11,7 @@ import { POST as titlePost } from "@/app/api/ai/question-sets/[setId]/suggest-ti
 import { GET as coursesGet } from "@/app/api/courses/route";
 import { POST as restorePost } from "@/app/api/questions/[questionId]/restore/route";
 import { PATCH as questionPatch } from "@/app/api/questions/[questionId]/route";
-import { resetAiState } from "@/test/ai-state";
+import { grantAiConsent, resetAiState } from "@/test/ai-state";
 import { authRequest } from "@/test/auth-helpers";
 import { deleteUsers, signUpUser, type TestUser } from "@/test/users";
 import { createCourse } from "@/server/content/courses";
@@ -88,6 +88,7 @@ const generate = (body: unknown = { count: 2 }, as?: TestUser | null, set = setI
 beforeAll(async () => {
   alice = await signUpUser(db);
   bob = await signUpUser(db);
+  await grantAiConsent(db, alice.id, bob.id);
 });
 
 beforeEach(async () => {

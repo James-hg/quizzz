@@ -19,6 +19,10 @@ Checked on **2026-10-19** against the official pages
 | `AI_MAX_INPUT_CHARS` | Longest prompt (messages plus system text) sent to the model (default 100000). |
 | `AI_MAX_OUTPUT_TOKENS` | Upper bound on the output tokens any call may ask for (default 4096). |
 
+### Consent
+
+AI is off for a user until they accept the notice shown before their first AI action (see `docs/api.md`, "AI consent"). Declining leaves practice, importing and editing working.
+
 ### Usage limits, pause and logging
 
 - **What is counted.** One *operation* is one request to a model route (chat, question generation, title suggestion, rewrite, tutor help). It counts once against the minute, hour, day and global caps even when it makes more than one provider call (a rewrite may retry; structured output may repair once). A request that is refused, invalid, not yours, oversized, or served from a reviewed hint without a model call uses no quota. Day windows are UTC days.
