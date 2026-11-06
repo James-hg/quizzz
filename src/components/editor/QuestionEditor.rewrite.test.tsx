@@ -3,6 +3,8 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnerQuestionView, SavedRewriteView } from "@/lib/client/types";
+import { consentStatus } from "@/test/consent";
+import { resetAiConsentCache } from "../AiConsent";
 import { QuestionEditor } from "./QuestionEditor";
 
 const refresh = vi.fn();
@@ -10,6 +12,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh }
 
 afterEach(() => {
   cleanup();
+  resetAiConsentCache();
   refresh.mockClear();
   vi.unstubAllGlobals();
 });
@@ -85,6 +88,7 @@ describe("QuestionEditor AI rewriting", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/ai/consent") return json(consentStatus(true));
         calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : undefined });
         if (url.startsWith("/api/ai/")) {
           return json({

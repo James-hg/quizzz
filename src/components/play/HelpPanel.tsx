@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type RefObject } from "react";
-import { apiFetch, errorMessage } from "@/lib/client/api";
+import { ApiClientError, apiFetch, errorMessage } from "@/lib/client/api";
 import type { AiStatus, HelpAction, HelpResult } from "@/lib/client/types";
+import { AI_DECLINED_MESSAGE, useAiConsent } from "../AiConsent";
 import { Alert } from "../ui/Alert";
 import { HelpStreamError, readHelpStream } from "./help-stream";
 
@@ -42,7 +43,7 @@ type Shown =
   | { status: "idle" }
   | { status: "loading"; action: HelpAction; partial: string }
   | { status: "done"; help: HelpResult }
-  | { status: "error"; action: HelpAction; message: string };
+  | { status: "error"; action: HelpAction; message: string; declined?: boolean };
 
 const ERROR_TEXT: Record<string, string> = {
   stale_turn: "You have moved on to another question. Reload the page to continue.",
@@ -52,6 +53,16 @@ const ERROR_TEXT: Record<string, string> = {
     "Only a small hint or help with your mistake is available until you have tried again.",
   help_disabled_in_exam: "Help is turned off in exam practice.",
 };
+
+/** The error code of a failed help response, read from a copy so the body stays usable. */
+async function errorCode(response: Response): Promise<string | undefined> {
+  try {
+    const body = (await response.clone().json()) as { error?: { code?: string } };
+    return body.error?.code;
+  } catch {
+    return undefined;
+  }
+}
 
 function AiNote({ status }: { status: AiStatus | null }) {
   if (!status || status.state === "available") return null;
@@ -125,6 +136,8 @@ function HelpAnswer({ help }: { help: HelpResult }) {
   );
 }
 
+type Consent = Pick<ReturnType<typeof useAiConsent>, "ensureConsent" | "explain">;
+
 type BodyProps = {
   sessionId: string;
   questionId: string;
@@ -133,7 +146,14 @@ type BodyProps = {
   aiStatus: AiStatus | null;
 };
 
-function HelpBody({ sessionId, questionId, pass, canAsk, aiStatus }: BodyProps) {
+function HelpBody({
+  sessionId,
+  questionId,
+  pass,
+  canAsk,
+  aiStatus,
+  consent,
+}: BodyProps & { consent: Consent }) {
   const [shown, setShown] = useState<Shown>({ status: "idle" });
   const controller = useRef<AbortController | null>(null);
   const requestId = useRef(0);
@@ -149,13 +169,28 @@ function HelpBody({ sessionId, questionId, pass, canAsk, aiStatus }: BodyProps) 
     const current = () => id === requestId.current && !abort.signal.aborted;
     setShown({ status: "loading", action, partial: "" });
     try {
-      const response = await fetch(`/api/sessions/${sessionId}/help`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-        body: JSON.stringify({ questionId, action }),
-        signal: abort.signal,
-        credentials: "same-origin",
-      });
+      const send = () =>
+        fetch(`/api/sessions/${sessionId}/help`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+          body: JSON.stringify({ questionId, action }),
+          signal: abort.signal,
+          credentials: "same-origin",
+        });
+      let response = await send();
+      // A reviewed hint needs no consent, but a request that would call the model does. The server
+      // refuses before using any quota or the model; show the notice, then ask once more.
+      if (response.status === 403 && (await errorCode(response)) === "consent_required") {
+        // Forget what this tab thought it knew, then ask (a no-op if it is accepted after all).
+        consent.explain(new ApiClientError(403, "consent_required", ""));
+        if (!(await consent.ensureConsent())) {
+          if (current())
+            setShown({ status: "error", action, message: AI_DECLINED_MESSAGE, declined: true });
+          return;
+        }
+        if (!current()) return;
+        response = await send();
+      }
       if (!response.ok) {
         const body = (await response.json().catch(() => null)) as {
           error?: { code?: string; message?: string };
@@ -339,6 +374,8 @@ type Props = BodyProps;
  * only the question and the kind of help; the server decides the turn and what may be said.
  */
 export function HelpPanel(props: Props) {
+  const { ensureConsent, explain, dialog } = useAiConsent();
+  const consent = { ensureConsent, explain };
   const narrow = useIsNarrow();
   const [open, setOpen] = useState(false);
   const opener = useRef<HTMLButtonElement>(null);
@@ -350,7 +387,8 @@ export function HelpPanel(props: Props) {
         <h2 id={titleId} className="small">
           Help with this question
         </h2>
-        <HelpBody {...props} />
+        <HelpBody {...props} consent={consent} />
+        {dialog}
       </aside>
     );
   }
@@ -367,8 +405,10 @@ export function HelpPanel(props: Props) {
         Get help
       </button>
       <Drawer titleId={titleId} opener={opener} open={open} onClose={() => setOpen(false)}>
-        <HelpBody {...props} />
+        <HelpBody {...props} consent={consent} />
       </Drawer>
+      {/* Outside the drawer, so the notice and the drawer never fight over Tab and Escape. */}
+      {dialog}
       {/* Room to scroll the question (and its image) above the open drawer, never under it. */}
       {open ? <div aria-hidden="true" className="help-drawer-space" /> : null}
     </div>

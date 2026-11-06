@@ -1,13 +1,16 @@
 import "server-only";
 import type { SessionUser } from "@/server/auth/session";
 import { requireUser } from "@/server/auth/session";
-import type { Database } from "@/server/db";
+import { AI_NOTICE_VERSION } from "@/lib/ai-consent";
+import { getDb, type Database } from "@/server/db";
 import { aiCallLogs } from "@/server/db/schema";
 import { getEnv } from "@/server/env";
 import { DisabledProvider } from "./disabled";
 import { eq } from "drizzle-orm";
 import type { z } from "zod";
+import { hasCurrentAiConsent } from "./consent";
 import {
+  AiConsentRequired,
   AiInputTooLarge,
   AiInvalidOutput,
   AiQuotaExceeded,
@@ -41,6 +44,10 @@ export async function requireAi(
   const user = await requireUser(request);
   const provider = getAiProvider();
   if (provider instanceof DisabledProvider) throw new AiUnavailable(provider.reason);
+  // No model call, quota or log row before the user has accepted the current notice.
+  if (!(await hasCurrentAiConsent(getDb(), user.id))) {
+    throw new AiConsentRequired(AI_NOTICE_VERSION);
+  }
   return { user, provider };
 }
 

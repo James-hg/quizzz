@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiStatus, HelpResult } from "@/lib/client/types";
 import { PlayScreen } from "./PlayScreen";
 import { HelpPanel } from "./HelpPanel";
+import { consentStatus } from "@/test/consent";
+import { resetAiConsentCache } from "../AiConsent";
 import { result, results, session } from "./test-helpers";
 
 vi.mock("next/navigation", () => ({
@@ -64,7 +66,11 @@ function stubNarrow(narrow: boolean) {
   window.matchMedia = globalThis.matchMedia;
 }
 
+let consent: { accepted: boolean };
+
 beforeEach(() => {
+  resetAiConsentCache();
+  consent = { accepted: true };
   calls = [];
   aiStatus = { state: "available", message: "ok" };
   helpReply = () => sse("Think about what B stands for.");
@@ -79,6 +85,12 @@ beforeEach(() => {
       };
       calls.push(call);
       if (url === "/api/ai/status") return json(aiStatus);
+      if (url === "/api/ai/consent" && call.method === "GET")
+        return json(consentStatus(consent.accepted));
+      if (url === "/api/ai/consent" && call.method === "POST") {
+        consent.accepted = true;
+        return json(consentStatus(true));
+      }
       if (url.endsWith("/help")) return helpReply(call);
       if (url.endsWith("/results")) return json({ results: results() });
       throw new Error(`unexpected request ${url}`);
@@ -397,5 +409,79 @@ describe("answering with help", () => {
       "response",
     ]);
     expect(screen.getByRole("button", { name: "Small hint" })).toBeDisabled();
+  });
+});
+
+const consentRequired = () =>
+  json({ error: { code: "consent_required", message: "Accept the AI data notice first." } }, 403);
+
+describe("the AI data notice", () => {
+  it("is not shown for a reviewed hint, which needs no consent", async () => {
+    consent.accepted = false;
+    const user = userEvent.setup();
+    play();
+    await user.click(screen.getByRole("button", { name: "Small hint" }));
+    expect(await screen.findByText("Think about what B stands for.")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(calls.some((c) => c.url === "/api/ai/consent")).toBe(false);
+  });
+
+  it("shows the notice when the server needs consent, then asks again once after Accept", async () => {
+    consent.accepted = false;
+    let n = 0;
+    helpReply = () => (n++ === 0 ? consentRequired() : sse("Now with consent."));
+    const user = userEvent.setup();
+    play();
+    await user.click(screen.getByRole("button", { name: "Explain the next step" }));
+    const notice = await screen.findByRole("dialog", { name: /Before you use AI help/ });
+    // Nothing was spent and no second request was made while the notice is open.
+    expect(helpCalls()).toHaveLength(1);
+    await user.click(within(notice).getByRole("button", { name: "Accept and continue" }));
+    expect(await screen.findByText("Now with consent.")).toBeInTheDocument();
+    expect(helpCalls()).toHaveLength(2);
+    expect(calls.find((c) => c.url === "/api/ai/consent" && c.method === "POST")!.body).toEqual({
+      noticeVersion: "v1",
+      accepted: true,
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("keeps practice usable when the notice is declined, and makes no second request", async () => {
+    consent.accepted = false;
+    helpReply = () => consentRequired();
+    const user = userEvent.setup();
+    play();
+    await user.click(screen.getByRole("button", { name: "Full explanation" }));
+    await user.click(await screen.findByRole("button", { name: /No thanks/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/stays off until you accept/);
+    expect(helpCalls()).toHaveLength(1);
+    expect(screen.getByLabelText("A")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Small hint" })).toBeEnabled();
+  });
+
+  it("asks again after a notice change and never loops", async () => {
+    consent.accepted = true;
+    helpReply = () => consentRequired();
+    const user = userEvent.setup();
+    play();
+    await user.click(screen.getByRole("button", { name: "Small hint" }));
+    // The status says accepted but the server disagrees: one retry, then an honest error.
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(helpCalls()).toHaveLength(2);
+  });
+
+  it("shows the notice outside a narrow-screen drawer, and keeps the drawer open", async () => {
+    stubNarrow(true);
+    consent.accepted = false;
+    helpReply = () => consentRequired();
+    const user = userEvent.setup();
+    play();
+    await user.click(screen.getByRole("button", { name: "Get help" }));
+    await user.click(screen.getByRole("button", { name: "Explain the next step" }));
+    const notice = await screen.findByRole("dialog", { name: /Before you use AI help/ });
+    expect(notice.closest(".help-drawer")).toBeNull();
+    await user.click(within(notice).getByRole("button", { name: /No thanks/ }));
+    await screen.findByRole("alert");
+    expect(screen.getByRole("dialog", { name: "Help with this question" })).toBeVisible();
   });
 });

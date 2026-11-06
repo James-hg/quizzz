@@ -5,6 +5,7 @@ import { useState } from "react";
 import { apiFetch, errorMessage } from "@/lib/client/api";
 import type { OwnerQuestionView, RewriteProposalView, SavedRewriteView } from "@/lib/client/types";
 import { REWRITE_MODE_LABELS, REWRITE_MODES, hasNumbers, type RewriteMode } from "@/lib/rewrite";
+import { AI_DECLINED_MESSAGE, useAiConsent } from "../../AiConsent";
 import { Alert } from "../../ui/Alert";
 import { changedParts, contentFromQuestion } from "./content";
 import { RewritePreview } from "./RewritePreview";
@@ -18,6 +19,7 @@ type Props = {
 
 export function QuestionRewrite({ question, rewrites, aiEnabled }: Props) {
   const router = useRouter();
+  const { ensureConsent, explain, dialog } = useAiConsent();
   const [generating, setGenerating] = useState<RewriteMode | null>(null);
   const [proposal, setProposal] = useState<RewriteProposalView | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,13 +32,17 @@ export function QuestionRewrite({ question, rewrites, aiEnabled }: Props) {
     setProposal(null);
     setGenerating(mode);
     try {
+      if (!(await ensureConsent())) {
+        setError(AI_DECLINED_MESSAGE);
+        return;
+      }
       const { proposal } = await apiFetch<{ proposal: RewriteProposalView }>(
         `/api/ai/questions/${question.id}/rewrite`,
         { body: { mode } },
       );
       setProposal(proposal);
     } catch (e) {
-      setError(errorMessage(e));
+      setError(explain(e));
     } finally {
       setGenerating(null);
     }
@@ -67,6 +73,7 @@ export function QuestionRewrite({ question, rewrites, aiEnabled }: Props) {
 
   return (
     <div className="stack-sm" style={{ marginTop: "0.75rem" }}>
+      {dialog}
       {canRewrite ? (
         <div className="row" role="group" aria-label="Rewrite with AI">
           <span className="small muted">Rewrite with AI:</span>
