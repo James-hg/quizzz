@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CreateCourseForm } from "@/components/CourseForms";
 import { SampleCourses } from "@/components/SampleCourses";
+import { TodaySession } from "@/components/TodaySession";
 import { formatDate, LANGUAGE_LABELS } from "@/lib/labels";
 import { requirePageUser } from "@/server/auth/page";
 import { listCourses } from "@/server/content/courses";
@@ -27,6 +28,8 @@ export default async function HomePage() {
   return (
     <div className="stack">
       <h1>Your courses</h1>
+
+      <TodaySession courses={courses.map((c) => ({ id: c.id, title: c.title }))} />
 
       {live.length > 0 ? (
         <section aria-labelledby="continue-heading" className="card">
