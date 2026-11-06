@@ -1,4 +1,4 @@
-import type { AnswerResult, PlaySession } from "@/lib/client/types";
+import type { AnswerResult, PlaySession, SessionResults } from "@/lib/client/types";
 
 /** Builders for play-screen tests. */
 export const result = (outcome: AnswerResult["outcome"]): AnswerResult => ({
@@ -41,5 +41,31 @@ export const session = (overrides: Partial<PlaySession> = {}): PlaySession => ({
       { id: "b", text: "B" },
     ],
   },
+  ...overrides,
+});
+
+/** The finished-session report as the server returns it. */
+export const results = (overrides: Partial<SessionResults> = {}): SessionResults => ({
+  sessionId: "s1",
+  mode: "quiz",
+  revealMode: "each",
+  state: "completed",
+  timeBudgetMinutes: null,
+  elapsedSeconds: 65,
+  uniqueQuestions: 1,
+  attempts: 1,
+  firstPass: {
+    answered: 1,
+    independentCorrect: 1,
+    assistedCorrect: 0,
+    incorrect: 0,
+    uncertain: 0,
+    unanswered: 1,
+  },
+  retry: { total: 0, answered: 0, correct: 0, incorrect: 0, uncertain: 0 },
+  originalQuestions: 1,
+  generatedQuestions: 0,
+  questionSetsNeedingPractice: [],
+  nextReviewAt: null,
   ...overrides,
 });

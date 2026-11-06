@@ -149,7 +149,8 @@ export type PlayItem =
 
 export type PlaySession = {
   id: string;
-  questionSetId: string;
+  /** Null for a planned review or exam session, which draws from the whole course. */
+  questionSetId: string | null;
   courseId: string;
   mode: string;
   revealMode: RevealMode;
@@ -252,3 +253,77 @@ export type QueueRewriteView = {
 };
 
 export type ReviewQueueView = { questions: QueueQuestionView[]; rewrites: QueueRewriteView[] };
+
+/** `GET /api/today?courseId=`: the recommended session for one course. Metadata only. */
+export type TodayPlan = {
+  course: { id: string; title: string };
+  recommendedBudgetMinutes: number;
+  /** Minutes for the recommended budget; 0 when nothing is available. */
+  estimatedDurationMinutes: number;
+  reasons: string[];
+  budgetOptions: number[];
+  options: { minutes: number; questionCount: number; limitedBy: "budget" | "content" | null }[];
+  availableCount: number;
+  dueCount: number;
+  newCount: number;
+  deferredDueCount: number;
+  limitedBy: "budget" | "content" | null;
+  liveSessionId?: string;
+};
+
+/** `GET /api/sessions/:id/results`: the finished-session report, from the server's own records. */
+export type SessionResults = {
+  sessionId: string;
+  mode: string;
+  revealMode: RevealMode;
+  state: "completed" | "abandoned";
+  timeBudgetMinutes: number | null;
+  elapsedSeconds: number;
+  /** Distinct questions answered, against `attempts`, which also counts retries. */
+  uniqueQuestions: number;
+  attempts: number;
+  firstPass: {
+    answered: number;
+    independentCorrect: number;
+    assistedCorrect: number;
+    incorrect: number;
+    uncertain: number;
+    unanswered: number;
+  };
+  retry: { total: number; answered: number; correct: number; incorrect: number; uncertain: number };
+  originalQuestions: number;
+  generatedQuestions: number;
+  questionSetsNeedingPractice: {
+    questionSetId: string;
+    title: string;
+    missed: number;
+    assisted: number;
+    unchecked: number;
+  }[];
+  nextReviewAt: string | null;
+};
+
+export type HelpAction =
+  "small_hint" | "explain_step" | "why_wrong" | "similar_example" | "full_explanation";
+
+/** What the help route returns once an answer has been checked and recorded. */
+export type HelpResult = {
+  id: string;
+  questionId: string;
+  pass: 1 | 2;
+  action: HelpAction;
+  level: string;
+  text: string;
+  citations: { segmentId: string; href: string; filename: string; location: string }[];
+  sourceSupported: boolean;
+  uncertainty?: string;
+  origin: "approved" | "ai_proposed";
+  servedAs: "requested" | "fallback_hint";
+};
+
+/** `GET /api/ai/status`. Server availability only; practice never depends on it. */
+export type AiStatus = {
+  state: "available" | "paused" | "disabled";
+  message: string;
+  retryAt?: string;
+};

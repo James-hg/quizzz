@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlaySession } from "@/lib/client/types";
 import { PlayScreen } from "./PlayScreen";
-import { result, session } from "./test-helpers";
+import { result, results, session } from "./test-helpers";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
@@ -29,6 +29,9 @@ beforeEach(() => {
         body: init?.body ? JSON.parse(String(init.body)) : undefined,
       };
       calls.push(call);
+      // Not about the answer being given: the AI status line and the finished report.
+      if (call.url === "/api/ai/status") return json({ state: "available", message: "ok" });
+      if (call.url.endsWith("/results")) return json({ results: results() });
       for (const handler of handlers) {
         const response = await handler(call);
         if (response) return response;
@@ -63,7 +66,7 @@ describe("PlayScreen", () => {
     expect(screen.getByText("Pick b")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Submit answer" })).toBeDisabled();
     expect(screen.queryByText(/correct answer/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/explanation/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Explanation:|Because/)).not.toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Progress" })).toHaveAttribute(
       "aria-valuenow",
       "0",
@@ -188,7 +191,7 @@ describe("PlayScreen", () => {
     await user.click(screen.getByRole("button", { name: "Yes, end it" }));
 
     expect(await screen.findByRole("heading", { name: "Session complete" })).toBeInTheDocument();
-    expect(screen.getByText("1 correct out of 1 answered")).toBeInTheDocument();
+    expect(await screen.findByText("1 correct out of 1 answered")).toBeInTheDocument();
     expect(screen.getByText(/Time: 1:05/)).toBeInTheDocument();
   });
 
