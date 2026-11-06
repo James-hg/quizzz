@@ -362,6 +362,66 @@ describe("the help drawer on a narrow screen", () => {
     expect(screen.getByText("Think about what B stands for.")).toBeInTheDocument();
   });
 
+  it("keeps loaded help and an opened passage when the screen changes size", async () => {
+    let listener: () => void = () => {};
+    let narrow = false;
+    const media = {
+      get matches() {
+        return narrow;
+      },
+      addEventListener: (_: string, fn: () => void) => (listener = fn),
+      removeEventListener: () => {},
+    };
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => media),
+    );
+    window.matchMedia = globalThis.matchMedia;
+    helpReply = () =>
+      sse(
+        "See the notes.",
+        help({
+          text: "See the notes.",
+          sourceSupported: true,
+          citations: [
+            {
+              segmentId: "s9",
+              href: "/api/sources/segments/s9",
+              filename: "week1.docx",
+              location: "paragraph 3",
+            },
+          ],
+        }),
+      );
+    const base = fetch as unknown as ReturnType<typeof vi.fn>;
+    const user = userEvent.setup();
+    render(<HelpPanel {...props} />);
+    await user.click(screen.getByRole("button", { name: "Small hint" }));
+    await screen.findByText("See the notes.");
+    base.mockImplementationOnce(async () =>
+      json({ segment: { text: "Closures capture variables." } }),
+    );
+    await user.click(screen.getByRole("button", { name: "Show passage" }));
+    await screen.findByText("Closures capture variables.");
+    const askedBefore = helpCalls().length;
+
+    // Rotate to a narrow layout, open the drawer: the same help is there, with no new request.
+    narrow = true;
+    act(() => listener());
+    await user.click(await screen.findByRole("button", { name: "Get help" }));
+    expect(screen.getByText("See the notes.")).toBeInTheDocument();
+    expect(screen.getByText("Closures capture variables.")).toBeInTheDocument();
+    expect(helpCalls()).toHaveLength(askedBefore);
+
+    // And back to wide.
+    narrow = false;
+    act(() => listener());
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Get help" })).toBeNull());
+    expect(screen.getByText("See the notes.")).toBeInTheDocument();
+    expect(screen.getByText("Closures capture variables.")).toBeInTheDocument();
+    expect(helpCalls()).toHaveLength(askedBefore);
+  });
+
   it("is a column beside the question, not a dialog, on a wide screen", () => {
     render(<HelpPanel {...props} />);
     expect(screen.queryByRole("dialog")).toBeNull();

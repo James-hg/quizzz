@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { ApiClientError, apiFetch, errorMessage } from "@/lib/client/api";
 import type { AiStatus, HelpAction, HelpResult } from "@/lib/client/types";
 import { AI_DECLINED_MESSAGE, useAiConsent } from "../AiConsent";
@@ -295,42 +295,47 @@ function focusables(root: HTMLElement): HTMLElement[] {
   ].filter((el) => !el.hasAttribute("disabled"));
 }
 
-/** A bottom drawer: labelled, closes on Escape, keeps Tab inside, and returns focus on close. */
-function Drawer({
-  titleId,
-  opener,
-  open,
-  onClose,
-  children,
-}: {
-  titleId: string;
-  opener: RefObject<HTMLButtonElement | null>;
-  open: boolean;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  const root = useRef<HTMLDivElement>(null);
-  const wasOpen = useRef(false);
+type Props = BodyProps;
 
-  // Focus moves into the drawer when it opens and back to the button when it closes. The drawer
-  // stays mounted while closed, so help already loaded is still there when it is reopened.
+/**
+ * Help beside the question on wide screens, and a drawer on narrow ones. The page remounts it
+ * for every question and pass, so one question's help never shows on the next. The browser sends
+ * only the question and the kind of help; the server decides the turn and what may be said.
+ *
+ * Both layouts are the same element tree, only styled and labelled differently, so turning a
+ * tablet (or resizing the window) keeps the help already loaded and any passage already opened.
+ * On a narrow screen the drawer is labelled, closes on Escape, keeps Tab inside, and returns
+ * focus to its button; it stays mounted while closed, so reopening shows the same help.
+ */
+export function HelpPanel(props: Props) {
+  const { ensureConsent, explain, dialog } = useAiConsent();
+  const consent = { ensureConsent, explain };
+  const narrow = useIsNarrow();
+  const [open, setOpen] = useState(false);
+  const opener = useRef<HTMLButtonElement>(null);
+  const surface = useRef<HTMLDivElement>(null);
+  const wasOpen = useRef(false);
+  const titleId = useId();
+  const drawerOpen = narrow && open;
+
   useEffect(() => {
-    if (open) {
-      root.current?.querySelector<HTMLElement>("[data-drawer-close]")?.focus();
+    if (drawerOpen) {
+      surface.current?.querySelector<HTMLElement>("[data-drawer-close]")?.focus();
     } else if (wasOpen.current) {
       opener.current?.focus();
     }
-    wasOpen.current = open;
-  }, [open, opener]);
+    wasOpen.current = drawerOpen;
+  }, [drawerOpen]);
 
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (!narrow) return;
     if (e.key === "Escape") {
       e.stopPropagation();
-      onClose();
+      setOpen(false);
       return;
     }
-    if (e.key !== "Tab" || !root.current) return;
-    const items = focusables(root.current);
+    if (e.key !== "Tab" || !surface.current) return;
+    const items = focusables(surface.current);
     if (items.length === 0) return;
     const first = items[0]!;
     const last = items[items.length - 1]!;
@@ -344,73 +349,49 @@ function Drawer({
   }
 
   return (
-    <div
-      ref={root}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      className="help-drawer"
-      hidden={!open}
-      onKeyDown={onKeyDown}
-    >
-      <div className="row row-between">
-        <h2 id={titleId} className="small">
-          Help with this question
-        </h2>
-        <button type="button" className="btn btn-small" data-drawer-close onClick={onClose}>
-          Close help
+    <div className={narrow ? "help-launch" : undefined}>
+      {narrow ? (
+        <button
+          ref={opener}
+          type="button"
+          className="btn"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={() => setOpen(true)}
+        >
+          Get help
         </button>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-type Props = BodyProps;
-
-/**
- * Help beside the question on wide screens, and a drawer on narrow ones. The page remounts it
- * for every question and pass, so one question's help never shows on the next. The browser sends
- * only the question and the kind of help; the server decides the turn and what may be said.
- */
-export function HelpPanel(props: Props) {
-  const { ensureConsent, explain, dialog } = useAiConsent();
-  const consent = { ensureConsent, explain };
-  const narrow = useIsNarrow();
-  const [open, setOpen] = useState(false);
-  const opener = useRef<HTMLButtonElement>(null);
-  const titleId = useId();
-
-  if (!narrow) {
-    return (
-      <aside className="card help-panel" aria-labelledby={titleId}>
-        <h2 id={titleId} className="small">
-          Help with this question
-        </h2>
-        <HelpBody {...props} consent={consent} />
-        {dialog}
-      </aside>
-    );
-  }
-  return (
-    <div className="help-launch">
-      <button
-        ref={opener}
-        type="button"
-        className="btn"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => setOpen(true)}
+      ) : null}
+      <div
+        ref={surface}
+        className={narrow ? "help-drawer" : "card help-panel"}
+        role={narrow ? "dialog" : "complementary"}
+        aria-modal={narrow ? true : undefined}
+        aria-labelledby={titleId}
+        hidden={narrow && !open}
+        onKeyDown={onKeyDown}
       >
-        Get help
-      </button>
-      <Drawer titleId={titleId} opener={opener} open={open} onClose={() => setOpen(false)}>
+        <div className="row row-between">
+          <h2 id={titleId} className="small">
+            Help with this question
+          </h2>
+          {narrow ? (
+            <button
+              type="button"
+              className="btn btn-small"
+              data-drawer-close
+              onClick={() => setOpen(false)}
+            >
+              Close help
+            </button>
+          ) : null}
+        </div>
         <HelpBody {...props} consent={consent} />
-      </Drawer>
+      </div>
       {/* Outside the drawer, so the notice and the drawer never fight over Tab and Escape. */}
       {dialog}
       {/* Room to scroll the question (and its image) above the open drawer, never under it. */}
-      {open ? <div aria-hidden="true" className="help-drawer-space" /> : null}
+      {drawerOpen ? <div aria-hidden="true" className="help-drawer-space" /> : null}
     </div>
   );
 }
