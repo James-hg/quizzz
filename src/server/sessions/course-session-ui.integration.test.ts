@@ -6,7 +6,9 @@ import { POST as helpPost } from "@/app/api/sessions/[sessionId]/help/route";
 import { GET as resultsGet } from "@/app/api/sessions/[sessionId]/results/route";
 import { GET as sessionGet } from "@/app/api/sessions/[sessionId]/route";
 import { POST as sessionsPost } from "@/app/api/sessions/route";
+import { POST as consentPost } from "@/app/api/ai/consent/route";
 import { GET as todayGet } from "@/app/api/today/route";
+import { AI_NOTICE_VERSION } from "@/lib/ai-consent";
 import { setAiProviderForTesting } from "@/server/ai";
 import type { AiProvider } from "@/server/ai/provider";
 import { createCourse } from "@/server/content/courses";
@@ -25,6 +27,11 @@ let courseId: string;
 
 beforeAll(async () => {
   alice = await signUpUser(db);
+  // Help from the model needs the user to have accepted the AI data notice.
+  const consent = await call(consentPost, "/api/ai/consent", alice, {
+    body: { noticeVersion: AI_NOTICE_VERSION, accepted: true },
+  });
+  expect(consent.status).toBeLessThan(300);
   courseId = (await createCourse(db, alice.id, { title: "CS", subject: "S" })).id;
   const set = await createQuestionSet(db, alice.id, courseId, `Set ${randomUUID()}`);
   for (let i = 0; i < 3; i++) {
