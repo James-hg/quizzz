@@ -3,7 +3,9 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OwnerQuestionView } from "@/lib/client/types";
+import { consentStatus } from "@/test/consent";
 import { AssistantPanel } from "./AssistantPanel";
+import { resetAiConsentCache } from "./AiConsent";
 
 const push = vi.fn();
 const refresh = vi.fn();
@@ -11,20 +13,25 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh }) }));
 
 type Call = { method: string; url: string; body: unknown };
 let calls: Call[] = [];
+let consentCalls: Call[] = [];
 
 type Reply = { status?: number; body?: unknown };
 /** Replaces fetch. Routes are "METHOD /path"; anything unlisted fails the test. */
 function stubApi(routes: Record<string, Reply | Reply[]> = {}) {
   calls = [];
+  consentCalls = [];
   const counters = new Map<string, number>();
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       const method = init?.method ?? "GET";
       const body = init?.body ? JSON.parse(String(init.body)) : undefined;
-      calls.push({ method, url, body });
       const key = `${method} ${url}`;
-      const entry = routes[key];
+      // The consent check is tracked apart so tests can assert on the model and edit calls alone.
+      if (!(key in routes) && url === "/api/ai/consent") consentCalls.push({ method, url, body });
+      else calls.push({ method, url, body });
+      const entry =
+        routes[key] ?? (key === "GET /api/ai/consent" ? { body: consentStatus(true) } : undefined);
       if (!entry) throw new Error(`Unexpected request: ${key}`);
       const index = counters.get(key) ?? 0;
       counters.set(key, index + 1);
@@ -46,6 +53,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  resetAiConsentCache();
   vi.unstubAllGlobals();
 });
 

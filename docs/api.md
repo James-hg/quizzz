@@ -165,6 +165,15 @@ Response: `{ help: { id, questionId, pass, action, level, text, citations: [{ se
 - Other errors: `401`, `404` (another user's or missing session), `409 stale_turn` (not the current question, or the student moved on while the answer was generated), `409 session_paused`, `409 session_completed`, `409 no_wrong_answer` (`why_wrong` before any wrong answer on that question).
 - With `Accept: text/event-stream` the validated text is sent as `event: text` chunks and then `event: done` with the same JSON as above. Nothing is sent before the whole answer has been checked, so this does not make the first words arrive sooner.
 
+## AI consent
+
+Every model call needs the signed-in user to have accepted the current AI data notice. Without it the route returns `403 consent_required` with `error.details.noticeVersion`, before any quota is used or the provider is called. Order of checks for AI routes: `401` signed out, `503 ai_unavailable` when AI is off, then `403 consent_required`. Saving proposals, editing and practice never need consent. A reviewed tutor hint is also not blocked, but a request that would call the model (including after a failed hint) is.
+
+- `GET /api/ai/consent` returns `{ noticeVersion, accepted, notice: { title, paragraphs, termsUrl, termsLabel } }`, private and uncached.
+- `POST /api/ai/consent` with `{ noticeVersion, accepted: true }` records acceptance and returns the same shape. Repeating it keeps the first time. A version other than the current one returns `409 notice_version_changed` (with the current `noticeVersion`) and records nothing. The user id and time come from the server.
+
+The notice text and its version live in `src/lib/ai-consent.ts`. Change `AI_NOTICE_VERSION` whenever the wording changes in substance: every user is asked again before their next AI request. Older acceptance rows are kept. The wording follows [Google's Gemini API terms](https://ai.google.dev/gemini-api/terms) as read on 2026-11-06 for the unpaid tier (content and responses can be used to improve products and read by reviewers; no sensitive, confidential or personal information); recheck it when the tier or terms change. With `AUTH_DISABLED` one consent covers the single local user.
+
 ## AI usage limits and status
 
 `GET /api/ai/status` (signed in) returns `200 { state, retryAt?, message }` with `Cache-Control: private, no-store`. `state` is `available`, `paused` (the provider ran out of quota; `retryAt` is when AI is tried again) or `disabled`. It reports server availability only, not whether you are under your own caps.

@@ -12,7 +12,7 @@ export const AI_NOTICE = {
   title: "Before you use AI help",
   paragraphs: [
     "AI help runs on Google Gemini, a hosted service. It does not run on this computer. When you use it, the text of your request is sent to Google, together with the parts of your question set or course the request needs, such as question text and answer options.",
-    "On the unpaid Gemini API tier, Google says the content you submit and the responses it generates can be used to improve its products, and can be read by people. Do not send anything sensitive or confidential.",
+    "On the unpaid Gemini API tier, Google says the content you submit and the responses it generates can be used to improve its products, and can be read by people. Do not send sensitive, confidential or personal information.",
     "AI answers are proposals and can be wrong. You decide what to keep.",
     "You can say no and keep studying: practice, importing and editing all work without AI.",
   ],
