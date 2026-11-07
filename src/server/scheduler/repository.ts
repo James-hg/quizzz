@@ -142,6 +142,7 @@ export async function applyScheduling(
       activityRole: attempt.activityRole,
       assistance: attempt.assistanceLevel,
       lastExposureAt,
+      scheduleSetAt: row?.updatedAt ?? null,
     },
     policy.config,
     now,

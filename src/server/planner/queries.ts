@@ -109,7 +109,11 @@ export async function loadPlanningData(
         .where(and(eq(reviewStates.userId, userId), inArray(reviewStates.questionId, ids)))
     : [];
   const due = dueItems(
-    states.map((row) => ({ ...toSnapshot(row), questionId: row.questionId })),
+    states.map((row) => ({
+      ...toSnapshot(row),
+      questionId: row.questionId,
+      scheduledAt: row.updatedAt,
+    })),
     now,
     owner?.timezone ?? "UTC",
     course.examDate,
