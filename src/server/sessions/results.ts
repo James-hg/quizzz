@@ -1,15 +1,19 @@
 import "server-only";
-import { and, eq, isNotNull, ne, sql } from "drizzle-orm";
+import { and, eq, isNotNull, ne } from "drizzle-orm";
 import { assertOwnsSession } from "@/server/auth/ownership";
 import type { Database } from "@/server/db";
 import {
   attempts,
   questionRevisions,
+  courses,
   questionSets,
   questions,
   reviewStates,
+  user,
 } from "@/server/db/schema";
 import { conflict } from "@/server/http/errors";
+import { examNotes } from "@/server/planner/queries";
+import { effectiveDueAt } from "@/server/scheduler/core";
 import { elapsedSecondsAt } from "./view";
 
 type Outcome = "correct" | "incorrect" | "uncertain";
@@ -143,9 +147,24 @@ export async function getSessionResults(
 
   const removed = session.itemOrder.filter((id) => !session.revisionIds[id]).length;
 
-  // The soonest planned review of anything in this course, from the student's own schedule.
-  const [next] = await db
-    .select({ at: sql<Date | null>`min(${reviewStates.nextDueAt})` })
+  // The soonest planned review of anything in this course, from the student's own schedule with
+  // the exam date applied, the same way today's plan reads it.
+  const [owner] = await db
+    .select({ timezone: user.timezone })
+    .from(user)
+    .where(eq(user.id, userId));
+  const [course] = await db
+    .select({ examDate: courses.examDate })
+    .from(courses)
+    .where(eq(courses.id, session.courseId));
+  const tz = owner?.timezone ?? "UTC";
+  const examDate = course?.examDate ?? null;
+  const schedule = await db
+    .select({
+      nextDueAt: reviewStates.nextDueAt,
+      state: reviewStates.state,
+      scheduledAt: reviewStates.updatedAt,
+    })
     .from(reviewStates)
     .innerJoin(questions, eq(reviewStates.questionId, questions.id))
     .innerJoin(questionSets, eq(questions.questionSetId, questionSets.id))
@@ -157,6 +176,13 @@ export async function getSessionResults(
         isNotNull(reviewStates.nextDueAt),
       ),
     );
+  const upcoming = schedule
+    .map((s) => effectiveDueAt(s.nextDueAt!, now, tz, examDate, s.scheduledAt))
+    .filter((d): d is Date => d !== null);
+  const nextReviewAt = upcoming.length
+    ? new Date(Math.min(...upcoming.map((d) => d.getTime())))
+    : null;
+  const notice = examNotes(examDate, schedule, now, tz).join(" ");
 
   return {
     sessionId: session.id,
@@ -188,6 +214,8 @@ export async function getSessionResults(
     questionSetsNeedingPractice: [...needs.values()].sort(
       (a, b) => b.missed + b.assisted - (a.missed + a.assisted) || (a.title < b.title ? -1 : 1),
     ),
-    nextReviewAt: next?.at ? new Date(next.at).toISOString() : null,
+    nextReviewAt: nextReviewAt ? nextReviewAt.toISOString() : null,
+    /** Why the plan looks the way it does when the exam date matters, in plain words. */
+    reviewNotice: notice || null,
   };
 }

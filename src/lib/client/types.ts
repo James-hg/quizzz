@@ -301,6 +301,7 @@ export type SessionResults = {
     unchecked: number;
   }[];
   nextReviewAt: string | null;
+  reviewNotice: string | null;
 };
 
 export type HelpAction =

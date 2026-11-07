@@ -67,5 +67,6 @@ export const results = (overrides: Partial<SessionResults> = {}): SessionResults
   generatedQuestions: 0,
   questionSetsNeedingPractice: [],
   nextReviewAt: null,
+  reviewNotice: null,
   ...overrides,
 });
