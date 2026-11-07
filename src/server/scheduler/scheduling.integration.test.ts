@@ -13,6 +13,7 @@ import { attempts, helpEvents, questions, reviewStates, user } from "@/server/db
 import { submitAnswer } from "@/server/sessions/answers";
 import { call } from "@/test/api";
 import { deleteUsers, signUpUser, type TestUser } from "@/test/users";
+import { effectiveDueAt } from "./core";
 import { localDate, startOfLocalDay } from "./dates";
 
 process.env.AUTH_RATE_LIMIT_MAX = "1000";
@@ -308,19 +309,23 @@ describe("what is not scheduled", () => {
 });
 
 describe("the exam date", () => {
-  it("never schedules past the day before the exam", async () => {
+  it("stores the normal date, which is only cut short by the exam when it is read", async () => {
     const { set, question } = await makeQuestion({ examDate: "2026-02-05" });
     await answerOn(set.id, question.id, right, day(0));
     await answerOn(set.id, question.id, right, day(1));
-    // The 3 day interval would land on Feb 6; the last review day is Feb 4.
-    expect((await stateOf(question.id))!.nextDueAt).toEqual(startOfLocalDay("2026-02-04", TZ));
+    // The 3 day interval lands on Feb 6; the last review day is Feb 4.
+    const stored = (await stateOf(question.id))!.nextDueAt!;
+    expect(stored).toEqual(startOfLocalDay("2026-02-06", TZ));
+    expect(effectiveDueAt(stored, day(1), TZ, "2026-02-05", day(1))).toEqual(
+      startOfLocalDay("2026-02-04", TZ),
+    );
   });
 
-  it("has no due date once no review day is left", async () => {
+  it("keeps the normal date and explains when no review day is left", async () => {
     const { set, question } = await makeQuestion({ examDate: "2026-02-03" });
     await answerOn(set.id, question.id, right, day(0));
     const state = await stateOf(question.id);
-    expect(state!.nextDueAt).toBeNull();
+    expect(state!.nextDueAt).toEqual(startOfLocalDay("2026-02-03", TZ));
     expect(state!.lastReason).toMatch(/No review day is left/);
   });
 });
