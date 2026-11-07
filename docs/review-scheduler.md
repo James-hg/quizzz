@@ -43,9 +43,31 @@ help events are linked to the attempt.
 ## Days, timezones, exam date
 
 "Today" is the student's local day (`user.timezone`). A due date is the start of a local day, so
-daylight-saving days of 23 or 25 hours need no special case. The last review day is the day
-before `courses.exam_date`; nothing is scheduled on or after the exam, and nothing promises that
-every item is mastered by then.
+daylight-saving days of 23 or 25 hours need no special case.
+
+`review_states.next_due_at` holds the **normal** date: the interval alone, counted in local days
+from the attempt. The exam date is applied when the schedule is read (`effectiveDueAt` in
+`src/server/scheduler/core.ts`, used by today's plan and by session results), so moving or
+clearing the exam date takes effect at once and never rewrites a row or an attempt.
+
+While the exam is upcoming:
+
+- Reviews never land on or after exam day. A date past the last review day (the day before the
+  exam) is read as that day.
+- A check set on or after the last review day has no day left, so it is not due before the exam.
+  The reason says "No review day is left before your exam", and today's plan lists how many
+  questions are in that position. A check that is already due stays due.
+
+When the exam date is today or in the past it is ignored: reviews continue on their normal
+dates, and today's plan says "Your exam date has passed. Reviews are continuing on their normal
+schedule; update or clear the date in course settings." The date stays on the course until the
+owner changes it. Nothing promises that every item is mastered by the exam.
+
+Migration `0017_repair_null_review_due_dates` rebuilt the dates of `learning` and `reviewing`
+rows that an older version had left null (a null date is never due). `reviewing` rows get the
+policy interval at their step counted from the last independent success; `learning` rows get one
+day after the attempt that put them there. Rows whose timezone, policy or anchor cannot be used
+are left alone and reported as a warning when the migration runs.
 
 ## Backlog
 
