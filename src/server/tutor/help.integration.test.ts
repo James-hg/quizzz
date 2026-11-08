@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { grantAiConsent, resetAiState } from "@/test/ai-state";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as answerPost } from "@/app/api/sessions/[sessionId]/answers/route";
 import { POST as helpPost } from "@/app/api/sessions/[sessionId]/help/route";
+import { AI_NOTICE_VERSION } from "@/lib/ai-consent";
 import type { HelpAction } from "@/lib/schemas";
 import { AiInvalidOutput, AiQuotaExceeded, AiTimeout, AiUnavailable } from "@/server/ai/errors";
 import { setAiProviderForTesting } from "@/server/ai";
@@ -13,6 +14,10 @@ import { createQuestionSet } from "@/server/content/question-sets";
 import { createQuestion } from "@/server/content/questions";
 import { getDb } from "@/server/db";
 import {
+  aiCallLogs,
+  aiConsents,
+  aiRateWindows,
+  aiUsage,
   approvedHints,
   attempts,
   helpEvents,
@@ -48,6 +53,9 @@ beforeAll(async () => {
 afterEach(async () => {
   setAiProviderForTesting(undefined);
   await resetAiState(db);
+  // The per-user hourly count lives in ai_usage, which the shared reset leaves alone. Without
+  // this the whole file adds up to one user's hourly cap.
+  await db.delete(aiUsage).where(inArray(aiUsage.userId, [alice.id, bob.id]));
 });
 afterAll(async () => {
   vi.restoreAllMocks();
@@ -647,6 +655,206 @@ describe("when the model cannot be used", () => {
   });
 });
 
+describe("without the AI notice accepted", () => {
+  async function approve(
+    questionId: string,
+    level: (typeof approvedHints.$inferInsert)["level"],
+    text: string,
+    evidenceStatus: (typeof approvedHints.$inferInsert)["evidenceStatus"] = "human_reviewed",
+  ) {
+    const [hint] = await db
+      .insert(approvedHints)
+      .values({
+        questionRevisionId: await revisionOf(questionId),
+        level,
+        text,
+        origin: "owner",
+        evidenceStatus,
+      })
+      .returning();
+    return hint!;
+  }
+
+  beforeEach(async () => {
+    await db.delete(aiConsents).where(eq(aiConsents.userId, alice.id));
+  });
+  // Put back what the rest of the suite relies on, whatever a test did.
+  afterEach(async () => {
+    await grantAiConsent(db, alice.id);
+  });
+
+  const usage = async () => ({
+    logs: (await db.select().from(aiCallLogs)).length,
+    windows: (await db.select().from(aiRateWindows)).length,
+    hourly: (await db.select().from(aiUsage).where(eq(aiUsage.userId, alice.id))).length,
+  });
+
+  it("serves a weaker reviewed hint as an approved fallback, with no model call or AI usage", async () => {
+    const s = await session();
+    const q = s.order[0]!;
+    const hint = await approve(q, "conceptual_hint", "Think about the order items leave.");
+    const calls = model(ok("explain_step"));
+
+    const r = await ask(s.id, q, "explain_step");
+    expect(r.status, r.text).toBe(200);
+    expect(r.body.help).toMatchObject({
+      text: "Think about the order items leave.",
+      origin: "approved",
+      servedAs: "fallback_hint",
+      level: "conceptual_hint",
+      action: "explain_step",
+    });
+    expect(calls).toHaveLength(0);
+    expect(await usage()).toEqual({ logs: 0, windows: 0, hourly: 0 });
+
+    // The help is recorded like any other, pointing at the reviewed hint.
+    const rows = await events(s.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      approvedHintId: hint.id,
+      contentText: null,
+      provider: null,
+      model: null,
+      level: "conceptual_hint",
+    });
+
+    // It counts as assisted, at the level of the hint that was shown.
+    expect((await answer(s.id, q, "b")).status).toBe(201);
+    const [attempt] = await db.select().from(attempts).where(eq(attempts.sessionId, s.id));
+    expect(attempt!.assistanceLevel).toBe("conceptual_hint");
+    expect((await events(s.id))[0]!.attemptId).toBe(attempt!.id);
+  });
+
+  it("asks for the notice when there is no reviewed hint, and practice still works", async () => {
+    const s = await session();
+    const q = s.order[0]!;
+    // None of these may be shown: not reviewed, not reviewed, and too strong to leak the answer.
+    await approve(q, "conceptual_hint", "AI draft hint.", "needs_review");
+    await approve(q, "next_step_hint", "Generated, unchecked hint.", "generated_unreviewed");
+    await approve(q, "partial_example", "The answer is a queue.", "human_reviewed");
+    const calls = model(ok("small_hint"));
+
+    const r = await ask(s.id, q, "small_hint");
+    expect(r.status).toBe(403);
+    expect(r.body.error).toMatchObject({
+      code: "consent_required",
+      details: { noticeVersion: AI_NOTICE_VERSION },
+    });
+    expect(calls).toHaveLength(0);
+    expect(await events(s.id)).toHaveLength(0);
+    expect(await usage()).toEqual({ logs: 0, windows: 0, hourly: 0 });
+    expect((await answer(s.id, q, "b")).status).toBe(201);
+  });
+
+  it("asks for the notice when the question has no reviewed hint at all", async () => {
+    const s = await session();
+    const calls = model(ok("explain_step"));
+    const r = await ask(s.id, s.order[0]!, "explain_step");
+    expect(r.status).toBe(403);
+    expect(r.body.error.code).toBe("consent_required");
+    expect(calls).toHaveLength(0);
+    expect(await events(s.id)).toHaveLength(0);
+  });
+
+  it("still serves a reviewed hint of exactly the strength asked for, as requested", async () => {
+    const s = await session();
+    const q = s.order[0]!;
+    await approve(q, "conceptual_hint", "Think about the order items leave.");
+    const calls = model(ok("small_hint"));
+    const r = await ask(s.id, q, "small_hint");
+    expect(r.status).toBe(200);
+    expect(r.body.help).toMatchObject({ origin: "approved", servedAs: "requested" });
+    expect(calls).toHaveLength(0);
+    expect(await usage()).toEqual({ logs: 0, windows: 0, hourly: 0 });
+  });
+
+  it("does not serve a general hint for 'why was I wrong' as a diagnosis, but still as a labelled fallback", async () => {
+    const s = await session("requeue", 1);
+    const q = s.order[0]!;
+    await approve(q, "conceptual_hint", "Think about the order items leave.");
+    await answer(s.id, q, "a");
+    const r = await ask(s.id, q, "why_wrong");
+    expect(r.status, r.text).toBe(200);
+    expect(r.body.help).toMatchObject({ servedAs: "fallback_hint", origin: "approved", pass: 2 });
+  });
+
+  describe("refusals about the request are not turned into a fallback", () => {
+    it("exam practice", async () => {
+      const { set } = await makeSet(2);
+      const [exam] = await db
+        .insert(studySessions)
+        .values({
+          userId: alice.id,
+          courseId,
+          questionSetId: set.id,
+          mode: "exam",
+          state: "active",
+          revealMode: "end",
+          itemOrder: [],
+          revisionIds: {},
+          startedAt: new Date(),
+          activeStartedAt: new Date(),
+        })
+        .returning();
+      const calls = model(ok("small_hint"));
+      const r = await ask(exam!.id, randomUUID(), "small_hint");
+      expect(r.status).toBe(403);
+      expect(r.body.error.code).toBe("help_disabled_in_exam");
+      expect(calls).toHaveLength(0);
+    });
+
+    it("sessions that show results at the end", async () => {
+      const s = await session("end");
+      await approve(s.order[0]!, "conceptual_hint", "Think about the order items leave.");
+      const r = await ask(s.id, s.order[0]!, "small_hint");
+      expect(r.status).toBe(403);
+      expect(r.body.error.code).toBe("help_disabled_in_session");
+      expect(await events(s.id)).toHaveLength(0);
+    });
+
+    it("the protected retry, for an action that could state the answer", async () => {
+      const s = await session("requeue", 1);
+      const q = s.order[0]!;
+      await approve(q, "conceptual_hint", "Think about the order items leave.");
+      expect((await answer(s.id, q, "a")).body.requeued).toBe(true);
+      const calls = model(ok("full_explanation"));
+      for (const action of ["explain_step", "similar_example", "full_explanation"] as const) {
+        const r = await ask(s.id, q, action);
+        expect(r.status, action).toBe(403);
+        expect(r.body.error.code).toBe("help_not_available_yet");
+      }
+      expect(calls).toHaveLength(0);
+      expect(await events(s.id)).toHaveLength(0);
+    });
+
+    it("a stale turn, and a 'why was I wrong' with no wrong answer", async () => {
+      const s = await session();
+      await approve(s.order[0]!, "conceptual_hint", "Think about the order items leave.");
+      const stale = await ask(s.id, s.order[1]!, "small_hint");
+      expect(stale.status).toBe(409);
+      expect(stale.body.error.code).toBe("stale_turn");
+      const none = await ask(s.id, s.order[0]!, "why_wrong");
+      expect(none.status).toBe(409);
+      expect(none.body.error.code).toBe("no_wrong_answer");
+      expect(await events(s.id)).toHaveLength(0);
+    });
+  });
+
+  it("uses the model again once the notice is accepted", async () => {
+    const s = await session();
+    const q = s.order[0]!;
+    await approve(q, "conceptual_hint", "Think about the order items leave.");
+    const calls = model(ok("explain_step"));
+    expect((await ask(s.id, q, "explain_step")).body.help.servedAs).toBe("fallback_hint");
+    expect(calls).toHaveLength(0);
+
+    await grantAiConsent(db, alice.id);
+    const r = await ask(s.id, q, "explain_step");
+    expect(r.body.help).toMatchObject({ origin: "ai_proposed", servedAs: "requested" });
+    expect(calls).toHaveLength(1);
+  });
+});
+
 describe("requests", () => {
   it("validates the body, requires sign-in, and hides other users' sessions", async () => {
     const s = await session();
@@ -716,7 +924,7 @@ describe("requests", () => {
       params: { sessionId: s.id },
       headers: { accept: "text/event-stream" },
     });
-    expect(bad.status).toBe(502);
+    expect(bad.status, bad.text).toBe(502);
     expect(bad.text).not.toContain("event: text");
   });
 });

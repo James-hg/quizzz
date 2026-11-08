@@ -13,7 +13,7 @@ import {
 } from "@/lib/schemas";
 import { requireAi, withAiOperation } from "@/server/ai/guard";
 import { DEFAULT_GEMINI_MODEL } from "@/server/ai";
-import { AiInvalidOutput, AiUnavailable } from "@/server/ai/errors";
+import { AiConsentRequired, AiInvalidOutput, AiUnavailable } from "@/server/ai/errors";
 import { DATA_NOT_INSTRUCTIONS, delimitData } from "@/server/ai/prompt";
 import { requireUser } from "@/server/auth/session";
 import type { Database } from "@/server/db";
@@ -515,7 +515,14 @@ export async function getHelp(
     });
   } catch (error) {
     // A stale turn or a refusal is about the request, not the model: no fallback can fix it.
-    if (error instanceof ApiError && (error.status === 409 || error.status === 403)) throw error;
+    // Missing consent is the exception: it only stops the model, and a reviewed hint needs none.
+    if (
+      error instanceof ApiError &&
+      (error.status === 409 || error.status === 403) &&
+      !(error instanceof AiConsentRequired)
+    ) {
+      throw error;
+    }
     if (error instanceof ApiError) {
       failure = error;
     } else {
