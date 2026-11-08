@@ -52,7 +52,7 @@ export async function recommendToday(
     recommendedBudgetMinutes: recommended,
     estimatedDurationMinutes:
       chosen.items.length > 0 ? Math.max(1, Math.ceil(chosen.estimatedSeconds / 60)) : 0,
-    reasons: chosen.reasons,
+    reasons: [...chosen.reasons, ...data.examNotes],
     budgetOptions: [...BUDGET_OPTIONS],
     options: plans.map(({ minutes, plan }) => ({
       minutes,

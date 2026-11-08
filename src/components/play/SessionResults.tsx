@@ -153,6 +153,7 @@ export function SessionResults({
         {r.nextReviewAt
           ? `Next planned review: ${formatDate(r.nextReviewAt)}.`
           : "No review is planned yet."}
+        {r.reviewNotice ? ` ${r.reviewNotice}` : ""}
       </p>
       <div className="row">
         <Link className="btn btn-primary" href="/">

@@ -4,6 +4,8 @@ import {
   applyAttempt,
   dueAfter,
   dueItems,
+  effectiveDueAt,
+  examIsUpcoming,
   NEW_REVIEW_STATE,
   type AttemptFacts,
   type ReviewItem,
@@ -39,6 +41,7 @@ const apply = (
 // Noon Pacific on 2026-02-01, a Sunday.
 const D0 = "2026-02-01T20:00:00Z";
 const first = apply(NEW_REVIEW_STATE, {}, D0);
+const day = (d: string) => startOfLocalDay(d, TZ);
 
 describe("applyAttempt", () => {
   it("starts the schedule at the first independent success", () => {
@@ -246,23 +249,92 @@ describe("applyAttempt", () => {
       expect(localDate(out.state.nextDueAt!, "Australia/Sydney")).toBe("2025-10-05");
     });
 
-    it("never schedules past the exam: the last review day is the day before", () => {
+    it("stores the normal date and caps it to the day before the exam when read", () => {
       const out = apply(
         { ...first.state, stepIndex: 2 },
         { lastExposureAt: at(D0) },
         "2026-02-08T20:00:00Z",
         { exam: "2026-02-15" },
       );
-      expect(localDate(out.state.nextDueAt!, TZ)).toBe("2026-02-14");
+      // The interval alone, not cut short by the exam.
+      expect(localDate(out.state.nextDueAt!, TZ)).toBe("2026-02-22");
+      const now = at("2026-02-08T20:00:00Z");
+      expect(localDate(effectiveDueAt(out.state.nextDueAt!, now, TZ, "2026-02-15")!, TZ)).toBe(
+        "2026-02-14",
+      );
+      expect(out.reason).toMatch(/last review day before your exam/);
+      // The same stored date is the normal one again when the exam moves or is cleared.
+      expect(effectiveDueAt(out.state.nextDueAt!, now, TZ, "2026-03-20")).toEqual(
+        out.state.nextDueAt,
+      );
+      expect(effectiveDueAt(out.state.nextDueAt!, now, TZ, null)).toEqual(out.state.nextDueAt);
     });
 
-    it("has nothing to schedule on or after the exam, or when no review day is left", () => {
-      expect(dueAfter(at("2026-02-14T20:00:00Z"), 1, TZ, "2026-02-15")).toBeNull();
-      expect(dueAfter(at("2026-02-15T20:00:00Z"), 1, TZ, "2026-02-15")).toBeNull();
-      expect(dueAfter(at("2026-02-20T20:00:00Z"), 1, TZ, "2026-02-15")).toBeNull();
-      expect(
-        apply(NEW_REVIEW_STATE, {}, "2026-02-15T20:00:00Z", { exam: "2026-02-15" }).reason,
-      ).toMatch(/No review day is left/);
+    it("with the exam tomorrow, a new check has no review day left", () => {
+      const now = "2026-02-14T20:00:00Z";
+      const out = apply(NEW_REVIEW_STATE, {}, now, { exam: "2026-02-15" });
+      expect(out.reason).toMatch(/No review day is left before your exam/);
+      // The normal date is kept, so moving the exam later brings the question back.
+      expect(localDate(out.state.nextDueAt!, TZ)).toBe("2026-02-15");
+      expect(effectiveDueAt(out.state.nextDueAt!, at(now), TZ, "2026-02-15", at(now))).toBeNull();
+      const later = dueItems(
+        [{ ...out.state, questionId: "q" }],
+        at("2026-02-15T20:00:00Z"),
+        TZ,
+        "2026-03-15",
+        POLICY_V1,
+      );
+      expect(later.today.map((d) => d.questionId)).toEqual(["q"]);
+    });
+
+    it("says no review day is left for a miss with the exam tomorrow", () => {
+      const out = apply(NEW_REVIEW_STATE, { outcome: "incorrect" }, "2026-02-14T20:00:00Z", {
+        exam: "2026-02-15",
+      });
+      expect(out.reason).toMatch(/no review day left before your exam/);
+      expect(localDate(out.state.nextDueAt!, TZ)).toBe("2026-02-15");
+    });
+
+    it("keeps an overdue check due even when the exam is tomorrow", () => {
+      const now = at("2026-02-14T20:00:00Z");
+      const overdue = day("2026-02-12");
+      expect(effectiveDueAt(overdue, now, TZ, "2026-02-15")).toEqual(overdue);
+      expect(effectiveDueAt(day("2026-02-14"), now, TZ, "2026-02-15")).toEqual(day("2026-02-14"));
+    });
+
+    it("ignores an exam date that is today or past", () => {
+      const now = at("2026-02-15T20:00:00Z");
+      const normal = day("2026-02-20");
+      expect(examIsUpcoming("2026-02-15", now, TZ)).toBe(false);
+      expect(examIsUpcoming("2026-02-16", now, TZ)).toBe(true);
+      expect(examIsUpcoming(null, now, TZ)).toBe(false);
+      expect(effectiveDueAt(normal, now, TZ, "2026-02-15")).toEqual(normal);
+      expect(effectiveDueAt(normal, now, TZ, "2026-01-01")).toEqual(normal);
+      const out = apply(NEW_REVIEW_STATE, {}, "2026-02-15T20:00:00Z", { exam: "2026-02-15" });
+      expect(out.reason).toMatch(/First check in 1 day/);
+    });
+
+    it("counts a success on the capped day as delayed recall", () => {
+      const stored = apply(
+        { ...first.state, stepIndex: 2 },
+        { lastExposureAt: at(D0) },
+        "2026-02-08T20:00:00Z",
+        { exam: "2026-02-15" },
+      ).state;
+      const out = apply(
+        stored,
+        { scheduleSetAt: at("2026-02-08T20:00:00Z") },
+        "2026-02-14T20:00:00Z",
+        { exam: "2026-02-15" },
+      );
+      expect(out.state.delayedSuccessCount).toBe(stored.delayedSuccessCount + 1);
+    });
+
+    it("counts calendar days across a daylight-saving change", () => {
+      // Clocks go forward in Vancouver on 2026-03-08; two days from the 7th is the 9th at 00:00.
+      const out = dueAfter(at("2026-03-07T20:00:00Z"), 2, TZ);
+      expect(localDate(out, TZ)).toBe("2026-03-09");
+      expect(out).toEqual(startOfLocalDay("2026-03-09", TZ));
     });
   });
 
@@ -352,10 +424,13 @@ describe("applyAttempt", () => {
         fc.property(fc.array(step, { minLength: 1, maxLength: 20 }), zone, (steps, tz) => {
           const exam = "2026-02-20";
           for (const { before, after, now } of run(steps, tz, exam)) {
-            // An overdue date that nothing touched stays where it was.
+            // The stored date may run past the exam; the date acted on never does.
             if (after.nextDueAt && after.nextDueAt !== before.nextDueAt) {
-              expect(localDate(after.nextDueAt, tz) < exam).toBe(true);
-              expect(after.nextDueAt.getTime()).toBeGreaterThan(now.getTime() - 1);
+              const effective = effectiveDueAt(after.nextDueAt, now, tz, exam, now);
+              if (effective && examIsUpcoming(exam, now, tz)) {
+                expect(localDate(effective, tz) < exam).toBe(true);
+              }
+              if (effective) expect(effective.getTime()).toBeGreaterThan(now.getTime() - 1);
             }
           }
         }),
@@ -417,10 +492,31 @@ describe("dueItems", () => {
     expect(out.today[1]!.reason).toBe("Due 9 days ago.");
   });
 
-  it("offers nothing on or after the exam date", () => {
+  it("keeps offering reviews once the exam date has passed", () => {
     const items = [item("a", { nextDueAt: day("2026-02-01") })];
-    expect(dueItems(items, now, TZ, "2026-02-10", POLICY_V1).today).toEqual([]);
+    expect(dueItems(items, now, TZ, "2026-02-10", POLICY_V1).today).toHaveLength(1);
+    expect(dueItems(items, now, TZ, "2026-02-01", POLICY_V1).today).toHaveLength(1);
     expect(dueItems(items, now, TZ, "2026-02-11", POLICY_V1).today).toHaveLength(1);
+  });
+
+  it("applies the exam to the same stored dates: it can hide or pull back a check, and moving or clearing it restores the normal one", () => {
+    const items = [
+      item("overdue", { nextDueAt: day("2026-02-08"), scheduledAt: at("2026-02-01T20:00:00Z") }),
+      // Checked today with a 1-day interval: tomorrow is its normal date.
+      item("fresh", { nextDueAt: day("2026-02-11"), scheduledAt: now }),
+      // Set a week ago for the 20th.
+      item("far", { nextDueAt: day("2026-02-20"), scheduledAt: at("2026-02-03T20:00:00Z") }),
+    ];
+    const ids = (exam: string | null, when = now) =>
+      dueItems(items, when, TZ, exam, POLICY_V1).today.map((i) => i.questionId);
+    // Exam tomorrow: "far" is due on the last review day, today; "fresh" has no day left.
+    expect(ids("2026-02-11")).toEqual(["overdue", "far"]);
+    // Exam in a week: the last review day is the 16th, so nothing new is due today.
+    expect(ids("2026-02-17")).toEqual(["overdue"]);
+    // Exam later or cleared: the normal dates apply.
+    expect(ids("2026-03-20")).toEqual(["overdue"]);
+    expect(ids(null)).toEqual(["overdue"]);
+    expect(ids(null, at("2026-02-11T20:00:00Z"))).toEqual(["overdue", "fresh"]);
   });
 
   it("after 10 missed days, caps the queue and drains the backlog over following days", () => {

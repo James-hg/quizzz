@@ -14,6 +14,11 @@ export type ReviewSnapshot = {
   state: ReviewState;
   /** Which interval the student is working towards (index into the policy's intervals). */
   stepIndex: number;
+  /**
+   * The next check by the interval alone, with no exam involved. It is stored this way so moving
+   * or clearing the exam date needs no rewrite: `effectiveDueAt` applies the exam when it is read.
+   * Null for `new` rows.
+   */
   nextDueAt: Date | null;
   lastIndependentSuccessAt: Date | null;
   delayedSuccessCount: number;
@@ -46,6 +51,8 @@ export type AttemptFacts = {
     | "solution_revealed";
   /** The latest earlier attempt or help event for this question, if any. */
   lastExposureAt: Date | null;
+  /** When the stored next check was last set (the review state's last update), if known. */
+  scheduleSetAt?: Date | null;
 };
 
 export type Applied = {
@@ -55,26 +62,46 @@ export type Applied = {
   changed: boolean;
 };
 
+/** The start of the local day `days` days from today: the normal interval, whatever the exam. */
+export function dueAfter(now: Date, days: number, tz: string): Date {
+  return startOfLocalDay(addDays(localDate(now, tz), days), tz);
+}
+
+/** Whether an exam date still limits the schedule. On or after exam day it no longer does. */
+export function examIsUpcoming(examDate: string | null, now: Date, tz: string): examDate is string {
+  return examDate !== null && localDate(now, tz) < examDate;
+}
+
 /**
- * When to ask again, `days` local days from today, never later than the day before the exam.
- * Null means there is nothing left to schedule: the exam is today or past, or the only day
- * left to review has gone.
+ * The due date to act on, given the exam. Reviews never land on or after exam day while it is
+ * upcoming: a later date moves to the day before the exam, and when that day is today (the exam
+ * is tomorrow) a check set on or after that day has nowhere to go and the result is null. A check
+ * set earlier is simply due on that last day, and one that is already due stays due. Once the exam
+ * date has come, it is ignored and the normal date holds.
  */
-export function dueAfter(
+export function effectiveDueAt(
+  normalDueAt: Date,
   now: Date,
-  days: number,
   tz: string,
   examDate: string | null,
+  scheduledAt: Date | null = null,
 ): Date | null {
-  const today = localDate(now, tz);
-  let target = addDays(today, days);
-  if (examDate) {
-    if (today >= examDate) return null;
-    const lastReviewDay = addDays(examDate, -1);
-    if (lastReviewDay <= today) return null;
-    if (target > lastReviewDay) target = lastReviewDay;
-  }
-  return startOfLocalDay(target, tz);
+  if (!examIsUpcoming(examDate, now, tz)) return normalDueAt;
+  const lastReviewDay = addDays(examDate, -1);
+  if (localDate(normalDueAt, tz) <= lastReviewDay) return normalDueAt;
+  if (scheduledAt && localDate(scheduledAt, tz) >= lastReviewDay) return null;
+  return startOfLocalDay(lastReviewDay, tz);
+}
+
+function checkIn(days: number) {
+  return `${days} ${days === 1 ? "day" : "days"}`;
+}
+
+/** "Next check in 3 days." and what changes when the exam is close. */
+function nextCheckText(days: number, normal: Date, effective: Date | null, tz: string) {
+  if (!effective) return "No review day is left before your exam.";
+  if (effective.getTime() === normal.getTime()) return `Next check in ${checkIn(days)}.`;
+  return `Next check on ${localDate(effective, tz)}, the last review day before your exam.`;
 }
 
 const unchanged = (state: ReviewSnapshot, reason: string): Applied => ({
@@ -113,7 +140,8 @@ export function applyAttempt(
   const assisted =
     attempt.assistance === "solution_revealed" ||
     (attempt.assistance !== "none" && !policy.assistedAdvances);
-  const tomorrow = dueAfter(now, 1, tz, examDate);
+  const tomorrow = dueAfter(now, 1, tz);
+  const tomorrowEffective = effectiveDueAt(tomorrow, now, tz, examDate, now);
 
   if (attempt.outcome === "incorrect") {
     // A first miss while still learning is not a lapse; a miss on something already recalled is.
@@ -127,7 +155,7 @@ export function applyAttempt(
         nextDueAt: tomorrow,
         lapses: state.lapses + (lapsed ? 1 : 0),
       },
-      reason: tomorrow
+      reason: tomorrowEffective
         ? "You missed this, so it comes back tomorrow."
         : "You missed this, and there is no review day left before your exam.",
     };
@@ -152,26 +180,32 @@ export function applyAttempt(
 
   // The first independent success starts the schedule.
   if (!state.lastIndependentSuccessAt) {
-    const due = dueAfter(now, intervals[0]!, tz, examDate);
+    const normal = dueAfter(now, intervals[0]!, tz);
+    const due = effectiveDueAt(normal, now, tz, examDate, now);
     return {
       changed: true,
       state: {
         ...state,
         state: "reviewing",
         stepIndex: 0,
-        nextDueAt: due,
+        nextDueAt: normal,
         lastIndependentSuccessAt: now,
         distinctSuccessDays,
       },
-      reason: due
-        ? `Recalled on your own. First check in ${intervals[0]} ${intervals[0] === 1 ? "day" : "days"}.`
-        : "Recalled on your own. No review day is left before your exam.",
+      reason: `Recalled on your own. ${
+        due && due.getTime() === normal.getTime()
+          ? `First check in ${checkIn(intervals[0]!)}.`
+          : nextCheckText(intervals[0]!, normal, due, tz)
+      }`,
     };
   }
 
   // A later success counts as delayed recall only when it is due and the student has not seen
   // this question (or its answer) earlier the same day.
-  const isDue = !state.nextDueAt || now >= state.nextDueAt;
+  const dueNow = state.nextDueAt
+    ? effectiveDueAt(state.nextDueAt, now, tz, examDate, attempt.scheduleSetAt ?? null)
+    : null;
+  const isDue = !state.nextDueAt || (dueNow !== null && now >= dueNow);
   const freshToday = !attempt.lastExposureAt || localDate(attempt.lastExposureAt, tz) < today;
   if (!isDue || !freshToday) {
     return {
@@ -184,27 +218,33 @@ export function applyAttempt(
   }
 
   const stepIndex = Math.min(state.stepIndex + 1, last);
-  const due = dueAfter(now, intervals[stepIndex]!, tz, examDate);
+  const normal = dueAfter(now, intervals[stepIndex]!, tz);
+  const due = effectiveDueAt(normal, now, tz, examDate, now);
   return {
     changed: true,
     state: {
       ...state,
       state: "reviewing",
       stepIndex,
-      nextDueAt: due,
+      nextDueAt: normal,
       lastIndependentSuccessAt: now,
       delayedSuccessCount: state.delayedSuccessCount + 1,
       distinctSuccessDays,
     },
-    reason: `Recalled on ${distinctSuccessDays} separate ${distinctSuccessDays === 1 ? "day" : "days"}. ${
-      due
-        ? `Next check in ${intervals[stepIndex]} ${intervals[stepIndex] === 1 ? "day" : "days"}.`
-        : "No review day is left before your exam."
-    }`,
+    reason: `Recalled on ${distinctSuccessDays} separate ${distinctSuccessDays === 1 ? "day" : "days"}. ${nextCheckText(
+      intervals[stepIndex]!,
+      normal,
+      due,
+      tz,
+    )}`,
   };
 }
 
-export type ReviewItem = ReviewSnapshot & { questionId: string };
+export type ReviewItem = ReviewSnapshot & {
+  questionId: string;
+  /** When `nextDueAt` was last set; lets a just-scheduled check be told from an older one. */
+  scheduledAt?: Date | null;
+};
 
 export type DueItem = {
   questionId: string;
@@ -233,14 +273,17 @@ export function dueItems(
   policy: SchedulerPolicy,
 ): DueResult {
   const today = localDate(now, tz);
-  if (examDate && today >= examDate) return { today: [], deferred: [] };
   const endOfToday = startOfLocalDay(addDays(today, 1), tz);
 
   const due = items
     .filter((i) => i.state !== "suspended" && i.state !== "new" && i.nextDueAt)
-    .filter((i) => i.nextDueAt! < endOfToday)
+    .map((i) => ({
+      ...i,
+      dueAt: effectiveDueAt(i.nextDueAt!, now, tz, examDate, i.scheduledAt ?? null),
+    }))
+    .filter((i): i is typeof i & { dueAt: Date } => i.dueAt !== null && i.dueAt < endOfToday)
     .map((i) => {
-      const daysOverdue = Math.max(0, daysBetween(localDate(i.nextDueAt!, tz), today));
+      const daysOverdue = Math.max(0, daysBetween(localDate(i.dueAt, tz), today));
       const relearning = i.state === "learning";
       const reason = relearning
         ? "You missed it or needed help last time."
@@ -253,12 +296,12 @@ export function dueItems(
       (a, b) =>
         Number(b.relearning) - Number(a.relearning) ||
         b.daysOverdue - a.daysOverdue ||
-        a.item.nextDueAt!.getTime() - b.item.nextDueAt!.getTime() ||
+        a.item.dueAt.getTime() - b.item.dueAt.getTime() ||
         (a.item.questionId < b.item.questionId ? -1 : 1),
     )
     .map((d): DueItem => ({
       questionId: d.item.questionId,
-      dueAt: d.item.nextDueAt!,
+      dueAt: d.item.dueAt,
       daysOverdue: d.daysOverdue,
       reason: d.reason,
     }));

@@ -15,7 +15,8 @@ import {
   studySessions,
   user,
 } from "@/server/db/schema";
-import { dueItems } from "@/server/scheduler/core";
+import { dueItems, effectiveDueAt, examIsUpcoming } from "@/server/scheduler/core";
+import { localDate } from "@/server/scheduler/dates";
 import { toSnapshot } from "@/server/scheduler/repository";
 import {
   estimateSecondsPerItem,
@@ -32,7 +33,39 @@ export type PlanningData = {
   policyVersion: string;
   /** Due today beyond the scheduler's daily cap: pushed to later days, not planned. */
   deferredDue: number;
+  /** Plain-language notes about the exam date, shown with today's reasons. */
+  examNotes: string[];
 };
+
+/** What the exam date means for reviews right now, in words the student can read. */
+export function examNotes(
+  examDate: string | null,
+  items: { nextDueAt: Date | null; state: string; scheduledAt: Date | null }[],
+  now: Date,
+  tz: string,
+): string[] {
+  if (!examDate) return [];
+  if (!examIsUpcoming(examDate, now, tz)) {
+    return [
+      `${
+        localDate(now, tz) === examDate ? "Your exam date is today." : "Your exam date has passed."
+      } Reviews are continuing on their normal schedule; update or clear the date in course settings.`,
+    ];
+  }
+  const noDay = items.filter(
+    (i) =>
+      (i.state === "learning" || i.state === "reviewing") &&
+      i.nextDueAt &&
+      effectiveDueAt(i.nextDueAt, now, tz, examDate, i.scheduledAt) === null,
+  ).length;
+  return noDay > 0
+    ? [
+        `${noDay} ${noDay === 1 ? "question has" : "questions have"} no review day left before your exam on ${examDate}. ${
+          noDay === 1 ? "It comes" : "They come"
+        } back on the normal schedule if the date moves or is cleared.`,
+      ]
+    : [];
+}
 
 /** First-pass answers per completed session, needed before the student's own pace is trusted. */
 const MIN_ANSWERS_FOR_PACE = 3;
@@ -109,7 +142,11 @@ export async function loadPlanningData(
         .where(and(eq(reviewStates.userId, userId), inArray(reviewStates.questionId, ids)))
     : [];
   const due = dueItems(
-    states.map((row) => ({ ...toSnapshot(row), questionId: row.questionId })),
+    states.map((row) => ({
+      ...toSnapshot(row),
+      questionId: row.questionId,
+      scheduledAt: row.updatedAt,
+    })),
     now,
     owner?.timezone ?? "UTC",
     course.examDate,
@@ -168,6 +205,16 @@ export async function loadPlanningData(
     params,
     policyVersion,
     deferredDue: due.deferred.length,
+    examNotes: examNotes(
+      course.examDate,
+      states.map((row) => ({
+        nextDueAt: row.nextDueAt,
+        state: row.state,
+        scheduledAt: row.updatedAt,
+      })),
+      now,
+      owner?.timezone ?? "UTC",
+    ),
   };
 }
 
